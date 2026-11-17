@@ -60,6 +60,15 @@
         ทำงานเป็นตัวช่วยรอบสองของทุกเส้นทาง (กล้อง / รูปภาพ / ภาพนิ่ง) ถ้าโหลด WASM ไม่ได้ (ออฟไลน์)
         ระบบยังใช้ ZXing JS ได้ตามปกติอัตโนมัติ
     27) สแกนจากรูปภาพ / ภาพนิ่ง: ลองทุกเวอร์ชันภาพกับ ZXing JS ก่อน ถ้าไม่ออกสลับไป WASM ทีละเวอร์ชัน
+
+    ===== รอบที่ 6: จดจำการลงทะเบียน - ลงทะเบียนครั้งเดียว ใช้รหัสเดิมได้ตลอด =====
+    28) หน้าล็อกอินแสดง "ผู้ใช้ที่ลงทะเบียนไว้แล้วในเครื่องนี้" เป็นปุ่มกดเร็ว
+        แตะชื่อ -> ช่องชื่อกรอกให้เอง -> ใส่ PIN เดิม -> เข้าใช้ได้ทันที ไม่ต้องลงทะเบียนซ้ำอีกเลย
+    29) ลงทะเบียนไว้ชื่อเดียว หรือเป็นชื่อที่เคยล็อกอินล่าสุด -> ระบบกรอกชื่อไว้ให้เอง เหลือแค่ใส่ PIN
+    30) เปิดหน้ามาใหม่ระบบจำการล็อกอินไว้ให้เอง (ใช้ได้ทันที ไม่ต้องกรอกอะไร)
+        จนกว่าจะกด "ออกจากระบบ" เอง - ชื่อ + รหัส PIN ที่ลงทะเบียนถูกจดจำไว้ในเครื่องนี้ตลอดไป
+    31) ปุ่ม ✕ หน้าชื่อ = ลบผู้ใช้ออกจากเครื่องนี้ (กด 2 ครั้งเพื่อยืนยัน กันกดพลาด)
+        ประวัติการสแกนเก่าของผู้ใช้นั้นยังอยู่ครบ ไม่หายไป
     -->
     <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
     <script>window.ZXing || document.write('<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"><\/script>');</script>
@@ -362,6 +371,52 @@
             margin: 12px 0 0 0;
             line-height: 1.5;
         }
+
+        /* ===== รอบที่ 6: รายชื่อผู้ใช้ที่ลงทะเบียนไว้ (ลงครั้งเดียว ใช้ตลอด) ===== */
+        .saved-users-wrap {
+            display: none;
+            margin-top: 14px;
+            padding-top: 12px;
+            border-top: 1px dashed #cbd5e1;
+        }
+        .saved-title {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #475569;
+            margin-bottom: 8px;
+            line-height: 1.5;
+        }
+        .saved-list { display: flex; flex-wrap: wrap; gap: 6px; }
+        .saved-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            background: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            border-radius: 999px;
+            padding: 8px 8px 8px 14px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #1e293b;
+            cursor: pointer;
+            user-select: none;
+            max-width: 100%;
+        }
+        .saved-chip:active { transform: scale(0.97); }
+        .saved-chip.confirming { background: #fee2e2; border-color: #ef4444; color: #991b1b; }
+        .chip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .chip-x {
+            flex: 0 0 auto;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #e2e8f0;
+            color: #64748b;
+            font-size: 11px;
+            line-height: 18px;
+            text-align: center;
+        }
+        .saved-chip.confirming .chip-x { background: #fecaca; color: #991b1b; }
         .modal-overlay {
             display: none;
             position: fixed;
@@ -455,6 +510,11 @@
                 <input type="password" id="loginPin" inputmode="numeric" placeholder="รหัส PIN (ตัวเลข 4-6 หลัก)">
             </div>
             <button type="button" id="btnLogin" class="btn-primary" style="width: 100%;">เข้าสู่ระบบ</button>
+            <!-- รอบที่ 6: คนที่ลงทะเบียนไว้แล้ว แตะชื่อ + ใส่ PIN เดิมเข้าได้เลย ไม่ต้องลงทะเบียนซ้ำ -->
+            <div id="savedUsersWrap" class="saved-users-wrap">
+                <div class="saved-title">👥 ลงทะเบียนไว้แล้วในเครื่องนี้ - แตะชื่อแล้วใส่ PIN เดิม (กด ✕ 2 ครั้งเพื่อลบชื่อ)</div>
+                <div id="savedUsersList" class="saved-list"></div>
+            </div>
         </div>
         <div id="registerForm" style="display: none;">
             <div class="form-group">
@@ -470,8 +530,10 @@
         </div>
         <div id="loginMsg" class="login-msg"></div>
         <p class="login-note">
-            ชื่อที่ล็อกอินจะถูกบันทึกเป็น "ผู้สแกน" ให้ทุกรายการที่สแกน
-            (ข้อมูลเก็บในเครื่องนี้เท่านั้น อย่าลืม PIN)
+            ลงทะเบียนครั้งเดียว ระบบจดจำชื่อ + รหัส PIN ไว้ในเครื่องนี้ตลอดไป
+            - เปิดหน้ามาใหม่เข้าใช้ได้เลย ไม่ต้องกรอกอะไร จนกว่าจะกดออกจากระบบเอง
+            - ครั้งถัดไปแค่แตะชื่อที่ลงทะเบียนไว้ ใส่ PIN เดิม ก็เข้าได้ทันที ไม่ต้องลงทะเบียนใหม่
+            (ชื่อที่ล็อกอินจะถูกบันทึกเป็น "ผู้สแกน" ให้ทุกรายการที่สแกน)
         </p>
     </div>
 </div>
@@ -685,6 +747,7 @@
     let lastUsedType = 'plate';  // ประเภทที่ใช้ล่าสุด (จำค่าไว้ให้กดเร็วขึ้น)
     let lastUsedQty = 1;         // จำนวนที่ใช้ล่าสุด (จำค่าไว้ให้กดเร็วขึ้น)
     let scanLog = [];            // ประวัติการสแกนทั้งหมด
+    let chipConfirmName = null;  // รอบที่ 6: ชื่อที่กด ✕ รอยืนยันการลบ (ต้องกดซ้ำถึงลบจริง)
 
     /* ===== รอบที่ 4: ZXing engine - QR + Data Matrix + บาร์โค้ดหลัก (เร็วขึ้นหลายเท่า) ===== */
     function getScanFormats() {
@@ -888,6 +951,29 @@
         safeBind('loginName', 'keydown', (e) => { if (e.key === 'Enter') doLogin(); });
         safeBind('loginPin', 'keydown', (e) => { if (e.key === 'Enter') doLogin(); });
         safeBind('regPin2', 'keydown', (e) => { if (e.key === 'Enter') doRegister(); });
+        // รอบที่ 6: แตะชื่อที่ลงทะเบียนไว้ = กรอกชื่อให้เลย | กด ✕ ซ้ำภายใน 2.6 วินาที = ลบผู้ใช้นั้น
+        safeBind('savedUsersList', 'click', (e) => {
+            const chip = e.target.closest ? e.target.closest('.saved-chip') : null;
+            if (!chip) return;
+            const name = chip.getAttribute('data-name') || '';
+            if (!name) return;
+            const isX = e.target.getAttribute && e.target.getAttribute('data-x') === '1';
+            if (isX) {
+                if (chipConfirmName === name) {
+                    forgetUser(name);
+                } else {
+                    chipConfirmName = name;
+                    chip.classList.add('confirming');
+                    const cn = chip.querySelector('.chip-name');
+                    if (cn) cn.textContent = 'กด ✕ อีกครั้ง = ลบ ' + name;
+                    setTimeout(() => {
+                        if (chipConfirmName === name) renderRegisteredUsers();
+                    }, 2600);
+                }
+                return;
+            }
+            pickSavedUser(name);
+        });
         safeBind('manualCodeInput', 'keydown', (e) => { if (e.key === 'Enter') manualAdd(); });
         safeBind('btnModalSave', 'click', confirmScanModal);
         safeBind('btnModalCancel', 'click', cancelScanModal);
@@ -922,6 +1008,7 @@
        รอบที่ 3: ระบบล็อกอิน เพื่อบันทึกว่า "ใครเป็นคนสแกน"
        - ผู้ใช้ + PIN เก็บใน localStorage (เก็บแต่ค่าแฮช ไม่เก็บ PIN เปล่า)
        - ล็อกอินครั้งเดียว ใช้ได้ต่อจนกด "ออกจากระบบ"
+       - รอบที่ 6: ลงทะเบียนครั้งเดียว จดจำไว้ตลอด ครั้งถัดไปแตะชื่อ + ใส่ PIN เดิมเข้าได้เลย
        ============================================================ */
     const USERS_KEY = 'stock_users';
     const SESSION_KEY = 'stock_session';
@@ -932,6 +1019,60 @@
 
     function saveUsers(users) {
         try { localStorage.setItem(USERS_KEY, JSON.stringify(users)); } catch (e) {}
+    }
+
+    /* ===== รอบที่ 6: จดจำการลงทะเบียน - ลงครั้งเดียว ใช้รหัสเดิมได้ตลอด =====
+       คนที่ลงทะเบียนแล้วแสดงเป็นปุ่มกดเร็วในหน้าล็อกอิน:
+       แตะชื่อ = กรอกชื่อให้เอง (เหลือแค่ใส่ PIN) | กด ✕ 2 ครั้ง = ลบผู้ใช้ออกจากเครื่องนี้ */
+    function escAttr(s) {
+        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function renderRegisteredUsers() {
+        const wrap = document.getElementById('savedUsersWrap');
+        const list = document.getElementById('savedUsersList');
+        if (!wrap || !list) return;
+        const users = loadUsers();
+        chipConfirmName = null;
+        if (!users.length) {
+            wrap.style.display = 'none';
+            list.innerHTML = '';
+            return;
+        }
+        wrap.style.display = 'block';
+        list.innerHTML = users.map(u =>
+            '<div class="saved-chip" data-name="' + escAttr(u.name) + '">' +
+            '<span class="chip-name">' + escapeHtml(u.name) + '</span>' +
+            '<span class="chip-x" data-x="1">✕</span>' +
+            '</div>'
+        ).join('');
+        // ลงทะเบียนไว้ชื่อเดียว -> กรอกชื่อให้เลย เหลือแค่ใส่ PIN
+        if (users.length === 1) {
+            const nameEl = document.getElementById('loginName');
+            if (nameEl && !nameEl.value.trim()) nameEl.value = users[0].name;
+        }
+    }
+
+    function pickSavedUser(name) {
+        showLoginTab('login');
+        const nameEl = document.getElementById('loginName');
+        const pinEl = document.getElementById('loginPin');
+        if (nameEl) nameEl.value = name;
+        setLoginMsg('', '');
+        if (pinEl) { try { pinEl.focus(); } catch (e) {} }
+    }
+
+    function forgetUser(name) {
+        const users = loadUsers().filter(u => u.name !== name);
+        saveUsers(users);
+        // ถ้าชื่อที่ลบเป็นเซสชันที่จำไว้ ลบเซสชันทิ้งด้วย กัน restore ชื่อที่ไม่มีแล้ว
+        try {
+            if (localStorage.getItem(SESSION_KEY) === name) localStorage.removeItem(SESSION_KEY);
+        } catch (e) {}
+        chipConfirmName = null;
+        renderRegisteredUsers();
+        setLoginMsg('ลบผู้ใช้ "' + name + '" ออกจากเครื่องนี้แล้ว (ประวัติการสแกนเดิมยังอยู่ครบ)', 'ok');
     }
 
     async function hashPin(pin) {
@@ -978,6 +1119,21 @@
         if (overlay) overlay.style.display = 'flex';
         if (app) app.style.display = 'none';
         showLoginTab('login');
+        // รอบที่ 6: เคลียร์ช่องกรอกทุกครั้งที่กลับมาหน้าล็อกอิน (กันชื่อ/รหัสเก่าค้าง)
+        // แล้วค่อยเติมชื่อที่จำไว้ให้ใหม่ - เหลือแค่ใส่ PIN
+        const nameEl = document.getElementById('loginName');
+        const pinEl = document.getElementById('loginPin');
+        if (nameEl) nameEl.value = '';
+        if (pinEl) pinEl.value = '';
+        renderRegisteredUsers();
+        // เติม "ชื่อล่าสุดที่ล็อกอิน" ถ้ายังลงทะเบียนอยู่
+        // (ถ้าไม่มี และลงทะเบียนไว้ชื่อเดียว renderRegisteredUsers จะเติมชื่อนั้นให้เอง)
+        try {
+            const last = localStorage.getItem('stock_last_user');
+            if (last && nameEl && loadUsers().some(u => u.name === last)) {
+                nameEl.value = last;
+            }
+        } catch (e) {}
         stopCamera();
     }
 
@@ -1015,7 +1171,10 @@
         const h = await hashPin(pin);
         if (h !== user.hash) { setLoginMsg('รหัส PIN ไม่ถูกต้อง ลองอีกครั้ง', 'err'); return; }
         currentUser = { name: user.name };
-        try { localStorage.setItem(SESSION_KEY, user.name); } catch (e) {}
+        try {
+            localStorage.setItem(SESSION_KEY, user.name);
+            localStorage.setItem('stock_last_user', user.name);
+        } catch (e) {}
         if (nameEl) nameEl.value = '';
         if (pinEl) pinEl.value = '';
         setLoginMsg('', '');
@@ -1042,7 +1201,10 @@
         users.push({ name: name, hash: hash });
         saveUsers(users);
         currentUser = { name: name };
-        try { localStorage.setItem(SESSION_KEY, name); } catch (e) {}
+        try {
+            localStorage.setItem(SESSION_KEY, name);
+            localStorage.setItem('stock_last_user', name);
+        } catch (e) {}
         if (nameEl) nameEl.value = '';
         if (pinEl) pinEl.value = '';
         if (pin2El) pin2El.value = '';
