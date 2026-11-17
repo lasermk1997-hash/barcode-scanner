@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>ระบบเช็คสต๊อกสินค้า (QR & Barcode Stock)</title>
-    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <!-- โหลดไลบรารีสแกนแบบเผื่อกรณีโหลดช้า -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" onerror="console.warn('Camera library load failed, fallback mode active.')"></script>
     <style>
         :root {
             --primary: #2563eb;
@@ -282,3 +283,430 @@
                     <th>รับเข้า</th>
                     <th>เบิกออก</th>
                     <th>วันที่ทำรายการ</th>
+                    <th>จัดการ</th>
+                </tr>
+            </thead>
+            <tbody id="dataTableBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    let html5QrCode = null;
+    let isScanning = false;
+    let isCooldown = false;
+    let currentFacingMode = "environment";
+    let torchOn = false;
+    let audioCtx = null;
+    let clearConfirmTimer = null;
+    let isConfirmingClear = false;
+    
+    let currentMode = 'IN';
+    let inventory = [];
+
+    try {
+        inventory = JSON.parse(localStorage.getItem('barcode_stock_inventory')) || [];
+    } catch (e) {
+        inventory = [];
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+        const warningBox = document.getElementById('envWarning');
+        const ua = navigator.userAgent || "";
+        
+        if (window.location.protocol === 'file:') {
+            warningBox.style.display = 'block';
+            warningBox.innerHTML = '⚠️ <b>เปิดจากไฟล์ในเครื่อง:</b> กรุณานำไฟล์ไปวางบนเว็บ แล้วเปิดผ่านลิงก์ <b>https://</b>';
+        } else if (/Line|FBAN|FBAV|Instagram/i.test(ua)) {
+            warningBox.style.display = 'block';
+            warningBox.innerHTML = '⚠️ <b>กำลังเปิดผ่านแอปแชท:</b> กรุณากดจุด 3 จุดมุมจอ แล้วเลือก <b>"เปิดในเบราว์เซอร์ (Chrome / Safari)"</b>';
+        }
+
+        // ผูก Event Listeners อย่างปลอดภัย
+        safeBind('btnToggleCam', 'click', toggleCamera);
+        safeBind('btnSwitchCam', 'click', switchCamera);
+        safeBind('btnTorch', 'click', toggleTorch);
+        safeBind('qrFileInput', 'change', scanFromFile);
+        safeBind('btnManualAdd', 'click', manualAdd);
+        safeBind('btnExport', 'click', exportToCSV);
+        safeBind('btnClear', 'click', handleClearButton);
+        safeBind('searchInput', 'input', renderTable);
+
+        renderTable();
+    });
+
+    function safeBind(id, event, fn) {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener(event, fn);
+    }
+
+    function setMode(mode) {
+        currentMode = mode;
+        const btnIn = document.getElementById('modeIn');
+        const btnOut = document.getElementById('modeOut');
+        if (btnIn && btnOut) {
+            if (mode === 'IN') {
+                btnIn.className = 'mode-btn active-in';
+                btnOut.className = 'mode-btn';
+            } else {
+                btnIn.className = 'mode-btn';
+                btnOut.className = 'mode-btn active-out';
+            }
+        }
+    }
+
+    function showStatus(msg, isError = false) {
+        const banner = document.getElementById('statusBanner');
+        if (!banner) return;
+        banner.textContent = msg;
+        banner.className = isError ? 'status-err' : 'status-ok';
+        setTimeout(() => { banner.style.display = 'none'; banner.className = ''; }, 3500);
+    }
+
+    function triggerFeedback() {
+        if (navigator.vibrate) navigator.vibrate(150);
+        try {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = "sine";
+            osc.frequency.setValueAtTime(1000, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.12);
+        } catch (e) {}
+    }
+
+    async function toggleCamera() {
+        if (isScanning) {
+            await stopCamera();
+        } else {
+            await startCamera();
+        }
+    }
+
+    async function startCamera() {
+        const btnToggle = document.getElementById('btnToggleCam');
+        const placeholder = document.getElementById('camPlaceholder');
+
+        if (typeof Html5Qrcode === 'undefined') {
+            showStatus('❌ โหลดไลบรารีกล้องไม่สำเร็จ กรุณารีเฟรชหน้าเว็บ', true);
+            return;
+        }
+
+        if (btnToggle) btnToggle.textContent = '⏳ กำลังเปิดกล้อง...';
+
+        try {
+            if (!html5QrCode) {
+                html5QrCode = new Html5Qrcode("reader");
+            }
+
+            await html5QrCode.start(
+                { facingMode: currentFacingMode },
+                {
+                    fps: 12,
+                    qrbox: (w, h) => {
+                        const size = Math.floor(Math.min(w, h) * 0.72);
+                        return { width: size, height: size };
+                    }
+                },
+                (decodedText) => {
+                    if (isCooldown) return;
+                    isCooldown = true;
+                    triggerFeedback();
+                    processStockUpdate(decodedText);
+                    setTimeout(() => { isCooldown = false; }, 2000);
+                },
+                () => {}
+            );
+
+            isScanning = true;
+            if (placeholder) placeholder.style.display = 'none';
+            if (btnToggle) {
+                btnToggle.textContent = '⏹️ ปิดกล้อง';
+                btnToggle.className = 'btn-danger full-width';
+            }
+            const swCam = document.getElementById('btnSwitchCam');
+            if (swCam) swCam.style.display = 'flex';
+            checkTorchSupport();
+
+        } catch (err) {
+            isScanning = false;
+            if (btnToggle) {
+                btnToggle.textContent = '📷 เปิดกล้องสแกน';
+                btnToggle.className = 'btn-primary full-width';
+            }
+            showStatus('❌ เปิดกล้องไม่สำเร็จ (กรุณาอนุญาตสิทธิ์กล้อง หรือใช้ HTTPS)', true);
+        }
+    }
+
+    async function stopCamera() {
+        if (html5QrCode && isScanning) {
+            try { await html5QrCode.stop(); } catch (e) {}
+            isScanning = false;
+            torchOn = false;
+            const placeholder = document.getElementById('camPlaceholder');
+            if (placeholder) placeholder.style.display = 'block';
+            const btnToggle = document.getElementById('btnToggleCam');
+            if (btnToggle) {
+                btnToggle.textContent = '📷 เปิดกล้องสแกน';
+                btnToggle.className = 'btn-primary full-width';
+            }
+            const swCam = document.getElementById('btnSwitchCam');
+            if (swCam) swCam.style.display = 'none';
+            const torch = document.getElementById('btnTorch');
+            if (torch) torch.style.display = 'none';
+        }
+    }
+
+    async function switchCamera() {
+        if (!isScanning) return;
+        await stopCamera();
+        currentFacingMode = (currentFacingMode === "environment") ? "user" : "environment";
+        await startCamera();
+    }
+
+    function checkTorchSupport() {
+        try {
+            const caps = html5QrCode.getRunningTrackCameraCapabilities();
+            if (caps && caps.torchFeature().isSupported()) {
+                const torch = document.getElementById('btnTorch');
+                if (torch) torch.style.display = 'flex';
+            }
+        } catch (e) {}
+    }
+
+    async function toggleTorch() {
+        try {
+            const torch = html5QrCode.getRunningTrackCameraCapabilities().torchFeature();
+            torchOn = !torchOn;
+            await torch.apply(torchOn);
+            const btnTorch = document.getElementById('btnTorch');
+            if (btnTorch) btnTorch.textContent = torchOn ? '🔦 ปิดไฟฉาย' : '🔦 ไฟฉาย';
+        } catch (e) {
+            showStatus('มือถือไม่รองรับเปิดไฟฉาย', true);
+        }
+    }
+
+    async function scanFromFile(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        if (typeof Html5Qrcode === 'undefined') {
+            showStatus('❌ ระบบสแกนรูปภาพยังไม่พร้อมใช้งาน', true);
+            return;
+        }
+
+        if (isScanning) await stopCamera();
+        if (!html5QrCode) html5QrCode = new Html5Qrcode("reader");
+
+        showStatus('⏳ กำลังอ่านรหัสจากรูป...');
+        try {
+            const decodedText = await html5QrCode.scanFile(file, true);
+            triggerFeedback();
+            processStockUpdate(decodedText);
+        } catch (err) {
+            showStatus('❌ ไม่พบรหัสในรูปภาพนี้', true);
+        }
+        event.target.value = '';
+    }
+
+    function saveToStorage() {
+        try {
+            localStorage.setItem('barcode_stock_inventory', JSON.stringify(inventory));
+        } catch (e) {}
+    }
+
+    function processStockUpdate(code, customQty = null, customName = null) {
+        if (!code || !code.trim()) return;
+        code = code.trim();
+
+        const qtyInput = document.getElementById('qtyInput');
+        const qty = customQty !== null ? parseInt(customQty) : (qtyInput ? (parseInt(qtyInput.value) || 1) : 1);
+        const nameInput = document.getElementById('itemNameInput');
+        const inputName = customName !== null ? customName : (nameInput ? nameInput.value.trim() : '');
+
+        let item = inventory.find(i => i.code === code);
+        const nowStr = new Date().toLocaleString('th-TH');
+
+        if (item) {
+            if (currentMode === 'IN') {
+                item.inTotal += qty;
+                item.stock += qty;
+                showStatus(`📥 รับเข้า [+${qty}] "${item.name}" สำเร็จ (เหลือ: ${item.stock})`);
+            } else {
+                item.outTotal += qty;
+                item.stock -= qty;
+                if (item.stock < 0) item.stock = 0;
+                showStatus(`📤 เบิกออก [-${qty}] "${item.name}" สำเร็จ (เหลือ: ${item.stock})`, item.stock === 0);
+            }
+            if (inputName && inputName !== '-') {
+                item.name = inputName;
+            }
+            item.lastUpdate = nowStr;
+        } else {
+            const initialStock = currentMode === 'IN' ? qty : 0;
+            const initialIn = currentMode === 'IN' ? qty : 0;
+            const initialOut = currentMode === 'OUT' ? qty : 0;
+
+            inventory.unshift({
+                id: Date.now(),
+                code: code,
+                name: inputName || 'สินค้าทั่วไป',
+                stock: initialStock,
+                inTotal: initialIn,
+                outTotal: initialOut,
+                lastUpdate: nowStr
+            });
+            showStatus(`✨ เพิ่มสินค้าใหม่ในสต๊อกสำเร็จ`);
+        }
+
+        saveToStorage();
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput) searchInput.value = '';
+        renderTable();
+        if (qtyInput) qtyInput.value = '1';
+        if (nameInput) nameInput.value = '';
+    }
+
+    function manualAdd() {
+        const manualInput = document.getElementById('manualCodeInput');
+        if (!manualInput) return;
+        const code = manualInput.value.trim();
+        if (code) {
+            triggerFeedback();
+            processStockUpdate(code);
+            manualInput.value = '';
+        } else {
+            showStatus('⚠️ กรุณากรอกรหัสสินค้าก่อน', true);
+        }
+    }
+
+    function quickAdjust(id, mode) {
+        let item = inventory.find(i => i.id === id);
+        if (!item) return;
+
+        if (mode === 'IN') {
+            item.inTotal += 1;
+            item.stock += 1;
+        } else {
+            item.outTotal += 1;
+            item.stock -= 1;
+            if (item.stock < 0) item.stock = 0;
+        }
+        item.lastUpdate = new Date().toLocaleString('th-TH');
+        saveToStorage();
+        renderTable();
+    }
+
+    function deleteItem(id) {
+        inventory = inventory.filter(item => item.id !== id);
+        saveToStorage();
+        renderTable();
+    }
+
+    function handleClearButton() {
+        if (inventory.length === 0) {
+            showStatus('สต๊อกว่างเปล่าอยู่แล้ว', true);
+            return;
+        }
+        const btn = document.getElementById('btnClear');
+        if (!isConfirmingClear) {
+            isConfirmingClear = true;
+            if (btn) {
+                btn.textContent = '⚠️ กดซ้ำเพื่อยืนยันลบสต๊อก';
+                btn.style.background = '#991b1b';
+            }
+            clearConfirmTimer = setTimeout(() => {
+                isConfirmingClear = false;
+                if (btn) {
+                    btn.textContent = '🗑️ ล้างสต๊อก';
+                    btn.style.background = '';
+                }
+            }, 3000);
+        } else {
+            clearTimeout(clearConfirmTimer);
+            isConfirmingClear = false;
+            if (btn) {
+                btn.textContent = '🗑️ ล้างสต๊อก';
+                btn.style.background = '';
+            }
+            inventory = [];
+            saveToStorage();
+            renderTable();
+            showStatus('🗑️ ล้างข้อมูลสต๊อกทั้งหมดเรียบร้อย');
+        }
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function renderTable() {
+        const tbody = document.getElementById('dataTableBody');
+        const searchInput = document.getElementById('searchInput');
+        const totalCount = document.getElementById('totalCount');
+        if (!tbody) return;
+
+        const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
+
+        const filtered = inventory.filter(item => 
+            item.code.toLowerCase().includes(searchTerm) || 
+            item.name.toLowerCase().includes(searchTerm)
+        );
+
+        if (totalCount) totalCount.textContent = filtered.length;
+
+        if (filtered.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" class="empty-state">ไม่พบสินค้าในสต๊อก</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = filtered.map(item => `
+            <tr>
+                <td><span class="badge">${escapeHtml(item.code)}</span></td>
+                <td>${escapeHtml(item.name)}</td>
+                <td class="stock-num">${item.stock}</td>
+                <td class="stock-in">+${item.inTotal}</td>
+                <td class="stock-out">-${item.outTotal}</td>
+                <td class="date-col">${item.lastUpdate || '-'}</td>
+                <td>
+                    <div style="display:flex; gap:4px;">
+                        <button type="button" class="btn-success btn-sm" onclick="quickAdjust(${item.id}, 'IN')" title="เพิ่ม +1">+1</button>
+                        <button type="button" class="btn-warning btn-sm" onclick="quickAdjust(${item.id}, 'OUT')" title="ลด -1" style="color:#fff;">-1</button>
+                        <button type="button" class="btn-danger btn-sm" onclick="deleteItem(${item.id})" title="ลบ">✕</button>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function exportToCSV() {
+        if (inventory.length === 0) {
+            showStatus('⚠️ ไม่มีข้อมูลสต๊อกสำหรับส่งออก', true);
+            return;
+        }
+
+        let csvContent = "\uFEFFรหัสสินค้า,ชื่อสินค้า/หมายเหตุ,จำนวนคงเหลือ,รับเข้าทั้งหมด,เบิกออกทั้งหมด,วันที่ทำรายการล่าสุด\n";
+        inventory.forEach(row => {
+            csvContent += `"${row.code}","${row.name.replace(/"/g, '""')}",${row.stock},${row.inTotal},${row.outTotal},"${row.lastUpdate || '-'}"\n`;
+        });
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `stock_report_${new Date().toISOString().slice(0,10)}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+</script>
+
+</body>
+</html>
