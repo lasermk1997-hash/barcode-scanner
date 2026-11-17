@@ -20,6 +20,13 @@
        -> fixEncoding ถอดซ้ำจากไบต์ดิบด้วย TIS-620 อัตโนมัติเมื่อเจอตัวอักษรเสีย
     7) เพิ่มโหมดสแกน: ทุกรูปแบบ / เฉพาะ Data Matrix (จำค่าไว้) กันอ่านหลงไปโค้ดอื่น
     8) เพิ่มกล่อง "อ่านได้ล่าสุด" + ไบต์ดิบ ไว้เทียบข้อความกับฉลากจริง
+
+    ===== รอบที่ 3: ระบบผู้ใช้ + ข้อมูลหลังสแกน =====
+    9)  เพิ่มระบบล็อกอิน (ชื่อ + PIN เก็บเป็นค่าแฮชใน localStorage)
+        -> ทุกรายการจะบันทึกเสมอว่า "ใครเป็นคนสแกน"
+    10) เปลี่ยนป้ายฟิลด์: "รหัสสินค้า" -> "Model" และ "ชื่อสินค้า" -> เลือกประเภท PLATE / CHANEL
+    11) หลังสแกนสำเร็จ ขึ้นหน้าต่างให้ "กรอกจำนวนกี่ชิ้น" + เลือก "plate หรือ chanel" ก่อนบันทึกเสมอ
+    12) เพิ่มประวัติการสแกน (ใคร/อะไร/กี่ชิ้น/เข้า-ออก/เมื่อไหร่) + ปุ่มโหลด CSV
     -->
     <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
     <script>window.ZXing || document.write('<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"><\/script>');</script>
@@ -165,7 +172,7 @@
             display: flex;
             gap: 8px;
         }
-        input[type="text"], input[type="number"] {
+        input[type="text"], input[type="number"], input[type="password"] {
             width: 100%;
             padding: 12px 14px;
             border: 1px solid #cbd5e1;
@@ -248,12 +255,175 @@
         .stock-out { color: var(--danger); }
         .date-col { font-size: 0.75rem; color: #64748b; }
         .empty-state { text-align: center; padding: 25px; color: #64748b; }
+
+        /* ===== รอบที่ 3: แถบผู้ใช้ / หน้าล็อกอิน / หน้าต่างบันทึกหลังสแกน ===== */
+        .user-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 10px;
+            padding: 8px 12px;
+            margin-bottom: 12px;
+            font-size: 0.9rem;
+        }
+        #loginOverlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: linear-gradient(135deg, #1e293b 0%, #2563eb 100%);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+        .login-card {
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 22px;
+            width: 100%;
+            max-width: 380px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+        }
+        .login-card h2 {
+            margin: 0 0 14px 0;
+            font-size: 1.1rem;
+            color: var(--primary);
+            text-align: center;
+        }
+        .login-tabs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+        .tab-btn {
+            padding: 10px;
+            text-align: center;
+            border-radius: 10px;
+            background: #f1f5f9;
+            color: #64748b;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            user-select: none;
+        }
+        .tab-btn.active { background: var(--primary); color: #ffffff; }
+        .login-msg {
+            display: none;
+            margin-top: 10px;
+            padding: 9px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            text-align: center;
+        }
+        .login-msg.err { display: block; background: #fee2e2; color: #991b1b; }
+        .login-msg.ok { display: block; background: #dcfce7; color: #166534; }
+        .login-note {
+            font-size: 0.72rem;
+            color: #64748b;
+            text-align: center;
+            margin: 12px 0 0 0;
+            line-height: 1.5;
+        }
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.55);
+            z-index: 1500;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+        .modal-overlay.open { display: flex; }
+        .modal-card {
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 20px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+        }
+        .modal-title {
+            margin: 0 0 12px 0;
+            font-size: 1.05rem;
+            text-align: center;
+        }
+        .modal-model { text-align: center; margin-bottom: 6px; font-size: 1.05rem; }
+        .fmt-tag { color: #64748b; font-size: 0.8rem; }
+        .modal-label {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: #334155;
+            margin: 12px 0 6px 0;
+        }
+        .info-line {
+            font-size: 0.9rem;
+            color: #334155;
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 8px 10px;
+            margin-top: 8px;
+        }
+        .modal-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 14px;
+        }
+        .type-plate.active { border-color: var(--primary); background: #dbeafe; color: #1e40af; }
+        .type-chanel.active { border-color: #0d9488; background: #ccfbf1; color: #0f766e; }
+        #modalQty { font-size: 20px; text-align: center; font-weight: 700; }
     </style>
 </head>
 <body>
 
+<!-- หน้าล็อกอิน: ต้องเข้าสู่ระบบก่อนใช้งาน เพื่อบันทึกว่า "ใครเป็นคนสแกน" -->
+<div id="loginOverlay">
+    <div class="login-card">
+        <h2>🔐 เข้าสู่ระบบเช็คสต๊อก</h2>
+        <div class="login-tabs">
+            <div id="tabLogin" class="tab-btn active" onclick="showLoginTab('login')">เข้าสู่ระบบ</div>
+            <div id="tabRegister" class="tab-btn" onclick="showLoginTab('register')">ลงทะเบียนใหม่</div>
+        </div>
+        <div id="loginForm">
+            <div class="form-group">
+                <input type="text" id="loginName" placeholder="ชื่อผู้ใช้ (เช่น ชื่อพนักงาน)" autocomplete="off">
+            </div>
+            <div class="form-group">
+                <input type="password" id="loginPin" inputmode="numeric" placeholder="รหัส PIN (ตัวเลข 4-6 หลัก)">
+            </div>
+            <button type="button" id="btnLogin" class="btn-primary" style="width: 100%;">เข้าสู่ระบบ</button>
+        </div>
+        <div id="registerForm" style="display: none;">
+            <div class="form-group">
+                <input type="text" id="regName" placeholder="ตั้งชื่อผู้ใช้ (เช่น ชื่อพนักงาน)" autocomplete="off">
+            </div>
+            <div class="form-group">
+                <input type="password" id="regPin" inputmode="numeric" placeholder="ตั้งรหัส PIN (ตัวเลข 4-6 หลัก)">
+            </div>
+            <div class="form-group">
+                <input type="password" id="regPin2" inputmode="numeric" placeholder="ยืนยันรหัส PIN อีกครั้ง">
+            </div>
+            <button type="button" id="btnRegister" class="btn-success" style="width: 100%;">ลงทะเบียนผู้ใช้ใหม่</button>
+        </div>
+        <div id="loginMsg" class="login-msg"></div>
+        <p class="login-note">
+            ชื่อที่ล็อกอินจะถูกบันทึกเป็น "ผู้สแกน" ให้ทุกรายการที่สแกน
+            (ข้อมูลเก็บในเครื่องนี้เท่านั้น อย่าลืม PIN)
+        </p>
+    </div>
+</div>
+
 <div class="container">
     <h1>📦 ระบบเช็คสต๊อกสินค้า (รองรับ Data Matrix)</h1>
+
+    <div class="user-bar">
+        <span>👤 ผู้สแกน: <b id="userChip">-</b></span>
+        <button type="button" id="btnLogout" class="btn-secondary btn-sm">ออกจากระบบ</button>
+    </div>
 
     <div id="envWarning" class="alert-box"></div>
     <div id="statusBanner"></div>
@@ -272,6 +442,7 @@
         เคล็ดลับ: ถ้าโค้ดไม่ติด ให้ถ่ายให้โค้ดใหญ่เต็มกรอบ กล้องห่างโค้ดประมาณ 5-10 ซม.
         ถือมือให้นิ่ง และลองเปิดแฟลชช่วย (ปุ่มแฟลชจะขึ้นเฉพาะเมื่ออุปกรณ์รองรับ)
         - Data Matrix ควรเหลือขอบขาวรอบโค้ดเล็กน้อย อย่าถ่ายตัดขอบชิดโค้ด
+        - หลังสแกนติด จะมีหน้าต่างให้ "กรอกจำนวนชิ้น" และเลือก "plate หรือ chanel" ก่อนบันทึกเสมอ
         - กล่อง "อ่านได้ล่าสุด" ใช้เทียบข้อความกับฉลากจริงได้เลย
     </p>
 
@@ -301,16 +472,11 @@
         <div id="modeOut" class="mode-btn" onclick="setMode('OUT')">📤 เบิกออกสินค้า (-)</div>
     </div>
 
-    <!-- ช่องกรอกข้อมูล -->
-    <div class="form-group">
-        <input type="text" id="itemNameInput" placeholder="📝 ชื่อสินค้า / หมายเหตุ (เช่น อะไหล่เครื่องจักร)">
-    </div>
-
+    <!-- ช่องพิมพ์ Model เอง: กดถัดไปแล้วจะเด้งไปกรอกจำนวน + เลือก plate/chanel ก่อนบันทึก -->
     <div class="form-group">
         <div class="input-row">
-            <input type="number" id="qtyInput" value="1" min="1" placeholder="จำนวน" style="max-width: 110px;">
-            <input type="text" id="manualCodeInput" placeholder="พิมพ์หรือสแกนรหัสสินค้า...">
-            <button type="button" id="btnManualAdd" class="btn-primary" style="white-space: nowrap;">บันทึก</button>
+            <input type="text" id="manualCodeInput" placeholder="พิมพ์หรือสแกน Model (เช่น MODEL-0001)..." style="flex: 1;">
+            <button type="button" id="btnManualAdd" class="btn-primary" style="white-space: nowrap;">ถัดไป ➜</button>
         </div>
     </div>
 
@@ -318,7 +484,7 @@
 
     <!-- ช่องค้นหาสต๊อก -->
     <div class="form-group">
-        <input type="text" id="searchInput" placeholder="🔍 ค้นหารหัส หรือ ชื่อสินค้าในสต๊อก...">
+        <input type="text" id="searchInput" placeholder="🔍 ค้นหา Model หรือ ประเภท (plate/chanel)...">
     </div>
 
     <!-- จัดการข้อมูล -->
@@ -335,17 +501,67 @@
         <table>
             <thead>
                 <tr>
-                    <th>รหัสสินค้า</th>
-                    <th>ชื่อสินค้า / หมายเหตุ</th>
+                    <th>Model</th>
+                    <th>ประเภท</th>
                     <th>คงเหลือ</th>
                     <th>รับเข้า</th>
                     <th>เบิกออก</th>
+                    <th>ผู้สแกน</th>
                     <th>วันที่ทำรายการ</th>
                     <th>จัดการ</th>
                 </tr>
             </thead>
             <tbody id="dataTableBody"></tbody>
         </table>
+    </div>
+
+    <!-- ประวัติการสแกน: ใคร สแกนอะไร กี่ชิ้น เข้าหรือออก -->
+    <div class="action-bar" style="margin-top: 18px;">
+        <div style="font-size: 0.9rem; font-weight: 700;">📜 ประวัติการสแกน (ล่าสุด 20 รายการ)</div>
+        <div class="export-group">
+            <button type="button" id="btnExportLog" class="btn-success btn-sm">📥 โหลดประวัติ (CSV)</button>
+            <button type="button" id="btnClearLog" class="btn-danger btn-sm">🗑️ ล้างประวัติ</button>
+        </div>
+    </div>
+    <div class="table-wrapper" style="max-height: 260px;">
+        <table>
+            <thead>
+                <tr>
+                    <th>เวลา</th>
+                    <th>ผู้สแกน</th>
+                    <th>Model</th>
+                    <th>ประเภท</th>
+                    <th>จำนวน</th>
+                    <th>โหมด</th>
+                    <th>รูปแบบโค้ด</th>
+                </tr>
+            </thead>
+            <tbody id="logTableBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<!-- หน้าต่างหลังสแกน: กรอกจำนวนชิ้น + เลือก plate หรือ chanel + แสดงผู้สแกน -->
+<div id="scanModal" class="modal-overlay">
+    <div class="modal-card">
+        <h2 class="modal-title">📋 บันทึกผลการสแกน</h2>
+        <div class="modal-model"><span class="badge" id="modalCode">-</span> <span id="modalFmt" class="fmt-tag"></span></div>
+        <div class="modal-label">จำนวน (สแกนได้กี่ชิ้น)</div>
+        <div class="form-group">
+            <input type="number" id="modalQty" min="1" max="9999" value="1">
+        </div>
+        <div class="modal-label">เป็น plate หรือ chanel (เลือกหนึ่งอย่าง)</div>
+        <div class="mode-selector">
+            <div id="typePlate" class="mode-btn type-plate" onclick="setModalType('plate')">PLATE</div>
+            <div id="typeChanel" class="mode-btn type-chanel" onclick="setModalType('chanel')">CHANEL</div>
+        </div>
+        <div class="info-line">👤 ผู้สแกน: <b id="modalUser">-</b></div>
+        <div class="info-line">โหมด: <b id="modalMode">-</b></div>
+        <div id="modalMsg" class="login-msg"></div>
+        <div class="modal-actions">
+            <button type="button" id="btnModalSave" class="btn-success">✅ บันทึก</button>
+            <button type="button" id="btnModalCancel" class="btn-secondary">✖ ยกเลิก</button>
+        </div>
     </div>
 </div>
 
@@ -361,6 +577,14 @@
     let currentMode = 'IN';
     let scanFormatMode = 'ALL';
     let inventory = [];
+
+    // ===== รอบที่ 3: ผู้ใช้ / หน้าต่างหลังสแกน / ประวัติการสแกน =====
+    let currentUser = null;      // { name } ของคนที่ล็อกอินอยู่
+    let modalCtx = null;         // { code, fmt } โค้ดที่รอกรอกจำนวน/ประเภทอยู่
+    let modalType = 'plate';     // ประเภทที่เลือกในหน้าต่างหลังสแกน
+    let lastUsedType = 'plate';  // ประเภทที่ใช้ล่าสุด (จำค่าไว้ให้กดเร็วขึ้น)
+    let lastUsedQty = 1;         // จำนวนที่ใช้ล่าสุด (จำค่าไว้ให้กดเร็วขึ้น)
+    let scanLog = [];            // ประวัติการสแกนทั้งหมด
 
     /* ===== ZXing setup: รองรับ QR + Data Matrix + Barcode 1D ===== */
     function getScanFormats() {
@@ -482,7 +706,8 @@
         const code = normalizeCodeText(fixEncoding(result));
         if (!code) return false;
         showLastRead(code, fmtName, rawBytes);
-        processStockUpdate(code, null, null, fmtName);
+        // รอบที่ 3: ไม่บันทึกทันที ให้เด้งหน้าต่างกรอกจำนวน + เลือก plate/chanel ก่อน
+        openScanModal(code, fmtName);
         return true;
     }
 
@@ -490,6 +715,11 @@
         inventory = JSON.parse(localStorage.getItem('barcode_stock_inventory')) || [];
     } catch (e) {
         inventory = [];
+    }
+    try {
+        scanLog = JSON.parse(localStorage.getItem('stock_scan_log')) || [];
+    } catch (e) {
+        scanLog = [];
     }
 
     window.addEventListener('DOMContentLoaded', () => {
@@ -532,12 +762,331 @@
         safeBind('btnClear', 'click', handleClearButton);
         safeBind('searchInput', 'input', renderTable);
 
+        // ===== รอบที่ 3: ล็อกอิน / หน้าต่างหลังสแกน / ประวัติ =====
+        safeBind('btnLogin', 'click', doLogin);
+        safeBind('btnRegister', 'click', doRegister);
+        safeBind('btnLogout', 'click', doLogout);
+        safeBind('tabLogin', 'click', () => showLoginTab('login'));
+        safeBind('tabRegister', 'click', () => showLoginTab('register'));
+        safeBind('loginName', 'keydown', (e) => { if (e.key === 'Enter') doLogin(); });
+        safeBind('loginPin', 'keydown', (e) => { if (e.key === 'Enter') doLogin(); });
+        safeBind('regPin2', 'keydown', (e) => { if (e.key === 'Enter') doRegister(); });
+        safeBind('manualCodeInput', 'keydown', (e) => { if (e.key === 'Enter') manualAdd(); });
+        safeBind('btnModalSave', 'click', confirmScanModal);
+        safeBind('btnModalCancel', 'click', cancelScanModal);
+        safeBind('modalQty', 'keydown', (e) => { if (e.key === 'Enter') confirmScanModal(); });
+        safeBind('btnExportLog', 'click', exportLogCSV);
+        safeBind('btnClearLog', 'click', handleClearLogButton);
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && modalCtx) cancelScanModal();
+        });
+
+        // จำค่าที่ใช้ล่าสุด (จำนวน/ประเภท) เพื่อกดข้ามได้เร็วขึ้น
+        try { lastUsedType = localStorage.getItem('stock_last_type') === 'chanel' ? 'chanel' : 'plate'; } catch (e) {}
+        try { lastUsedQty = Math.max(1, parseInt(localStorage.getItem('stock_last_qty'), 10) || 1); } catch (e) {}
+
+        // ตรวจว่าล็อกอินค้างไว้หรือไม่ ถ้าไม่ ให้ขึ้นหน้าล็อกอินก่อน
+        restoreSession();
         renderTable();
+        renderLog();
     });
 
     function safeBind(id, event, fn) {
         const el = document.getElementById(id);
         if (el) el.addEventListener(event, fn);
+    }
+
+    /* ============================================================
+       รอบที่ 3: ระบบล็อกอิน เพื่อบันทึกว่า "ใครเป็นคนสแกน"
+       - ผู้ใช้ + PIN เก็บใน localStorage (เก็บแต่ค่าแฮช ไม่เก็บ PIN เปล่า)
+       - ล็อกอินครั้งเดียว ใช้ได้ต่อจนกด "ออกจากระบบ"
+       ============================================================ */
+    const USERS_KEY = 'stock_users';
+    const SESSION_KEY = 'stock_session';
+
+    function loadUsers() {
+        try { return JSON.parse(localStorage.getItem(USERS_KEY)) || []; } catch (e) { return []; }
+    }
+
+    function saveUsers(users) {
+        try { localStorage.setItem(USERS_KEY, JSON.stringify(users)); } catch (e) {}
+    }
+
+    async function hashPin(pin) {
+        const salted = 'stockpin:' + String(pin);
+        try {
+            if (window.crypto && crypto.subtle && typeof crypto.subtle.digest === 'function') {
+                const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(salted));
+                return 's2:' + Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+            }
+        } catch (e) {}
+        // สำรอง: เบราว์เซอร์เก่าที่ไม่มี crypto.subtle
+        let h1 = 0x811c9dc5;
+        let h2 = 0x1b873593;
+        for (let i = 0; i < salted.length; i++) {
+            h1 = ((h1 ^ salted.charCodeAt(i)) * 16777619) >>> 0;
+            h2 = ((h2 + salted.charCodeAt(i) * (i + 7)) * 2654435761) >>> 0;
+        }
+        return 'fb:' + h1.toString(16) + ':' + h2.toString(16);
+    }
+
+    function setLoginMsg(text, cls) {
+        const box = document.getElementById('loginMsg');
+        if (!box) return;
+        box.textContent = text;
+        box.className = 'login-msg ' + (cls || '');
+    }
+
+    function showLoginTab(which) {
+        const tabL = document.getElementById('tabLogin');
+        const tabR = document.getElementById('tabRegister');
+        const formL = document.getElementById('loginForm');
+        const formR = document.getElementById('registerForm');
+        const reg = which === 'register';
+        if (tabL) tabL.className = 'tab-btn' + (reg ? '' : ' active');
+        if (tabR) tabR.className = 'tab-btn' + (reg ? ' active' : '');
+        if (formL) formL.style.display = reg ? 'none' : 'block';
+        if (formR) formR.style.display = reg ? 'block' : 'none';
+        setLoginMsg('', '');
+    }
+
+    function showLoginView() {
+        const overlay = document.getElementById('loginOverlay');
+        const app = document.querySelector('.container');
+        if (overlay) overlay.style.display = 'flex';
+        if (app) app.style.display = 'none';
+        showLoginTab('login');
+        stopCamera();
+    }
+
+    function showAppView() {
+        const overlay = document.getElementById('loginOverlay');
+        const app = document.querySelector('.container');
+        if (overlay) overlay.style.display = 'none';
+        if (app) app.style.display = 'block';
+        const chip = document.getElementById('userChip');
+        if (chip) chip.textContent = currentUser ? currentUser.name : '-';
+        renderTable();
+        renderLog();
+    }
+
+    function restoreSession() {
+        let name = null;
+        try { name = localStorage.getItem(SESSION_KEY); } catch (e) {}
+        if (name && loadUsers().some(u => u.name === name)) {
+            currentUser = { name: name };
+            showAppView();
+        } else {
+            currentUser = null;
+            showLoginView();
+        }
+    }
+
+    async function doLogin() {
+        const nameEl = document.getElementById('loginName');
+        const pinEl = document.getElementById('loginPin');
+        const name = nameEl ? nameEl.value.trim() : '';
+        const pin = pinEl ? pinEl.value : '';
+        if (!name || !pin) { setLoginMsg('กรุณากรอกชื่อผู้ใช้และรหัส PIN', 'err'); return; }
+        const user = loadUsers().find(u => u.name.toLowerCase() === name.toLowerCase());
+        if (!user) { setLoginMsg('ไม่พบชื่อผู้ใช้นี้ ลองไปแท็บ "ลงทะเบียนใหม่"', 'err'); return; }
+        const h = await hashPin(pin);
+        if (h !== user.hash) { setLoginMsg('รหัส PIN ไม่ถูกต้อง ลองอีกครั้ง', 'err'); return; }
+        currentUser = { name: user.name };
+        try { localStorage.setItem(SESSION_KEY, user.name); } catch (e) {}
+        if (nameEl) nameEl.value = '';
+        if (pinEl) pinEl.value = '';
+        setLoginMsg('', '');
+        showAppView();
+        showStatus('👋 ยินดีต้อนรับ ' + user.name);
+    }
+
+    async function doRegister() {
+        const nameEl = document.getElementById('regName');
+        const pinEl = document.getElementById('regPin');
+        const pin2El = document.getElementById('regPin2');
+        const name = nameEl ? nameEl.value.trim() : '';
+        const pin = pinEl ? pinEl.value : '';
+        const pin2 = pin2El ? pin2El.value : '';
+        if (name.length < 2) { setLoginMsg('ชื่อผู้ใช้ต้องมีอย่างน้อย 2 ตัวอักษร', 'err'); return; }
+        if (!/^\d{4,6}$/.test(pin)) { setLoginMsg('PIN ต้องเป็นตัวเลข 4-6 หลัก', 'err'); return; }
+        if (pin !== pin2) { setLoginMsg('PIN สองช่องไม่ตรงกัน', 'err'); return; }
+        const users = loadUsers();
+        if (users.some(u => u.name.toLowerCase() === name.toLowerCase())) {
+            setLoginMsg('มีชื่อนี้ในระบบแล้ว ให้ไปที่แท็บ "เข้าสู่ระบบ"', 'err');
+            return;
+        }
+        const hash = await hashPin(pin);
+        users.push({ name: name, hash: hash });
+        saveUsers(users);
+        currentUser = { name: name };
+        try { localStorage.setItem(SESSION_KEY, name); } catch (e) {}
+        if (nameEl) nameEl.value = '';
+        if (pinEl) pinEl.value = '';
+        if (pin2El) pin2El.value = '';
+        showAppView();
+        showStatus('✅ ลงทะเบียนผู้ใช้ใหม่สำเร็จ: ' + name);
+    }
+
+    function doLogout() {
+        stopCamera();
+        currentUser = null;
+        try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
+        showLoginView();
+    }
+
+    /* ============================================================
+       รอบที่ 3: หน้าต่างหลังสแกน - กรอกจำนวนชิ้น + เลือก plate/chanel
+       เปิดทุกครั้งที่อ่านโค้ดได้ (กล้อง/รูปภาพ/พิมพ์มือ) ก่อนบันทึกลงสต๊อก
+       ============================================================ */
+    function typeLabel(t) {
+        if (t === 'plate') return 'PLATE';
+        if (t === 'chanel') return 'CHANEL';
+        return '-';
+    }
+
+    function modalMsg(text, cls) {
+        const box = document.getElementById('modalMsg');
+        if (!box) return;
+        box.textContent = text;
+        box.className = 'login-msg ' + (cls || '');
+    }
+
+    function refreshTypeButtons() {
+        const p = document.getElementById('typePlate');
+        const c = document.getElementById('typeChanel');
+        if (p) p.className = 'mode-btn type-plate' + (modalType === 'plate' ? ' active' : '');
+        if (c) c.className = 'mode-btn type-chanel' + (modalType === 'chanel' ? ' active' : '');
+    }
+
+    function openScanModal(code, fmt) {
+        if (!currentUser) { showStatus('⚠️ กรุณาเข้าสู่ระบบก่อนบันทึก', true); return; }
+        modalCtx = { code: code, fmt: fmt || '' };
+        modalType = lastUsedType;
+        const codeEl = document.getElementById('modalCode');
+        const fmtEl = document.getElementById('modalFmt');
+        const qtyEl = document.getElementById('modalQty');
+        const userEl = document.getElementById('modalUser');
+        const modeEl = document.getElementById('modalMode');
+        if (codeEl) codeEl.textContent = code;
+        if (fmtEl) fmtEl.textContent = fmt ? '(' + fmt + ')' : '';
+        if (qtyEl) qtyEl.value = lastUsedQty;
+        if (userEl) userEl.textContent = currentUser.name;
+        if (modeEl) modeEl.textContent = currentMode === 'IN' ? '📥 รับเข้าสินค้า (+)' : '📤 เบิกออกสินค้า (-)';
+        refreshTypeButtons();
+        modalMsg('', '');
+        const overlay = document.getElementById('scanModal');
+        if (overlay) overlay.classList.add('open');
+        if (qtyEl) setTimeout(() => { try { qtyEl.focus(); qtyEl.select(); } catch (e) {} }, 120);
+    }
+
+    function setModalType(t) {
+        modalType = (t === 'chanel') ? 'chanel' : 'plate';
+        refreshTypeButtons();
+    }
+
+    function confirmScanModal() {
+        if (!modalCtx) return;
+        const qtyEl = document.getElementById('modalQty');
+        const qty = qtyEl ? parseInt(qtyEl.value, 10) : NaN;
+        if (!qty || qty < 1) { modalMsg('กรุณากรอกจำนวนชิ้น (อย่างน้อย 1)', 'err'); return; }
+        lastUsedQty = Math.min(qty, 9999);
+        lastUsedType = modalType;
+        try {
+            localStorage.setItem('stock_last_qty', String(lastUsedQty));
+            localStorage.setItem('stock_last_type', lastUsedType);
+        } catch (e) {}
+        processStockUpdate(modalCtx.code, qty, modalType, modalCtx.fmt);
+        closeModalBox(true);
+    }
+
+    function cancelScanModal() {
+        if (!modalCtx) return;
+        closeModalBox(false);
+        showStatus('ยกเลิกรายการสแกนนี้แล้ว (ยังไม่บันทึกลงสต๊อก)');
+    }
+
+    function closeModalBox(saved) {
+        const overlay = document.getElementById('scanModal');
+        if (overlay) overlay.classList.remove('open');
+        modalCtx = null;
+        if (saved) {
+            // กันโค้ดเดิมที่ยังชี้อยู่หน้ากล้อง ถูกจับซ้ำทันทีหลังบันทึก
+            isCooldown = true;
+            setTimeout(() => { isCooldown = false; }, 2500);
+        }
+    }
+
+    /* ============================================================
+       รอบที่ 3: ประวัติการสแกน - ใคร / สแกนอะไร / กี่ชิ้น / เข้าหรือออก
+       ============================================================ */
+    let isConfirmingLogClear = false;
+    let logConfirmTimer = null;
+
+    function pushScanLog(entry) {
+        scanLog.unshift({
+            t: new Date().toLocaleString('th-TH'),
+            user: entry.user || '-',
+            code: entry.code || '-',
+            type: entry.type || '',
+            qty: entry.qty || 1,
+            mode: entry.mode || 'IN',
+            fmt: entry.fmt || ''
+        });
+        if (scanLog.length > 300) scanLog = scanLog.slice(0, 300);
+        try { localStorage.setItem('stock_scan_log', JSON.stringify(scanLog)); } catch (e) {}
+        renderLog();
+    }
+
+    function renderLog() {
+        const tbody = document.getElementById('logTableBody');
+        if (!tbody) return;
+        const rows = scanLog.slice(0, 20);
+        if (!rows.length) {
+            tbody.innerHTML = '<tr><td colspan="7" class="empty-state">ยังไม่มีประวัติการสแกน</td></tr>';
+            return;
+        }
+        tbody.innerHTML = rows.map(e => `
+            <tr>
+                <td class="date-col">${escapeHtml(e.t || '-')}</td>
+                <td><b>${escapeHtml(e.user || '-')}</b></td>
+                <td><span class="badge">${escapeHtml(e.code || '-')}</span></td>
+                <td>${escapeHtml(typeLabel(e.type))}</td>
+                <td class="stock-num">${e.qty || 1}</td>
+                <td>${e.mode === 'OUT' ? '<span class="stock-out">เบิกออก</span>' : '<span class="stock-in">รับเข้า</span>'}</td>
+                <td class="date-col">${escapeHtml(e.fmt || '-')}</td>
+            </tr>
+        `).join('');
+    }
+
+    function exportLogCSV() {
+        if (!scanLog.length) { showStatus('⚠️ ยังไม่มีประวัติการสแกนสำหรับส่งออก', true); return; }
+        let csv = "\uFEFFวันที่-เวลา,ผู้สแกน,Model,ประเภท,จำนวน,โหมด,รูปแบบโค้ด\n";
+        scanLog.forEach(e => {
+            csv += `"${e.t || '-'}","${(e.user || '-').replace(/"/g, '""')}","${(e.code || '-').replace(/"/g, '""')}","${typeLabel(e.type)}",${e.qty || 1},"${e.mode === 'OUT' ? 'เบิกออก' : 'รับเข้า'}","${e.fmt || '-'}"\n`;
+        });
+        downloadCSV(csv, `scan_history_${new Date().toISOString().slice(0, 10)}.csv`);
+    }
+
+    function handleClearLogButton() {
+        if (!scanLog.length) { showStatus('ประวัติการสแกนว่างเปล่าอยู่แล้ว', true); return; }
+        const btn = document.getElementById('btnClearLog');
+        if (!isConfirmingLogClear) {
+            isConfirmingLogClear = true;
+            if (btn) btn.textContent = '⚠️ กดซ้ำเพื่อยืนยัน';
+            logConfirmTimer = setTimeout(() => {
+                isConfirmingLogClear = false;
+                if (btn) btn.textContent = '🗑️ ล้างประวัติ';
+            }, 3000);
+        } else {
+            clearTimeout(logConfirmTimer);
+            isConfirmingLogClear = false;
+            if (btn) btn.textContent = '🗑️ ล้างประวัติ';
+            scanLog = [];
+            try { localStorage.setItem('stock_scan_log', '[]'); } catch (e) {}
+            renderLog();
+            showStatus('🗑️ ล้างประวัติการสแกนเรียบร้อย');
+        }
     }
 
     function setMode(mode) {
@@ -681,6 +1230,7 @@
     function onScanResult(result, err) {
         // err ส่วนใหญ่คือ NotFoundException ขณะยังไม่เจอโค้ดในเฟรม ไม่ต้องแสดง
         if (!result) return;
+        if (modalCtx) return; // หน้าต่างกรอกจำนวนเปิดอยู่ ยังไม่รับโค้ดใหม่
         if (isCooldown) return;
         isCooldown = true;
         triggerFeedback();
@@ -864,75 +1414,73 @@
         } catch (e) {}
     }
 
-    function processStockUpdate(code, customQty = null, customName = null, fmtName = '') {
+    function processStockUpdate(code, qty, type, fmtName = '') {
         code = normalizeCodeText(code);
         if (!code) return;
-
+        qty = Math.max(1, parseInt(qty, 10) || 1);
+        type = (type === 'plate' || type === 'chanel') ? type : '';
+        const who = currentUser ? currentUser.name : '-';
         const fmtTag = fmtName ? ` [${fmtName}]` : '';
-        const qtyInput = document.getElementById('qtyInput');
-        const qty = customQty !== null ? parseInt(customQty) : (qtyInput ? (parseInt(qtyInput.value) || 1) : 1);
-        const nameInput = document.getElementById('itemNameInput');
-        const inputName = customName !== null ? customName : (nameInput ? nameInput.value.trim() : '');
+        const typeTag = typeLabel(type);
 
-        let item = inventory.find(i => i.code === code);
+        // แยกบรรทัดสต๊อกตาม Model + ประเภท (plate กับ chanel แยกกัน)
+        let item = inventory.find(i => i.code === code && (i.type || '') === type);
         const nowStr = new Date().toLocaleString('th-TH');
 
         if (item) {
             if (currentMode === 'IN') {
                 item.inTotal += qty;
                 item.stock += qty;
-                showStatus(`📥 รับเข้า [+${qty}] "${item.name}" สำเร็จ (เหลือ: ${item.stock})${fmtTag}`);
+                showStatus(`📥 รับเข้า ${typeTag} "${code}" ×${qty} โดย ${who} (เหลือ: ${item.stock})${fmtTag}`);
             } else {
                 item.outTotal += qty;
                 item.stock -= qty;
                 if (item.stock < 0) item.stock = 0;
-                showStatus(`📤 เบิกออก [-${qty}] "${item.name}" สำเร็จ (เหลือ: ${item.stock})${fmtTag}`, item.stock === 0);
-            }
-            if (inputName && inputName !== '-') {
-                item.name = inputName;
+                showStatus(`📤 เบิกออก ${typeTag} "${code}" ×${qty} โดย ${who} (เหลือ: ${item.stock})${fmtTag}`, item.stock === 0);
             }
             item.lastUpdate = nowStr;
+            item.lastBy = who;
         } else {
             const initialStock = currentMode === 'IN' ? qty : 0;
-            const initialIn = currentMode === 'IN' ? qty : 0;
-            const initialOut = currentMode === 'OUT' ? qty : 0;
 
             inventory.unshift({
                 id: Date.now(),
                 code: code,
-                name: inputName || 'สินค้าทั่วไป',
+                type: type,
+                name: '',
                 stock: initialStock,
-                inTotal: initialIn,
-                outTotal: initialOut,
-                lastUpdate: nowStr
+                inTotal: currentMode === 'IN' ? qty : 0,
+                outTotal: currentMode === 'OUT' ? qty : 0,
+                lastUpdate: nowStr,
+                lastBy: who
             });
-            showStatus(`✨ เพิ่มสินค้าใหม่ในสต๊อกสำเร็จ${fmtTag}`);
+            showStatus(`✨ เพิ่มใหม่ ${typeTag} "${code}" ×${qty} โดย ${who}${fmtTag}`);
         }
 
+        pushScanLog({ code: code, type: type, qty: qty, mode: currentMode, user: who, fmt: fmtName });
         saveToStorage();
         const searchInput = document.getElementById('searchInput');
         if (searchInput) searchInput.value = '';
         renderTable();
-        if (qtyInput) qtyInput.value = '1';
-        if (nameInput) nameInput.value = '';
     }
 
     function manualAdd() {
         const manualInput = document.getElementById('manualCodeInput');
         if (!manualInput) return;
-        const code = manualInput.value.trim();
+        const code = normalizeCodeText(manualInput.value);
         if (code) {
             triggerFeedback();
-            processStockUpdate(code);
+            openScanModal(code, 'MANUAL');
             manualInput.value = '';
         } else {
-            showStatus('⚠️ กรุณากรอกรหัสสินค้าก่อน', true);
+            showStatus('⚠️ กรุณากรอก Model ก่อน', true);
         }
     }
 
     function quickAdjust(id, mode) {
-        let item = inventory.find(i => i.id === id);
+        const item = inventory.find(i => i.id === id);
         if (!item) return;
+        const who = currentUser ? currentUser.name : '-';
 
         if (mode === 'IN') {
             item.inTotal += 1;
@@ -943,6 +1491,8 @@
             if (item.stock < 0) item.stock = 0;
         }
         item.lastUpdate = new Date().toLocaleString('th-TH');
+        item.lastBy = who;
+        pushScanLog({ code: item.code, type: item.type, qty: 1, mode: mode, user: who, fmt: 'ปุ่มในตาราง' });
         saveToStorage();
         renderTable();
     }
@@ -1001,24 +1551,28 @@
         const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
 
         const filtered = inventory.filter(item =>
-            item.code.toLowerCase().includes(searchTerm) ||
-            item.name.toLowerCase().includes(searchTerm)
+            (item.code || '').toLowerCase().includes(searchTerm) ||
+            (item.type || '').toLowerCase().includes(searchTerm) ||
+            (item.name || '').toLowerCase().includes(searchTerm)
         );
 
         if (totalCount) totalCount.textContent = filtered.length;
 
         if (filtered.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" class="empty-state">ไม่พบสินค้าในสต๊อก</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="8" class="empty-state">ไม่พบสินค้าในสต๊อก</td></tr>`;
             return;
         }
 
-        tbody.innerHTML = filtered.map(item => `
+        tbody.innerHTML = filtered.map(item => {
+            const typeText = item.type ? typeLabel(item.type) : (item.name ? escapeHtml(item.name) + ' (ข้อมูลเดิม)' : '-');
+            return `
             <tr>
                 <td><span class="badge">${escapeHtml(item.code)}</span></td>
-                <td>${escapeHtml(item.name)}</td>
+                <td>${typeText}</td>
                 <td class="stock-num">${item.stock}</td>
                 <td class="stock-in">+${item.inTotal}</td>
                 <td class="stock-out">-${item.outTotal}</td>
+                <td class="date-col">${escapeHtml(item.lastBy || '-')}</td>
                 <td class="date-col">${item.lastUpdate || '-'}</td>
                 <td>
                     <div style="display:flex; gap:4px;">
@@ -1027,8 +1581,19 @@
                         <button type="button" class="btn-danger btn-sm" onclick="deleteItem(${item.id})" title="ลบ">✕</button>
                     </div>
                 </td>
-            </tr>
-        `).join('');
+            </tr>`;
+        }).join('');
+    }
+
+    function downloadCSV(csvContent, filename) {
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     }
 
     function exportToCSV() {
@@ -1037,19 +1602,13 @@
             return;
         }
 
-        let csvContent = "\uFEFFรหัสสินค้า,ชื่อสินค้า/หมายเหตุ,จำนวนคงเหลือ,รับเข้าทั้งหมด,เบิกออกทั้งหมด,วันที่ทำรายการล่าสุด\n";
+        let csvContent = "\uFEFFModel,ประเภท,จำนวนคงเหลือ,รับเข้าทั้งหมด,เบิกออกทั้งหมด,ผู้สแกนล่าสุด,วันที่ทำรายการล่าสุด\n";
         inventory.forEach(row => {
-            csvContent += `"${row.code}","${row.name.replace(/"/g, '""')}",${row.stock},${row.inTotal},${row.outTotal},"${row.lastUpdate || '-'}"\n`;
+            const typeText = row.type ? typeLabel(row.type) : (row.name || '-').replace(/"/g, '""');
+            csvContent += `"${row.code}","${typeText}",${row.stock},${row.inTotal},${row.outTotal},"${(row.lastBy || '-').replace(/"/g, '""')}","${row.lastUpdate || '-'}"\n`;
         });
 
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `stock_report_${new Date().toISOString().slice(0,10)}.csv`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        downloadCSV(csvContent, `stock_report_${new Date().toISOString().slice(0, 10)}.csv`);
     }
 </script>
 
