@@ -197,4 +197,39 @@
         .stock-num { font-weight: bold; font-size: 0.95rem; }
         .stock-in { color: var(--success); }
         .stock-out { color: var(--danger); }
-        .date-col { font-size: 0.75rem; color: #64
+        .date-col { font-size: 0.75rem; color: #64748b; }
+        .empty-state { text-align: center; padding: 25px; color: #64748b; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>📦 ระบบเช็คสต๊อกสินค้า</h1>
+
+    <div id="envWarning" class="alert-box"></div>
+    <div id="statusBanner"></div>
+
+    <!-- กรอบแสดงกล้อง -->
+    <div class="camera-wrapper">
+        <div id="reader"></div>
+        <div id="camPlaceholder" class="camera-placeholder">
+            แตะปุ่ม <b>"📷 เปิดกล้องสแกน"</b> ด้านล่าง
+        </div>
+    </div>
+
+    <!-- ปุ่มควบคุมกล้อง -->
+    <div class="cam-controls">
+        <button type="button" id="btnToggleCam" class="btn-primary full-width">
+            📷 เปิดกล้องสแกน
+        </button>
+        <button type="button" id="btnSwitchCam" class="btn-secondary" style="display:none;">
+            🔄 สลับกล้อง
+        </button>
+        <button type="button" id="btnTorch" class="btn-warning" style="display:none;">
+            🔦 ไฟฉาย
+        </button>
+        <label class="file-label btn-secondary full-width" for="qrFileInput">
+            🖼️ สแกนจากรูปภาพ / ถ่ายรูป
+        </label>
+        <input type="file" id="qrFileInput" accept="image/*" style="display:none;">
+    </div>
