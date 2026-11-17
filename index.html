@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ระบบเช็คสต๊อกสินค้า (QR & Barcode Stock)</title>
-    <!-- โหลดไลบรารีสแกนแบบเผื่อกรณีโหลดช้า -->
-    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" onerror="console.warn('Camera library load failed, fallback mode active.')"></script>
+    <title>ระบบเช็คสต๊อกสินค้า (Data Matrix & QR Stock)</title>
+    <!-- ใช้ ZXing Library ซึ่งรองรับ Data Matrix และ Barcode ทุกรูปแบบได้ดีเยี่ยม -->
+    <script type="text/javascript" src="https://unpkg.com/@zxing/library@latest"></script>
     <style>
         :root {
             --primary: #2563eb;
@@ -58,16 +58,16 @@
             background: #0f172a;
             border-radius: 12px;
             overflow: hidden;
-            min-height: 220px;
+            min-height: 260px;
             display: flex;
             align-items: center;
             justify-content: center;
             margin-bottom: 12px;
         }
-        #reader { width: 100%; }
-        #reader video {
+        #video {
             width: 100% !important;
             height: auto !important;
+            max-height: 350px;
             object-fit: cover !important;
         }
         .camera-placeholder {
@@ -75,6 +75,7 @@
             text-align: center;
             padding: 20px;
             font-size: 0.9rem;
+            position: absolute;
         }
 
         .cam-controls {
@@ -152,7 +153,6 @@
         button:active, .file-label:active { opacity: 0.8; transform: scale(0.98); }
         .btn-primary { background: var(--primary); color: white; }
         .btn-secondary { background: #e2e8f0; color: #1e293b; }
-        .btn-warning { background: var(--warning); color: white; }
         .btn-success { background: var(--success); color: white; }
         .btn-danger { background: var(--danger); color: white; }
         .btn-sm { padding: 6px 10px; font-size: 0.8rem; border-radius: 6px; }
@@ -207,14 +207,14 @@
 <body>
 
 <div class="container">
-    <h1>📦 ระบบเช็คสต๊อกสินค้า</h1>
+    <h1>📦 ระบบเช็คสต๊อกสินค้า (รองรับ Data Matrix)</h1>
 
     <div id="envWarning" class="alert-box"></div>
     <div id="statusBanner"></div>
 
     <!-- กรอบแสดงกล้อง -->
     <div class="camera-wrapper">
-        <div id="reader"></div>
+        <video id="video" autoplay playsinline muted></video>
         <div id="camPlaceholder" class="camera-placeholder">
             แตะปุ่ม <b>"📷 เปิดกล้องสแกน"</b> ด้านล่าง
         </div>
@@ -224,12 +224,6 @@
     <div class="cam-controls">
         <button type="button" id="btnToggleCam" class="btn-primary full-width">
             📷 เปิดกล้องสแกน
-        </button>
-        <button type="button" id="btnSwitchCam" class="btn-secondary" style="display:none;">
-            🔄 สลับกล้อง
-        </button>
-        <button type="button" id="btnTorch" class="btn-warning" style="display:none;">
-            🔦 ไฟฉาย
         </button>
         <label class="file-label btn-secondary full-width" for="qrFileInput">
             🖼️ สแกนจากรูปภาพ / ถ่ายรูป
@@ -245,7 +239,7 @@
 
     <!-- ช่องกรอกข้อมูล -->
     <div class="form-group">
-        <input type="text" id="itemNameInput" placeholder="📝 ชื่อสินค้า / หมายเหตุ (เช่น น้ำดื่ม 500ml)">
+        <input type="text" id="itemNameInput" placeholder="📝 ชื่อสินค้า / หมายเหตุ (เช่น อะไหล่เครื่องจักร)">
     </div>
     
     <div class="form-group">
@@ -292,11 +286,9 @@
 </div>
 
 <script>
-    let html5QrCode = null;
+    let codeReader = null;
     let isScanning = false;
     let isCooldown = false;
-    let currentFacingMode = "environment";
-    let torchOn = false;
     let audioCtx = null;
     let clearConfirmTimer = null;
     let isConfirmingClear = false;
@@ -322,10 +314,13 @@
             warningBox.innerHTML = '⚠️ <b>กำลังเปิดผ่านแอปแชท:</b> กรุณากดจุด 3 จุดมุมจอ แล้วเลือก <b>"เปิดในเบราว์เซอร์ (Chrome / Safari)"</b>';
         }
 
-        // ผูก Event Listeners อย่างปลอดภัย
+        try {
+            codeReader = new ZXing.BrowserQRCodeReader();
+        } catch (e) {
+            console.error("ZXing init error", e);
+        }
+
         safeBind('btnToggleCam', 'click', toggleCamera);
-        safeBind('btnSwitchCam', 'click', switchCamera);
-        safeBind('btnTorch', 'click', toggleTorch);
         safeBind('qrFileInput', 'change', scanFromFile);
         safeBind('btnManualAdd', 'click', manualAdd);
         safeBind('btnExport', 'click', exportToCSV);
@@ -382,112 +377,59 @@
 
     async function toggleCamera() {
         if (isScanning) {
-            await stopCamera();
+            stopCamera();
         } else {
-            await startCamera();
+            startCamera();
         }
     }
 
-    async function startCamera() {
+    function startCamera() {
         const btnToggle = document.getElementById('btnToggleCam');
         const placeholder = document.getElementById('camPlaceholder');
 
-        if (typeof Html5Qrcode === 'undefined') {
-            showStatus('❌ โหลดไลบรารีกล้องไม่สำเร็จ กรุณารีเฟรชหน้าเว็บ', true);
+        if (!codeReader) {
+            showStatus('❌ ระบบสแกนยังไม่พร้อมใช้งาน', true);
             return;
         }
 
         if (btnToggle) btnToggle.textContent = '⏳ กำลังเปิดกล้อง...';
 
-        try {
-            if (!html5QrCode) {
-                html5QrCode = new Html5Qrcode("reader");
+        codeReader.decodeFromVideoDevice(undefined, 'video', (result, err) => {
+            if (result) {
+                if (isCooldown) return;
+                isCooldown = true;
+                triggerFeedback();
+                processStockUpdate(result.text);
+                setTimeout(() => { isCooldown = false; }, 2000);
             }
-
-            await html5QrCode.start(
-                { facingMode: currentFacingMode },
-                {
-                    fps: 12,
-                    qrbox: (w, h) => {
-                        const size = Math.floor(Math.min(w, h) * 0.72);
-                        return { width: size, height: size };
-                    }
-                },
-                (decodedText) => {
-                    if (isCooldown) return;
-                    isCooldown = true;
-                    triggerFeedback();
-                    processStockUpdate(decodedText);
-                    setTimeout(() => { isCooldown = false; }, 2000);
-                },
-                () => {}
-            );
-
+        }).then(() => {
             isScanning = true;
             if (placeholder) placeholder.style.display = 'none';
             if (btnToggle) {
                 btnToggle.textContent = '⏹️ ปิดกล้อง';
                 btnToggle.className = 'btn-danger full-width';
             }
-            const swCam = document.getElementById('btnSwitchCam');
-            if (swCam) swCam.style.display = 'flex';
-            checkTorchSupport();
-
-        } catch (err) {
+        }).catch((err) => {
             isScanning = false;
             if (btnToggle) {
                 btnToggle.textContent = '📷 เปิดกล้องสแกน';
                 btnToggle.className = 'btn-primary full-width';
             }
-            showStatus('❌ เปิดกล้องไม่สำเร็จ (กรุณาอนุญาตสิทธิ์กล้อง หรือใช้ HTTPS)', true);
+            showStatus('❌ เปิดกล้องไม่สำเร็จ กรุณาอนุญาตสิทธิ์กล้อง', true);
+        });
+    }
+
+    function stopCamera() {
+        if (codeReader) {
+            codeReader.reset();
         }
-    }
-
-    async function stopCamera() {
-        if (html5QrCode && isScanning) {
-            try { await html5QrCode.stop(); } catch (e) {}
-            isScanning = false;
-            torchOn = false;
-            const placeholder = document.getElementById('camPlaceholder');
-            if (placeholder) placeholder.style.display = 'block';
-            const btnToggle = document.getElementById('btnToggleCam');
-            if (btnToggle) {
-                btnToggle.textContent = '📷 เปิดกล้องสแกน';
-                btnToggle.className = 'btn-primary full-width';
-            }
-            const swCam = document.getElementById('btnSwitchCam');
-            if (swCam) swCam.style.display = 'none';
-            const torch = document.getElementById('btnTorch');
-            if (torch) torch.style.display = 'none';
-        }
-    }
-
-    async function switchCamera() {
-        if (!isScanning) return;
-        await stopCamera();
-        currentFacingMode = (currentFacingMode === "environment") ? "user" : "environment";
-        await startCamera();
-    }
-
-    function checkTorchSupport() {
-        try {
-            const caps = html5QrCode.getRunningTrackCameraCapabilities();
-            if (caps && caps.torchFeature().isSupported()) {
-                const torch = document.getElementById('btnTorch');
-                if (torch) torch.style.display = 'flex';
-            }
-        } catch (e) {}
-    }
-
-    async function toggleTorch() {
-        try {
-            const torch = html5QrCode.getRunningTrackCameraCapabilities().torchFeature();
-            torchOn = !torchOn;
-            await torch.apply(torchOn);
-            const btnTorch = document.getElementById('btnTorch');
-            if (btnTorch) btnTorch.textContent = torchOn ? '🔦 ปิดไฟฉาย' : '🔦 ไฟฉาย';
-        } catch (e) {
-            showStatus('มือถือไม่รองรับเปิดไฟฉาย', true);
+        isScanning = false;
+        const placeholder = document.getElementById('camPlaceholder');
+        if (placeholder) placeholder.style.display = 'block';
+        const btnToggle = document.getElementById('btnToggleCam');
+        if (btnToggle) {
+            btnToggle.textContent = '📷 เปิดกล้องสแกน';
+            btnToggle.className = 'btn-primary full-width';
         }
     }
 
@@ -495,19 +437,16 @@
         const file = event.target.files[0];
         if (!file) return;
 
-        if (typeof Html5Qrcode === 'undefined') {
-            showStatus('❌ ระบบสแกนรูปภาพยังไม่พร้อมใช้งาน', true);
-            return;
-        }
+        if (isScanning) stopCamera();
+        showStatus('⏳ กำลังแกะรหัสจากรูปภาพ...');
 
-        if (isScanning) await stopCamera();
-        if (!html5QrCode) html5QrCode = new Html5Qrcode("reader");
-
-        showStatus('⏳ กำลังอ่านรหัสจากรูป...');
         try {
-            const decodedText = await html5QrCode.scanFile(file, true);
-            triggerFeedback();
-            processStockUpdate(decodedText);
+            const imageUrl = URL.createObjectURL(file);
+            const result = await codeReader.decodeFromImage(undefined, imageUrl);
+            if (result) {
+                triggerFeedback();
+                processStockUpdate(result.text);
+            }
         } catch (err) {
             showStatus('❌ ไม่พบรหัสในรูปภาพนี้', true);
         }
