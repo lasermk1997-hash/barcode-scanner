@@ -42,9 +42,29 @@
     18) หลังบันทึก ถ้าหน้ากล้องเจอ "โค้ดใหม่ต่างจากเดิม" รับทันทีไม่ต้องรอ cooldown
     19) สแกนจากรูปภาพ: ถอดรหัสบน canvas โดยตรงแบบซิงก์ (หมดปัญหา decodeFromImage ค้าง 8 วินาที)
         ลองแบบเร็วก่อนทุกเวอร์ชันภาพ แล้วค่อยลองแบบละเอียด เร็วขึ้นหลายเท่า
+
+    ===== รอบที่ 5: แก้อาการ "บนโทรศัพท์สแกน Data Matrix ไม่ติด / ช้า" =====
+    20) ใช้ BarcodeDetector ที่ฝังใน Chrome ของ Android เป็นตัวหลัก (เร่งด้วยฮาร์ดแวร์ อ่านโค้ดจิ๋ว
+        ได้ดีและเร็วกว่า JS หลายเท่า) ถ้าไม่มี (iPhone/Safari) ใช้ ZXing ตามเดิมอัตโนมัติ
+        และถ้า BD หาไม่เจอซ้ำ ๆ จะสลับลอง ZXing ทุก 4 เฟรม ไม่ปล่อยให้พลาดเงียบ ๆ
+    21) โหมดเฉพาะ Data Matrix: เฟรมเต็ม + TRY_HARDER + ลองกลับสี ทุกครั้ง (ไม่สลับไปเฟรมย่อ
+        เพราะ DM เป็นโค้ดจิ๋ว เฟรมย่อมักอ่านไม่ออก)
+    22) เพิ่มแถบซูมกล้อง (ขึ้นเฉพาะอุปกรณ์ที่ซูมได้): โค้ดจิ๋วให้ซูมเข้าให้โค้ดใหญ่ขึ้น
+        ไม่ต้องเอาเครื่องใกล้จนโฟกัสไม่ติด
+    23) เพิ่มปุ่ม "จับภาพนิ่ง สแกนละเอียด": แชเฟรมเต็มความละเอียด -> ครอปกลาง 70% -> เติมขอบขาว
+        -> ขยาย 2 เท่า แล้วลองถอดรหัสทุกเวอร์ชัน ใช้เมื่อถือนิ่งแล้วยังไม่ติด (แสงสะท้อน/โฟกัสเพี้ยน)
+    24) เครื่องที่ยังไม่เคยตั้งค่า เริ่มที่โหมด "เฉพาะ Data Matrix" เอง (คีย์ใหม่ v2)
+    25) สั่งโฟกัสต่อเนื่อง (continuous focus) ตอนเปิดกล้อง ถ้าอุปกรณ์รองรับ ช่วยโค้ดเล็กมาก
+    26) เพิ่มเอนจินที่สาม: ZXing-C++ (WebAssembly) ชุดเดียวกับเครื่องอ่านบาร์โค้ดจริง — ทดสอบกับฉลาก
+        จริงบนโลหะพบว่า ZXing JS อ่านไม่ออกทุกวิธี แต่เอนจิน C++ อ่านออกทันที (ทนเงา/นอยส์/เกนเลอร์)
+        ทำงานเป็นตัวช่วยรอบสองของทุกเส้นทาง (กล้อง / รูปภาพ / ภาพนิ่ง) ถ้าโหลด WASM ไม่ได้ (ออฟไลน์)
+        ระบบยังใช้ ZXing JS ได้ตามปกติอัตโนมัติ
+    27) สแกนจากรูปภาพ / ภาพนิ่ง: ลองทุกเวอร์ชันภาพกับ ZXing JS ก่อน ถ้าไม่ออกสลับไป WASM ทีละเวอร์ชัน
     -->
     <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
     <script>window.ZXing || document.write('<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"><\/script>');</script>
+    <!-- รอบที่ 5: เอนจิน ZXing-C++ (WASM, ~0.8MB) - ตัวช่วยรอบสองที่แม่นพิเศษ โหลดไม่ได้ก็ใช้งานได้ตามปกติ -->
+    <script src="https://cdn.jsdelivr.net/npm/zxing-wasm@3.1.7/dist/iife/reader/index.js"></script>
     <style>
         :root {
             --primary: #2563eb;
@@ -479,19 +499,24 @@
     <div id="lastRead" class="last-read"></div>
 
     <p class="tips">
-        เคล็ดลับ: ถ้าโค้ดไม่ติด ให้ถ่ายให้โค้ดใหญ่เต็มกรอบ กล้องห่างโค้ดประมาณ 5-10 ซม.
-        ถือมือให้นิ่ง และลองเปิดแฟลชช่วย (ปุ่มแฟลชจะขึ้นเฉพาะเมื่ออุปกรณ์รองรับ)
-        - Data Matrix ควรเหลือขอบขาวรอบโค้ดเล็กน้อย อย่าถ่ายตัดขอบชิดโค้ด
+        เคล็ดลับสำหรับ Data Matrix เล็ก ๆ: เล็งให้โค้ดอยู่กลางกรอบ แล้ว<b>ซูมเข้า</b> (แถบซูมใต้กล้อง)
+        ให้โค้ดใหญ่ประมาณ 1 ใน 3 ของจอ ระยะห่าง 8-12 ซม. ถือนิ่ง 1-2 วินาที ไม่ต้องขยับไปมา
+        - ถ้าถือนิ่งแล้วยังไม่ติด กดปุ่ม <b>"📸 จับภาพนิ่ง สแกนละเอียด"</b> ระบบจะแชภาพเต็มความละเอียดมาวิเคราะห์ใหม่
+        - ฉลากโลหะสะท้อนแสง: ลองเอียงเครื่องเล็กน้อย หรือเปิดแฟลชช่วย (ปุ่มแฟลชขึ้นเฉพาะเมื่ออุปกรณ์รองรับ)
+        - โหมด "เฉพาะ Data Matrix" ไวและแม่นที่สุดสำหรับงานนี้ (สลับเป็น "ทุกรูปแบบ" เมื่อต้องสแกน QR)
         - หลังสแกนติด จะมีหน้าต่างให้ "กรอกจำนวนชิ้น" และเลือก "plate หรือ chanel" ก่อนบันทึกเสมอ
         - กล่อง "อ่านได้ล่าสุด" ใช้เทียบข้อความกับฉลากจริงได้เลย
-        - ระบบจับเฟรมใหม่ตลอดเวลา: ถือโค้ดนิ่ง ๆ ประมาณ 1 วินาทีก็ติด ไม่ต้องขยับไปมา
-        - ถ้าโค้ดเล็กมาก ให้เข้าใกล้ 3-5 ซม. ระบบจะสลับไปโหมดละเอียดให้เอง
+        - ระบบมีเอนจินสแกน 3 ชั้น: BarcodeDetector (Android) → ZXing JS → ZXing-C++ (WASM)
+          ชั้นสุดท้ายเป็นชุดเดียวกับเครื่องอ่านจริง แม่นพิเศษกับฉลากโลหะ/โค้ดจิ๋ว
     </p>
 
     <!-- ปุ่มควบคุมกล้อง -->
     <div class="cam-controls">
         <button type="button" id="btnToggleCam" class="btn-primary full-width">
             📷 เปิดกล้องสแกน
+        </button>
+        <button type="button" id="btnStillScan" class="btn-warning full-width" style="display:none;">
+            📸 จับภาพนิ่ง สแกนละเอียด
         </button>
         <label class="file-label btn-secondary full-width" for="qrFileInput">
             🖼️ สแกนจากรูปภาพ / ถ่ายรูป
@@ -500,6 +525,15 @@
         <button type="button" id="btnTorch" class="btn-secondary full-width" style="display:none;">
             เปิดแฟลช
         </button>
+        <!-- รอบที่ 5: แถบซูม (โชว์เฉพาะอุปกรณ์ที่ซูมได้) - โค้ดจิ๋วให้ซูมเข้า แทนการเอาเครื่องใกล้เกิน -->
+        <div id="zoomControls" class="full-width" style="display:none; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:8px 10px;">
+            <div style="display:flex; gap:8px; align-items:center;">
+                <button type="button" id="btnZoomOut" class="btn-secondary" style="flex:0 0 46px; padding:8px 0; justify-content:center;">−</button>
+                <input type="range" id="zoomSlider" min="1" max="8" step="0.1" value="1" style="flex:1; accent-color:#2563eb;">
+                <button type="button" id="btnZoomIn" class="btn-secondary" style="flex:0 0 46px; padding:8px 0; justify-content:center;">+</button>
+            </div>
+            <div id="zoomLabel" style="font-size:0.72rem; color:#64748b; text-align:center; margin-top:4px;">ซูม 1.0x</div>
+        </div>
     </div>
 
     <!-- เลือกโหมดโค้ดที่จะสแกน: ทุกรูปแบบ หรือ เฉพาะ Data Matrix -->
@@ -636,6 +670,13 @@
     const SAVE_COOLDOWN_MS = 2500; // หลังบันทึก ยับยั้งโค้ดเดิมที่ยังอยู่หน้ากล้องช่วงสั้น ๆ
     // สถิติความเร็ว (ดูได้ใน console: __scanPerf) ใช้ตรวจสอบว่าลูปสแกนทำงานปกติ
     window.__scanPerf = { startedAt: 0, attempts: 0, lastAttemptMs: 0, firstResultMs: 0, lastAttemptAt: 0 };
+
+    /* ===== รอบที่ 5: เอนจินเร็วของเบราว์เซอร์ + ซูม + จับภาพนิ่ง ===== */
+    let bdDetector = null;   // BarcodeDetector ของ Chrome (Android) - เร็วและอ่านโค้ดจิ๋วได้ดี ถ้ามี
+    let bdMisses = 0;        // นับครั้งที่ BD หาไม่เจอติดกัน (พลาดซ้ำ ๆ จะสลับไปลอง ZXing เป็นระยะ)
+    let zoomCaps = null;     // capability ซูมของกล้องที่เปิดอยู่
+    let zoomValue = 1;       // ค่าซูมปัจจุบัน
+    let stillBusy = false;   // กดปุ่มจับภาพนิ่งซ้อนกันไม่ได้
 
     // ===== รอบที่ 3: ผู้ใช้ / หน้าต่างหลังสแกน / ประวัติการสแกน =====
     let currentUser = null;      // { name } ของคนที่ล็อกอินอยู่
@@ -776,14 +817,20 @@
         return { code: code, fmtName: fmtName, rawBytes: rawBytes };
     }
 
-    // จุดรวมผลลัพธ์ทุกทาง (กล้อง / รูปภาพ): แก้ encoding -> ทำความสะอาด -> เปิดหน้าต่างบันทึก
+    // จุดรวมข้อความโค้ดจากทุกเอนจิน (ZXing / BarcodeDetector / ภาพนิ่ง) -> แสดง + เปิดหน้าต่างบันทึก
+    function handleDecodedText(code, fmtName, rawBytes) {
+        code = normalizeCodeText(code);
+        if (!code) return false;
+        showLastRead(code, fmtName, rawBytes);
+        // รอบที่ 3: ไม่บันทึกทันที ให้เด้งหน้าต่างกรอกจำนวน + เลือก plate/chanel ก่อน
+        openScanModal(code, fmtName);
+        return true;
+    }
+
     function handleDecodedResult(result) {
         const ex = extractResult(result);
         if (!ex) return false;
-        showLastRead(ex.code, ex.fmtName, ex.rawBytes);
-        // รอบที่ 3: ไม่บันทึกทันที ให้เด้งหน้าต่างกรอกจำนวน + เลือก plate/chanel ก่อน
-        openScanModal(ex.code, ex.fmtName);
-        return true;
+        return handleDecodedText(ex.code, ex.fmtName, ex.rawBytes);
     }
 
     try {
@@ -818,9 +865,10 @@
             warningBox.innerHTML = '⚠️ <b>เบราว์เซอร์นี้ไม่รองรับการเปิดกล้อง:</b> กรุณาใช้ Chrome หรือ Safari เวอร์ชันใหม่';
         }
 
-        // โหลดโหมดโค้ดที่เลือกไว้ (เอนจินจะถูกสร้างตอนเริ่มสแกน ไม่ต้องสร้างตอนโหลดหน้า)
-        let savedFmtMode = 'ALL';
-        try { savedFmtMode = localStorage.getItem('barcode_scan_fmt_mode') || 'ALL'; } catch (e) {}
+        // รอบที่ 5: เครื่องที่ยังไม่เคยเลือกโหมด จะเริ่มที่ "เฉพาะ Data Matrix" เอง
+        // (งานหลักของระบบนี้คือ DM - สลับเป็น "ทุกรูปแบบ" ได้เมื่อต้องสแกน QR)
+        let savedFmtMode = 'DM';
+        try { savedFmtMode = localStorage.getItem('barcode_scan_fmt_mode_v2') || 'DM'; } catch (e) {}
         setFormatMode(savedFmtMode);
 
         safeBind('btnToggleCam', 'click', toggleCamera);
@@ -846,6 +894,11 @@
         safeBind('modalQty', 'keydown', (e) => { if (e.key === 'Enter') confirmScanModal(); });
         safeBind('btnExportLog', 'click', exportLogCSV);
         safeBind('btnClearLog', 'click', handleClearLogButton);
+        // รอบที่ 5: ซูมกล้อง + ปุ่มจับภาพนิ่งสแกนละเอียด
+        safeBind('zoomSlider', 'input', (e) => { applyZoom(parseFloat(e.target.value)); });
+        safeBind('btnZoomIn', 'click', () => { if (zoomCaps) applyZoom(zoomValue + (zoomCaps.step || 0.1) * 5); });
+        safeBind('btnZoomOut', 'click', () => { if (zoomCaps) applyZoom(zoomValue - (zoomCaps.step || 0.1) * 5); });
+        safeBind('btnStillScan', 'click', stillScanFromVideo);
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && modalCtx) cancelScanModal();
         });
@@ -1178,7 +1231,8 @@
 
     function setFormatMode(mode) {
         scanFormatMode = (mode === 'DM') ? 'DM' : 'ALL';
-        try { localStorage.setItem('barcode_scan_fmt_mode', scanFormatMode); } catch (e) {}
+        // รอบที่ 5: คีย์ใหม่ v2 (เครื่องเก่าที่เคยตั้ง ALL ไว้ จะได้ค่าเริ่มต้น DM ใหม่หนึ่งครั้ง)
+        try { localStorage.setItem('barcode_scan_fmt_mode_v2', scanFormatMode); } catch (e) {}
         const btnAll = document.getElementById('fmtAll');
         const btnDM = document.getElementById('fmtDM');
         if (btnAll && btnDM) {
@@ -1188,6 +1242,8 @@
         // รอบที่ 4: สลับโหมดรูปแบบได้ทันที ไม่ต้องปิด-เปิดกล้องใหม่ (สร้างเอนจินใหม่เงียบ ๆ)
         // โหมดใหม่จะมีผลตั้งแต่เฟรมถัดไปของลูปสแกน
         createEngineReaders();
+        // รอบที่ 5: เอนจิน BarcodeDetector ก็ต้องจำกัดฟอร์แมตใหม่ตามโหมด (ถ้ากล้องเปิดอยู่)
+        if (isScanning) setupBarcodeDetector();
     }
 
     function showStatus(msg, isError = false) {
@@ -1272,10 +1328,10 @@
 
     // กลยุทธ์ของแต่ละรอบ: สลับเร็ว/ละเอียด เพื่อให้ QR ใหญ่ติดไว และ DM เล็กก็ยังติด
     function getAttemptPlan() {
+        // รอบที่ 5: โหมดเฉพาะ Data Matrix ใช้แบบละเอียดทุกครั้ง (เฟรมเต็ม + TRY_HARDER + กลับสี)
+        // DM เป็นโค้ดจิ๋ว เฟรมย่อ/ไม่ TRY_HARDER มักอ่านไม่ออก ทำให้ "สแกนไม่ติด" บนโทรศัพท์
         if (scanFormatMode === 'DM') {
-            return (attemptNo % 2 === 0)
-                ? { canvas: fullCanvas, ctx: fullCtx, maxW: 0, reader: fastReader, invert: false }
-                : { canvas: fullCanvas, ctx: fullCtx, maxW: 0, reader: hardReader, invert: true };
+            return { canvas: fullCanvas, ctx: fullCtx, maxW: 0, reader: hardReader, invert: true };
         }
         const phase = attemptNo % 3;
         if (phase === 0) return { canvas: fastCanvas, ctx: fastCtx, maxW: FAST_FRAME_W, reader: fastReader, invert: false };
@@ -1294,41 +1350,139 @@
         scanTimer = setTimeout(runDecodeAttempt, gapMs === undefined ? ATTEMPT_GAP_MS : gapMs);
     }
 
-    function runDecodeAttempt() {
+    // รอบที่ 5: รับโค้ดจากเอนจินใดก็ได้ (BD / ZXing / ภาพนิ่ง)
+    // cooldown หลังบันทึก: ข้าม "โค้ดเดิม" ที่ยังชี้หน้ากล้อง แต่โค้ดใหม่ต่างจากเดิมรับทันที
+    function acceptCode(code, fmtName, rawBytes) {
+        if (!code) return false;
+        if (isCooldown && code === lastHandledCode) return false;
+        lastHandledCode = code;
+        triggerFeedback();
+        bdMisses = 0;
+        return handleDecodedText(code, fmtName, rawBytes);
+    }
+
+    function mapBdFormatName(fmt) {
+        const f = String(fmt || '').toUpperCase();
+        return f === 'PDF417' ? 'PDF_417' : f;
+    }
+
+    /* ===== รอบที่ 5: เอนจิน ZXing-C++ (WASM) - ชุดเดียวกับเครื่องอ่านจริง แม่นกว่า ZXing JS =====
+       ทดสอบกับฉลาก DM จริงบนโลหะ: ZXing JS อ่านไม่ออกทุกเวอร์ชันภาพ แต่ C++ อ่านออกทันที
+       ใช้เป็นตัวช่วยรอบสอง ถ้าโหลด WASM ไม่สำเร็จ (ออฟไลน์) ข้ามไปใช้ ZXing JS เงียบ ๆ */
+    let wasmState = 'unknown';   // 'ready' | 'failed'
+    let wasmWarmed = false;
+    const WASM_FMT_MAP = {
+        'DataMatrix': 'DATA_MATRIX', 'QRCode': 'QR_CODE', 'Code128': 'CODE_128',
+        'Code39': 'CODE_39', 'Code93': 'CODE_93', 'EAN13': 'EAN_13', 'EAN8': 'EAN_8',
+        'UPCA': 'UPC_A', 'UPCE': 'UPC_E', 'Aztec': 'AZTEC', 'PDF417': 'PDF_417',
+        'ITF': 'ITF', 'Codabar': 'CODABAR'
+    };
+
+    function mapWasmFormatName(fmt) {
+        return WASM_FMT_MAP[fmt] || String(fmt || '').toUpperCase();
+    }
+
+    async function wasmRead(canvas) {
+        if (wasmState === 'failed') return null;
+        if (!window.ZXingWASM || typeof window.ZXingWASM.readBarcodesFromImageData !== 'function') {
+            wasmState = 'failed';
+            return null;
+        }
+        try {
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const formats = (scanFormatMode === 'DM')
+                ? ['DataMatrix']
+                : ['DataMatrix', 'QRCode', 'Code128', 'EAN13', 'Aztec'];
+            const results = await window.ZXingWASM.readBarcodesFromImageData(imageData, { formats: formats });
+            wasmState = 'ready';
+            if (results && results.length) {
+                const hit = results[0];
+                const raw = String(hit.text || '');
+                if (!raw) return null;
+                return { code: raw, fmtName: mapWasmFormatName(hit.format), rawBytes: null };
+            }
+            return null;
+        } catch (e) {
+            wasmState = 'failed';
+            return null;
+        }
+    }
+
+    function ensureWasmWarmed() {
+        if (wasmWarmed) return;
+        wasmWarmed = true;
+        setTimeout(async () => {
+            try {
+                if (!window.ZXingWASM) return;
+                const c = document.createElement('canvas');
+                c.width = 64; c.height = 64;
+                c.getContext('2d').fillRect(0, 0, 64, 64);
+                await wasmRead(c); // โหลด/คอมไพล์ .wasm ล่วงหน้า ครั้งเดียวต่อหน้า
+            } catch (e) {}
+        }, 400);
+    }
+
+    async function detectWithBarcodeDetector() {
+        if (!bdDetector || !videoEl || videoEl.readyState < 2) return null;
+        try {
+            const codes = await bdDetector.detect(videoEl);
+            if (codes && codes.length) {
+                const hit = codes[0];
+                const raw = hit.rawValue || hit.rawData || '';
+                if (!raw) return null;
+                return { code: raw, fmtName: mapBdFormatName(hit.format) };
+            }
+        } catch (e) {}
+        return null;
+    }
+
+    // รอบที่ 5: ลูปไฮบริด - ใช้ BarcodeDetector ของเบราว์เซอร์ก่อนทุกครั้ง (เร็ว/อ่านจิ๋วเก่ง)
+    // ถ้าไม่มี BD (iPhone/Safari) หรือ BD พลาด 4 ครั้งติดกัน จะสลับลอง ZXing 1 รอบ ไม่ปล่อยให้พลาดเงียบ ๆ
+    async function runDecodeAttempt() {
         scanTimer = null;
         if (!isScanning || modalCtx) return; // หน้าต่างกรอกจำนวนเปิดอยู่ -> พักถอดรหัสชั่วคราว
-        decodeBusy = true;
         const t0 = performance.now();
-        let result = null;
+        let handled = false;
         try {
-            getWorkCanvases();
-            const plan = getAttemptPlan();
-            if (grabFrame(plan.canvas, plan.ctx, plan.maxW)) {
-                result = decodeCanvasOnce(plan.canvas, plan.reader, false);
-                if (!result && plan.invert) result = decodeCanvasOnce(plan.canvas, plan.reader, true);
+            // A) เอนจิน BarcodeDetector (Android Chrome) - เรียกที่ video ตรง ๆ ได้เฟรมล่าสุดเสมอ
+            if (bdDetector) {
+                const hit = await detectWithBarcodeDetector();
+                if (hit && isScanning && !modalCtx) handled = acceptCode(hit.code, hit.fmtName, null);
+                if (!hit) bdMisses++;
+            }
+            // B) ZXing สำรอง: ทุก 4 เฟรมที่ BD พลาด (หรือทำงานเลยถ้าไม่มี BD)
+            if (!handled && (!bdDetector || bdMisses % 4 === 0)) {
+                getWorkCanvases();
+                const plan = getAttemptPlan();
+                let result = null;
+                if (grabFrame(plan.canvas, plan.ctx, plan.maxW)) {
+                    result = decodeCanvasOnce(plan.canvas, plan.reader, false);
+                    if (!result && plan.invert) result = decodeCanvasOnce(plan.canvas, plan.reader, true);
+                }
+                if (result) {
+                    const ex = extractResult(result);
+                    if (ex && isScanning && !modalCtx) handled = acceptCode(ex.code, ex.fmtName, ex.rawBytes);
+                }
+                // C) เอนจิน ZXing-C++ WASM (แม่นพิเศษ) อ่านเฟรมเต็ม - ทนเงาโลหะ/นอยส์กว่า JS
+                if (!handled && isScanning && !modalCtx) {
+                    if (plan.canvas !== fullCanvas) grabFrame(fullCanvas, fullCtx, 0);
+                    const wex = await wasmRead(fullCanvas);
+                    if (wex && isScanning && !modalCtx) handled = acceptCode(wex.code, wex.fmtName, wex.rawBytes);
+                }
             }
         } catch (e) {
-            result = null;
+            handled = false;
         }
-        decodeBusy = false;
-        attemptNo++;
         const st = window.__scanPerf;
+        attemptNo++;
         st.attempts = attemptNo;
         st.lastAttemptMs = Math.round(performance.now() - t0);
         st.lastAttemptAt = Date.now();
-        if (result) {
-            const ex = extractResult(result);
-            if (ex) {
-                if (!st.firstResultMs) st.firstResultMs = Math.max(1, Date.now() - st.startedAt);
-                // cooldown หลังบันทึก: ข้าม "โค้ดเดิม" ที่ยังชี้หน้ากล้อง แต่โค้ดใหม่ต่างจากเดิมรับทันที
-                if (!(isCooldown && ex.code === lastHandledCode)) {
-                    lastHandledCode = ex.code;
-                    triggerFeedback();
-                    handleDecodedResult(result); // เปิดหน้าต่างกรอกจำนวน -> ลูปพักเอง (modalCtx)
-                    if (!modalCtx) scheduleDecode(); // กันลูปหยุดค้างถ้าหน้าต่างเผลอไม่เปิด
-                    return;
-                }
-            }
+        if (handled) {
+            if (!st.firstResultMs) st.firstResultMs = Math.max(1, Date.now() - st.startedAt);
+            if (!modalCtx) scheduleDecode(); // กันลูปหยุดค้างถ้าหน้าต่างเผลอไม่เปิด
+            return;
         }
         scheduleDecode();
     }
@@ -1351,6 +1505,8 @@
 
         // สร้างเอนจินถอดรหัสชุดใหม่ทุกครั้งที่เปิดกล้อง (ได้โหมดรูปแบบโค้ดล่าสุดเสมอ)
         createEngineReaders();
+        // รอบที่ 5: เตรียมเอนจิน BarcodeDetector ของเบราว์เซอร์ตามโหมดที่เลือก (ถ้ามี)
+        await setupBarcodeDetector();
 
         // ขอกล้องหลัง (environment) ความละเอียดสูง: Data Matrix เป็นโค้ดเล็ก
         // ถ้าได้เฟรม 640x480 จะอ่านไม่ออก (ideal = ขอสูงสุดเท่าที่อุปกรณ์ให้ได้)
@@ -1401,6 +1557,15 @@
             btnToggle.className = 'btn-danger full-width';
         }
         updateTorchVisibility();
+        setupZoomControls(); // รอบที่ 5: แถบซูม (ขึ้นเฉพาะอุปกรณ์ที่ซูมได้)
+        ensureWasmWarmed(); // รอบที่ 5: โหลดเอนจิน WASM ล่วงหน้าในฉากหลัง
+        // รอบที่ 5: ขอโฟกัสต่อเนื่อง (continuous focus) ถ้าอุปกรณ์รองรับ ช่วยโค้ดจิ๋วมาก
+        try {
+            const track = getActiveVideoTrack();
+            if (track) await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+        } catch (e) {}
+        const stillBtn = document.getElementById('btnStillScan');
+        if (stillBtn) stillBtn.style.display = 'flex';
         scheduleDecode(150); // ให้เฟรมแรกมาก่อน แล้วค่อยเริ่มลูป
     }
 
@@ -1423,6 +1588,13 @@
             btnTorch.textContent = 'เปิดแฟลช';
             btnTorch.classList.remove('btn-torch-active');
         }
+        // รอบที่ 5: ซ่อนปุ่มจับภาพนิ่ง/แถบซูม และปลดเอนจิน BD (ผูกกับวิดีโอที่กำลังเล่น)
+        const stillBtn = document.getElementById('btnStillScan');
+        if (stillBtn) stillBtn.style.display = 'none';
+        const zoomWrap = document.getElementById('zoomControls');
+        if (zoomWrap) zoomWrap.style.display = 'none';
+        zoomCaps = null;
+        bdDetector = null;
         const placeholder = document.getElementById('camPlaceholder');
         if (placeholder) placeholder.style.display = 'block';
         const btnToggle = document.getElementById('btnToggleCam');
@@ -1471,6 +1643,153 @@
         } catch (e) {
             torchOn = !torchOn;
             showStatus('อุปกรณ์นี้เปิดแฟลชไม่ได้', true);
+        }
+    }
+
+    /* ===== รอบที่ 5: BarcodeDetector (เอนจินเร็วของเบราว์เซอร์ - Android Chrome) ===== */
+    async function setupBarcodeDetector() {
+        bdDetector = null;
+        bdMisses = 0;
+        try {
+            if (typeof window.BarcodeDetector !== 'function') return;
+            const supported = await window.BarcodeDetector.getSupportedFormats();
+            const want = (scanFormatMode === 'DM')
+                ? ['data_matrix']
+                : ['data_matrix', 'qr_code', 'code_128', 'ean_13', 'aztec', 'pdf417', 'code_39', 'ean_8', 'upc_a', 'upc_e', 'itf'];
+            const ok = want.filter(f => supported && supported.indexOf(f) !== -1);
+            if (ok.length) bdDetector = new window.BarcodeDetector({ formats: ok });
+        } catch (e) {
+            bdDetector = null;
+        }
+    }
+
+    /* ===== รอบที่ 5: ซูมกล้อง - โค้ดจิ๋วให้ซูมเข้า แทนการเอาเครื่องใกล้จนโฟกัสไม่ติด ===== */
+    async function setupZoomControls() {
+        const wrap = document.getElementById('zoomControls');
+        zoomCaps = null;
+        zoomValue = 1;
+        if (!wrap) return;
+        let z = null;
+        try {
+            const track = getActiveVideoTrack();
+            const caps = track && typeof track.getCapabilities === 'function' ? track.getCapabilities() : null;
+            z = caps && caps.zoom ? caps.zoom : null;
+        } catch (e) {}
+        if (z && z.max > z.min) {
+            zoomCaps = z;
+            const slider = document.getElementById('zoomSlider');
+            if (slider) {
+                slider.min = z.min;
+                slider.max = z.max;
+                slider.step = z.step || 0.1;
+                slider.value = z.min;
+            }
+            wrap.style.display = 'block';
+            updateZoomLabel();
+        } else {
+            wrap.style.display = 'none';
+        }
+    }
+
+    function updateZoomLabel() {
+        const label = document.getElementById('zoomLabel');
+        if (label) label.textContent = 'ซูม ' + zoomValue.toFixed(1) + 'x';
+    }
+
+    async function applyZoom(v) {
+        if (!zoomCaps) return;
+        const step = zoomCaps.step || 0.1;
+        const clamped = Math.min(zoomCaps.max, Math.max(zoomCaps.min, Math.round(v / step) * step));
+        zoomValue = clamped;
+        updateZoomLabel();
+        const slider = document.getElementById('zoomSlider');
+        if (slider) slider.value = clamped;
+        try {
+            const track = getActiveVideoTrack();
+            if (track) await track.applyConstraints({ advanced: [{ zoom: clamped }] });
+        } catch (e) {}
+    }
+
+    /* ===== รอบที่ 5: จับภาพนิ่งจากกล้องแล้วสแกนแบบละเอียด =====
+       ใช้เมื่อถือนิ่งแล้วลูปสแกนยังไม่ติด (แสงสะท้อนโลหะ/โฟกัสเพี้ยน/โค้ดจิ๋วมาก)
+       เฟรมเต็มความละเอียด -> เติมขอบขาว -> ขยาย 2 เท่า + ครอปกลาง 70% อีกชุด แล้วลองทุกเวอร์ชัน */
+    function cropCenterCanvas(srcCanvas, frac) {
+        const w = srcCanvas.width, h = srcCanvas.height;
+        const cw = Math.max(1, Math.round(w * frac));
+        const ch = Math.max(1, Math.round(h * frac));
+        const c = document.createElement('canvas');
+        c.width = cw;
+        c.height = ch;
+        const ctx = c.getContext('2d', { willReadFrequently: true });
+        ctx.drawImage(srcCanvas, Math.round((w - cw) / 2), Math.round((h - ch) / 2), cw, ch, 0, 0, cw, ch);
+        return c;
+    }
+
+    function padCanvas(srcCanvas, frac) {
+        const border = Math.max(12, Math.round(Math.min(srcCanvas.width, srcCanvas.height) * frac));
+        if (srcCanvas.width + border * 2 > 4096 || srcCanvas.height + border * 2 > 4096) return null;
+        const pad = document.createElement('canvas');
+        pad.width = srcCanvas.width + border * 2;
+        pad.height = srcCanvas.height + border * 2;
+        const pctx = pad.getContext('2d', { willReadFrequently: true });
+        pctx.fillStyle = '#ffffff';
+        pctx.fillRect(0, 0, pad.width, pad.height);
+        pctx.drawImage(srcCanvas, border, border);
+        return pad;
+    }
+
+    function buildStillCandidates(srcCanvas) {
+        const list = [];
+        const w = srcCanvas.width, h = srcCanvas.height;
+        if (!w || !h) return list;
+        // 1) เฟรมเต็ม (ย่อลงเฉพาะถ้ากว้างเกิน 2048 เพื่อความเร็ว)
+        const base = (w > 2048) ? drawToCanvas(srcCanvas, 2048, Math.round(h * 2048 / w)) : srcCanvas;
+        list.push(base);
+        // 2) เฟรมเต็ม + เติมขอบขาว + ขยาย 2 เท่า (โค้ดจิ๋ว)
+        const padFull = padCanvas(base, 0.08);
+        if (padFull) {
+            list.push(padFull);
+            if (padFull.width < 3200 && padFull.width * 2 <= 4096 && padFull.height * 2 <= 4096) {
+                list.push(drawToCanvas(padFull, padFull.width * 2, padFull.height * 2));
+            }
+        }
+        // 3) ครอปกลาง 70% ความละเอียดเดิม (โฟกัสโค้ดที่เล็งไว้) + เติมขอบ + ขยาย 2 เท่า
+        const crop = cropCenterCanvas(base, 0.7);
+        const padCrop = padCanvas(crop, 0.1);
+        if (padCrop) {
+            list.push(padCrop);
+            if (padCrop.width < 3200 && padCrop.width * 2 <= 4096 && padCrop.height * 2 <= 4096) {
+                list.push(drawToCanvas(padCrop, padCrop.width * 2, padCrop.height * 2));
+            }
+        }
+        return list;
+    }
+
+    async function stillScanFromVideo() {
+        if (stillBusy) return;
+        const stillBtn = document.getElementById('btnStillScan');
+        if (!videoEl || !videoEl.videoWidth) {
+            showStatus('❌ ยังไม่ได้เปิดกล้อง กด "📷 เปิดกล้องสแกน" ก่อน', true);
+            return;
+        }
+        stillBusy = true;
+        if (stillBtn) stillBtn.textContent = '⏳ กำลังวิเคราะห์ภาพนิ่ง...';
+        showStatus('⏳ กำลังสแกนภาพนิ่งความละเอียดสูง...');
+        await new Promise(r => setTimeout(r, 30)); // ให้ข้อความขึ้นก่อน (งานหนักจะบล็อก UI ชั่วคราว)
+        let ok = false;
+        try {
+            getWorkCanvases();
+            if (grabFrame(fullCanvas, fullCtx, 0)) {
+                const ex = await decodeFromCanvasCandidates(buildStillCandidates(fullCanvas));
+                if (ex) {
+                    ok = acceptCode(ex.code, ex.fmtName, ex.rawBytes);
+                    if (!ok && !modalCtx) showStatus('โค้ดเดิมเพิ่งบันทึกไป รอสักครู่แล้วลองใหม่', true);
+                }
+            }
+            if (!ok && !modalCtx) showStatus('❌ ยังอ่านไม่ออก ลองซูมเข้าให้โค้ดใหญ่ขึ้น เปลี่ยนมุมแสง แล้วกดใหม่', true);
+        } finally {
+            stillBusy = false;
+            if (stillBtn) stillBtn.textContent = '📸 จับภาพนิ่ง สแกนละเอียด';
         }
     }
 
@@ -1529,14 +1848,26 @@
         return candidates;
     }
 
-    // รอบที่ 4: ถอดรหัสทุกเวอร์ชันภาพแบบซิงก์ ลองแบบ "เร็ว" ก่อนทุกภาพ
-    // แล้วค่อยลองแบบ "ละเอียด" (TRY_HARDER + กลับสี) - ไม่มี timeout ค้างเหมือนวิธีเดิม
-    function decodeFromCanvasCandidates(candidates) {
+    // ถอดรหัส 1 canvas ด้วยทุกเอนจิน: ZXing JS (เร็ว) -> ZXing-C++ WASM (แม่นพิเศษ)
+    // คืน { code, fmtName, rawBytes } หรือ null
+    async function decodeAnyFromCanvas(canvas, useWasm) {
+        let res = decodeCanvasOnce(canvas, fastReader, false);
+        if (!res) res = decodeCanvasOnce(canvas, hardReader, true);
+        if (res) {
+            const ex = extractResult(res);
+            if (ex) return ex;
+        }
+        if (useWasm) return wasmRead(canvas);
+        return null;
+    }
+
+    // รอบที่ 4 + 5: ถอดรหัสทุกเวอร์ชันภาพ - ZXing JS ก่อนทุกเวอร์ชัน (เร็ว)
+    // ถ้าไม่ออก สลับไป ZXing-C++ WASM ทีละเวอร์ชัน (แม่น ทนเงาโลหะ/นอยส์)
+    async function decodeFromCanvasCandidates(candidates, useWasm) {
         ensureEngineReaders();
         for (const canvas of candidates) {
-            let res = decodeCanvasOnce(canvas, fastReader, false);
-            if (!res) res = decodeCanvasOnce(canvas, hardReader, true);
-            if (res) return res;
+            const ex = await decodeAnyFromCanvas(canvas, useWasm !== false);
+            if (ex) return ex;
         }
         return null;
     }
@@ -1551,10 +1882,10 @@
         const objectUrl = URL.createObjectURL(file);
         try {
             const img = await loadImageAsync(objectUrl);
-            const result = decodeFromCanvasCandidates(buildFileCandidates(img));
-            if (!result) throw new Error('code not found');
+            const ex = await decodeFromCanvasCandidates(buildFileCandidates(img));
+            if (!ex) throw new Error('code not found');
             triggerFeedback();
-            handleDecodedResult(result);
+            handleDecodedText(ex.code, ex.fmtName, ex.rawBytes);
         } catch (err) {
             showStatus('❌ ไม่พบรหัสในรูปภาพนี้ (ลองถ่ายใหม่ให้โค้ดใหญ่และชัดกว่านี้)', true);
         } finally {
