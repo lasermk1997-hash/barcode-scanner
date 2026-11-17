@@ -233,3 +233,30 @@
         </label>
         <input type="file" id="qrFileInput" accept="image/*" style="display:none;">
     </div>
+
+    <!-- เลือกโหมดการทำงาน: รับเข้า หรือ เบิกออก -->
+    <div class="mode-selector">
+        <div id="modeIn" class="mode-btn active-in" onclick="setMode('IN')">📥 รับเข้าสินค้า (+)</div>
+        <div id="modeOut" class="mode-btn" onclick="setMode('OUT')">📤 เบิกออกสินค้า (-)</div>
+    </div>
+
+    <!-- ช่องกรอกข้อมูล -->
+    <input type="text" id="itemNameInput" placeholder="📝 ชื่อสินค้า / หมายเหตุ (เช่น น้ำดื่ม 500ml)">
+    
+    <div class="input-row">
+        <input type="number" id="qtyInput" value="1" min="1" placeholder="จำนวน" style="max-width: 110px;">
+        <input type="text" id="manualCodeInput" placeholder="หรือพิมพ์รหัสสินค้า...">
+        <button type="button" id="btnManualAdd" class="btn-primary" style="white-space: nowrap;">บันทึก</button>
+    </div>
+
+    <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 15px 0;">
+
+    <!-- ช่องค้นหาสต๊อก -->
+    <input type="text" id="searchInput" placeholder="🔍 ค้นหารหัส หรือ ชื่อสินค้าในสต๊อก...">
+
+    <!-- จัดการข้อมูล -->
+    <div class="action-bar">
+        <div style="font-size: 0.9rem;">รายการสินค้า: <strong id="totalCount">0</strong> รายการ</div>
+        <div class="export-group">
+            <button type="button" id="btnExport" class="btn-success btn-sm">📥 โหลดสต๊อก (CSV)</button>
+            <button type="button" id="btnClear" class="btn-
