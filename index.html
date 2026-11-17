@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ระบบสแกนและค้นหาข้อมูล</title>
+    <title>ระบบเช็คสต๊อกสินค้า (QR & Barcode Stock)</title>
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <style>
         :root {
@@ -31,7 +31,7 @@
         }
         .container {
             width: 100%;
-            max-width: 600px;
+            max-width: 650px;
             background: var(--card);
             padding: 16px;
             border-radius: 16px;
@@ -80,15 +80,62 @@
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 8px;
-            margin-bottom: 14px;
+            margin-bottom: 12px;
         }
         .full-width { grid-column: span 2; }
 
+        .mode-selector {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        .mode-btn {
+            padding: 10px;
+            border: 2px solid #cbd5e1;
+            background: #f8fafc;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            cursor: pointer;
+            text-align: center;
+            color: #64748b;
+        }
+        .mode-btn.active-in {
+            border-color: var(--success);
+            background: #dcfce7;
+            color: #166534;
+        }
+        .mode-btn.active-out {
+            border-color: var(--danger);
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .input-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            font-size: 16px;
+            background: #f8fafc;
+        }
+        input:focus {
+            outline: none;
+            border-color: var(--primary);
+            background: #fff;
+        }
+
         button, .file-label {
-            padding: 14px 12px;
+            padding: 12px;
             border: none;
             border-radius: 10px;
-            font-size: 1rem;
+            font-size: 0.95rem;
             font-weight: 600;
             cursor: pointer;
             text-align: center;
@@ -105,24 +152,7 @@
         .btn-warning { background: var(--warning); color: white; }
         .btn-success { background: var(--success); color: white; }
         .btn-danger { background: var(--danger); color: white; }
-        .btn-sm { padding: 8px 12px; font-size: 0.85rem; border-radius: 8px; }
-
-        input[type="text"] {
-            width: 100%;
-            padding: 12px 14px;
-            border: 1px solid #cbd5e1;
-            border-radius: 10px;
-            font-size: 16px;
-            margin-bottom: 10px;
-            background: #f8fafc;
-        }
-        input[type="text"]:focus {
-            outline: none;
-            border-color: var(--primary);
-            background: #fff;
-        }
-        .manual-group { display: flex; gap: 8px; margin-bottom: 14px; }
-        .manual-group input { margin-bottom: 0; flex: 1; }
+        .btn-sm { padding: 6px 10px; font-size: 0.8rem; border-radius: 6px; }
 
         #statusBanner {
             display: none;
@@ -145,34 +175,35 @@
             gap: 8px;
         }
         .export-group { display: flex; gap: 6px; }
+        
         .table-wrapper {
             width: 100%;
             overflow-x: auto;
             border: 1px solid #e2e8f0;
             border-radius: 10px;
-            max-height: 350px;
+            max-height: 400px;
         }
-        table { width: 100%; border-collapse: collapse; }
+        table { width: 100%; border-collapse: collapse; white-space: nowrap; }
         th, td { padding: 10px; text-align: left; border-bottom: 1px solid #e2e8f0; font-size: 0.85rem; }
         th { background-color: #f8fafc; font-weight: 600; position: sticky; top: 0; z-index: 10; }
         .badge {
             background: #dbeafe;
             color: #1e40af;
-            padding: 4px 8px;
+            padding: 3px 6px;
             border-radius: 6px;
             font-family: monospace;
             font-weight: bold;
-            word-break: break-all;
-            display: inline-block;
         }
-        .time-col { font-size: 0.75rem; color: #64748b; white-space: nowrap; }
-        .empty-state { text-align: center; padding: 20px; color: #64748b; }
+        .stock-num { font-weight: bold; font-size: 0.95rem; }
+        .stock-in { color: var(--success); }
+        .stock-out { color: var(--danger); }
+        .empty-state { text-align: center; padding: 25px; color: #64748b; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>📱 ระบบสแกนและค้นหาข้อมูล</h1>
+    <h1>📦 ระบบเช็คสต๊อกสินค้า</h1>
 
     <div id="envWarning" class="alert-box"></div>
     <div id="statusBanner"></div>
@@ -202,37 +233,46 @@
         <input type="file" id="qrFileInput" accept="image/*" style="display:none;">
     </div>
 
-    <!-- กรอกข้อมูล -->
-    <input type="text" id="noteInput" placeholder="📝 หมายเหตุ (ใส่ก่อนสแกน เช่น ชื่อสินค้า)">
+    <!-- เลือกโหมดการทำงาน: รับเข้า หรือ เบิกออก -->
+    <div class="mode-selector">
+        <div id="modeIn" class="mode-btn active-in" onclick="setMode('IN')">📥 รับเข้าสินค้า (+)</div>
+        <div id="modeOut" class="mode-btn" onclick="setMode('OUT')">📤 เบิกออกสินค้า (-)</div>
+    </div>
+
+    <!-- ช่องกรอกข้อมูล -->
+    <input type="text" id="itemNameInput" placeholder="📝 ชื่อสินค้า / หมายเหตุ (เช่น น้ำดื่ม 500ml)">
     
-    <div class="manual-group">
-        <input type="text" id="manualCodeInput" placeholder="พิมพ์รหัสด้วยตัวเอง...">
-        <button type="button" id="btnManualAdd" class="btn-primary">+ เพิ่ม</button>
+    <div class="input-row">
+        <input type="number" id="qtyInput" value="1" min="1" placeholder="จำนวน" style="max-width: 110px;">
+        <input type="text" id="manualCodeInput" placeholder="หรือพิมพ์รหัสสินค้า...">
+        <button type="button" id="btnManualAdd" class="btn-primary" style="white-space: nowrap;">บันทึก</button>
     </div>
 
     <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 15px 0;">
 
-    <!-- ช่องค้นหาข้อมูลย้อนหลัง -->
-    <input type="text" id="searchInput" placeholder="🔍 ค้นหารหัส หรือ หมายเหตุย้อนหลัง...">
+    <!-- ช่องค้นหาสต๊อก -->
+    <input type="text" id="searchInput" placeholder="🔍 ค้นหารหัส หรือ ชื่อสินค้าในสต๊อก...">
 
     <!-- จัดการข้อมูล -->
     <div class="action-bar">
-        <div style="font-size: 0.9rem;">แสดงผล: <strong id="totalCount">0</strong> รายการ</div>
+        <div style="font-size: 0.9rem;">รายการสินค้า: <strong id="totalCount">0</strong> รายการ</div>
         <div class="export-group">
-            <button type="button" id="btnExport" class="btn-success btn-sm">📥 โหลด CSV</button>
-            <button type="button" id="btnClear" class="btn-danger btn-sm">🗑️ ล้างทั้งหมด</button>
+            <button type="button" id="btnExport" class="btn-success btn-sm">📥 โหลดสต๊อก (CSV)</button>
+            <button type="button" id="btnClear" class="btn-danger btn-sm">🗑️ ล้างสต๊อก</button>
         </div>
     </div>
 
-    <!-- ตารางประวัติ -->
+    <!-- ตารางสต๊อกสินค้า -->
     <div class="table-wrapper">
         <table>
             <thead>
                 <tr>
-                    <th>เวลา</th>
-                    <th>รหัส</th>
-                    <th>หมายเหตุ</th>
-                    <th>ลบ</th>
+                    <th>รหัสสินค้า</th>
+                    <th>ชื่อสินค้า / หมายเหตุ</th>
+                    <th>คงเหลือ</th>
+                    <th>รับเข้า</th>
+                    <th>เบิกออก</th>
+                    <th>จัดการ</th>
                 </tr>
             </thead>
             <tbody id="dataTableBody"></tbody>
@@ -249,12 +289,14 @@
     let audioCtx = null;
     let clearConfirmTimer = null;
     let isConfirmingClear = false;
-    let scannedData = [];
+    
+    let currentMode = 'IN';
+    let inventory = [];
 
     try {
-        scannedData = JSON.parse(localStorage.getItem('mobile_scanned_records')) || [];
+        inventory = JSON.parse(localStorage.getItem('barcode_stock_inventory')) || [];
     } catch (e) {
-        scannedData = [];
+        inventory = [];
     }
 
     window.addEventListener('DOMContentLoaded', () => {
@@ -263,10 +305,10 @@
         
         if (window.location.protocol === 'file:') {
             warningBox.style.display = 'block';
-            warningBox.innerHTML = '⚠️ <b>เปิดจากไฟล์ในเครื่องโดยตรง:</b> มือถือจะบล็อกการทำงานของปุ่มและกล้อง กรุณานำไฟล์ไปวางบนเว็บ (เช่น Netlify Drop) แล้วเปิดผ่านลิงก์ <b>https://</b>';
+            warningBox.innerHTML = '⚠️ <b>เปิดจากไฟล์ในเครื่อง:</b> กรุณานำไฟล์ไปวางบนเว็บ (เช่น Netlify Drop) แล้วเปิดผ่านลิงก์ <b>https://</b>';
         } else if (/Line|FBAN|FBAV|Instagram/i.test(ua)) {
             warningBox.style.display = 'block';
-            warningBox.innerHTML = '⚠️ <b>คุณกำลังเปิดผ่านแอปแชท (LINE/Facebook):</b> กรุณากดปุ่ม <b>จุด 3 จุด (⋮)</b> มุมจอ แล้วเลือก <b>"เปิดในเบราว์เซอร์ (Chrome / Safari)"</b>';
+            warningBox.innerHTML = '⚠️ <b>กำลังเปิดผ่านแอปแชท:</b> กรุณากดจุด 3 จุดมุมจอ แล้วเลือก <b>"เปิดในเบราว์เซอร์ (Chrome / Safari)"</b>';
         }
 
         document.getElementById('btnToggleCam').addEventListener('click', toggleCamera);
@@ -276,12 +318,23 @@
         document.getElementById('btnManualAdd').addEventListener('click', manualAdd);
         document.getElementById('btnExport').addEventListener('click', exportToCSV);
         document.getElementById('btnClear').addEventListener('click', handleClearButton);
-        
-        // ผูก Event ช่องค้นหา
         document.getElementById('searchInput').addEventListener('input', renderTable);
 
         renderTable();
     });
+
+    function setMode(mode) {
+        currentMode = mode;
+        const btnIn = document.getElementById('modeIn');
+        const btnOut = document.getElementById('modeOut');
+        if (mode === 'IN') {
+            btnIn.className = 'mode-btn active-in';
+            btnOut.className = 'mode-btn';
+        } else {
+            btnIn.className = 'mode-btn';
+            btnOut.className = 'mode-btn active-out';
+        }
+    }
 
     function showStatus(msg, isError = false) {
         const banner = document.getElementById('statusBanner');
@@ -349,9 +402,8 @@
                     if (isCooldown) return;
                     isCooldown = true;
                     triggerFeedback();
-                    saveRecord(decodedText);
-                    showStatus(`✅ บันทึกแล้ว: ${decodedText}`);
-                    setTimeout(() => { isCooldown = false; }, 1800);
+                    processStockUpdate(decodedText);
+                    setTimeout(() => { isCooldown = false; }, 2000);
                 },
                 () => {}
             );
@@ -408,7 +460,7 @@
             await torch.apply(torchOn);
             document.getElementById('btnTorch').textContent = torchOn ? '🔦 ปิดไฟฉาย' : '🔦 ไฟฉาย';
         } catch (e) {
-            showStatus('มือถือไม่รองรับเปิดไฟฉายผ่านเว็บ', true);
+            showStatus('มือถือไม่รองรับเปิดไฟฉาย', true);
         }
     }
 
@@ -423,81 +475,127 @@
         try {
             const decodedText = await html5QrCode.scanFile(file, true);
             triggerFeedback();
-            saveRecord(decodedText);
-            showStatus(`✅ สแกนสำเร็จ: ${decodedText}`);
+            processStockUpdate(decodedText);
         } catch (err) {
             showStatus('❌ ไม่พบรหัสในรูปภาพนี้', true);
         }
         event.target.value = '';
     }
 
-    function saveDataToStorage() {
+    function saveToStorage() {
         try {
-            localStorage.setItem('mobile_scanned_records', JSON.stringify(scannedData));
+            localStorage.setItem('barcode_stock_inventory', JSON.stringify(inventory));
         } catch (e) {}
     }
 
-    function saveRecord(code) {
-        if (!code.trim()) return;
-        const note = document.getElementById('noteInput').value.trim();
-        const now = new Date();
-        const timeStr = now.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' }) + 
-                        ' ' + now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    function processStockUpdate(code, customQty = null, customName = null) {
+        if (!code || !code.trim()) return;
+        code = code.trim();
 
-        scannedData.unshift({
-            id: Date.now(),
-            timestamp: timeStr,
-            code: code.trim(),
-            note: note || '-'
-        });
+        const qtyInput = document.getElementById('qtyInput');
+        const qty = customQty !== null ? parseInt(customQty) : (parseInt(qtyInput.value) || 1);
+        const nameInput = document.getElementById('itemNameInput');
+        const inputName = customName !== null ? customName : nameInput.value.trim();
 
-        saveDataToStorage();
-        document.getElementById('searchInput').value = ''; // ล้างคำค้นหาเพื่อให้เห็นรายการใหม่ล่าสุดทันที
+        let item = inventory.find(i => i.code === code);
+
+        if (item) {
+            if (currentMode === 'IN') {
+                item.inTotal += qty;
+                item.stock += qty;
+                showStatus(`📥 รับเข้า [+${qty}] "${item.name}" สำเร็จ (เหลือ: ${item.stock})`);
+            } else {
+                item.outTotal += qty;
+                item.stock -= qty;
+                if (item.stock < 0) item.stock = 0;
+                showStatus(`📤 เบิกออก [-${qty}] "${item.name}" สำเร็จ (เหลือ: ${item.stock})`, item.stock === 0);
+            }
+            if (inputName && inputName !== '-') {
+                item.name = inputName;
+            }
+            item.lastUpdate = new Date().toLocaleString('th-TH');
+        } else {
+            const initialStock = currentMode === 'IN' ? qty : 0;
+            const initialIn = currentMode === 'IN' ? qty : 0;
+            const initialOut = currentMode === 'OUT' ? qty : 0;
+
+            inventory.unshift({
+                id: Date.now(),
+                code: code,
+                name: inputName || 'สินค้าทั่วไป',
+                stock: initialStock,
+                inTotal: initialIn,
+                outTotal: initialOut,
+                lastUpdate: new Date().toLocaleString('th-TH')
+            });
+            showStatus(`✨ เพิ่มสินค้าใหม่ในสต๊อกสำเร็จ`);
+        }
+
+        saveToStorage();
+        document.getElementById('searchInput').value = '';
         renderTable();
+        qtyInput.value = '1';
     }
 
     function manualAdd() {
-        const input = document.getElementById('manualCodeInput');
-        if (input.value.trim()) {
+        const manualInput = document.getElementById('manualCodeInput');
+        const code = manualInput.value.trim();
+        if (code) {
             triggerFeedback();
-            saveRecord(input.value);
-            showStatus(`✅ เพิ่มข้อมูลแล้ว`);
-            input.value = '';
+            processStockUpdate(code);
+            manualInput.value = '';
         } else {
-            showStatus('⚠️ กรุณาพิมพ์รหัสก่อนกดเพิ่ม', true);
+            showStatus('⚠️ กรุณากรอกรหัสสินค้าก่อน', true);
         }
     }
 
-    function deleteRecord(id) {
-        scannedData = scannedData.filter(item => item.id !== id);
-        saveDataToStorage();
+    function quickAdjust(id, mode) {
+        let item = inventory.find(i => i.id === id);
+        if (!item) return;
+
+        if (mode === 'IN') {
+            item.inTotal += 1;
+            item.stock += 1;
+        } else {
+            item.outTotal += 1;
+            item.stock -= 1;
+            if (item.stock < 0) item.stock = 0;
+        }
+        item.lastUpdate = new Date().toLocaleString('th-TH');
+        saveToStorage();
+        renderTable();
+    }
+
+    function deleteItem(id) {
+        inventory = inventory.filter(item => item.id !== id);
+        saveToStorage();
         renderTable();
     }
 
     function handleClearButton() {
-        if (scannedData.length === 0) {
-            showStatus('ไม่มีข้อมูลให้ล้าง', true);
+        if (inventory.length === 0) {
+            showStatus('สต๊อกว่างเปล่าอยู่แล้ว', true);
             return;
         }
         const btn = document.getElementById('btnClear');
         if (!isConfirmingClear) {
             isConfirmingClear = true;
-            btn.textContent = '⚠️ กดซ้ำเพื่อยืนยันลบ';
+            btn.textContent = '⚠️ กดซ้ำเพื่อยืนยันลบสต๊อก';
             btn.style.background = '#991b1b';
             clearConfirmTimer = setTimeout(() => {
                 isConfirmingClear = false;
-                btn.textContent = '🗑️ ล้างทั้งหมด';
+                btn.textContent = '🗑️ ล้างสต๊อก';
                 btn.style.background = '';
             }, 3000);
         } else {
             clearTimeout(clearConfirmTimer);
             isConfirmingClear = false;
-            btn.textContent = '🗑️ ล้างทั้งหมด';
+            btn.textContent = '🗑️ ล้างสต๊อก';
             btn.style.background = '';
-            scannedData = [];
-            saveDataToStorage();
+            inventory = [];
+            saveToStorage();
             renderTable();
-            showStatus('🗑️ ล้างข้อมูลทั้งหมดเรียบร้อย');
+            showStatus('🗑️ ล้างข้อมูลสต๊อกทั้งหมดเรียบร้อย');
         }
     }
 
@@ -507,51 +605,56 @@
         return div.innerHTML;
     }
 
-    // ฟังก์ชันแสดงตารางพร้อมระบบกรองค้นหา
     function renderTable() {
         const tbody = document.getElementById('dataTableBody');
         const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
 
-        // กรองข้อมูลตามคำค้นหา
-        const filteredData = scannedData.filter(item => 
+        const filtered = inventory.filter(item => 
             item.code.toLowerCase().includes(searchTerm) || 
-            item.note.toLowerCase().includes(searchTerm) ||
-            item.timestamp.toLowerCase().includes(searchTerm)
+            item.name.toLowerCase().includes(searchTerm)
         );
 
-        document.getElementById('totalCount').textContent = filteredData.length;
+        document.getElementById('totalCount').textContent = filtered.length;
 
-        if (filteredData.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="4" class="empty-state">ไม่พบข้อมูลที่ค้นหา</td></tr>`;
+        if (filtered.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" class="empty-state">ไม่พบสินค้าในสต๊อก</td></tr>`;
             return;
         }
 
-        tbody.innerHTML = filteredData.map(item => `
+        tbody.innerHTML = filtered.map(item => `
             <tr>
-                <td class="time-col">${item.timestamp}</td>
                 <td><span class="badge">${escapeHtml(item.code)}</span></td>
-                <td>${escapeHtml(item.note)}</td>
-                <td><button type="button" class="btn-danger btn-sm" onclick="deleteRecord(${item.id})">✕</button></td>
+                <td>${escapeHtml(item.name)}</td>
+                <td class="stock-num">${item.stock}</td>
+                <td class="stock-in">+${item.inTotal}</td>
+                <td class="stock-out">-${item.outTotal}</td>
+                <td>
+                    <div style="display:flex; gap:4px;">
+                        <button type="button" class="btn-success btn-sm" onclick="quickAdjust(${item.id}, 'IN')" title="เพิ่ม +1">+1</button>
+                        <button type="button" class="btn-warning btn-sm" onclick="quickAdjust(${item.id}, 'OUT')" title="ลด -1" style="color:#fff;">-1</button>
+                        <button type="button" class="btn-danger btn-sm" onclick="deleteItem(${item.id})" title="ลบ">✕</button>
+                    </div>
+                </td>
             </tr>
         `).join('');
     }
 
     function exportToCSV() {
-        if (scannedData.length === 0) {
-            showStatus('⚠️ ไม่มีข้อมูลสำหรับส่งออก', true);
+        if (inventory.length === 0) {
+            showStatus('⚠️ ไม่มีข้อมูลสต๊อกสำหรับส่งออก', true);
             return;
         }
 
-        let csvContent = "\uFEFFวัน-เวลา,รหัสที่สแกนได้,หมายเหตุ\n";
-        scannedData.forEach(row => {
-            csvContent += `"${row.timestamp}","${row.code.replace(/"/g, '""')}","${row.note.replace(/"/g, '""')}"\n`;
+        let csvContent = "\uFEFFรหัสสินค้า,ชื่อสินค้า/หมายเหตุ,จำนวนคงเหลือ,รับเข้าทั้งหมด,เบิกออกทั้งหมด,อัปเดตล่าสุด\n";
+        inventory.forEach(row => {
+            csvContent += `"${row.code}","${row.name.replace(/"/g, '""')}",${row.stock},${row.inTotal},${row.outTotal},"${row.lastUpdate}"\n`;
         });
 
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
-        link.download = `scan_${new Date().toISOString().slice(0,10)}.csv`;
+        link.download = `stock_report_${new Date().toISOString().slice(0,10)}.csv`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
