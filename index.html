@@ -69,6 +69,16 @@
         จนกว่าจะกด "ออกจากระบบ" เอง - ชื่อ + รหัส PIN ที่ลงทะเบียนถูกจดจำไว้ในเครื่องนี้ตลอดไป
     31) ปุ่ม ✕ หน้าชื่อ = ลบผู้ใช้ออกจากเครื่องนี้ (กด 2 ครั้งเพื่อยืนยัน กันกดพลาด)
         ประวัติการสแกนเก่าของผู้ใช้นั้นยังอยู่ครบ ไม่หายไป
+
+    ===== รอบที่ 7: กันสแกนซ้ำ - โค้ดที่เคยบันทึกแล้ว จะไม่บันทึกข้อมูลซ้ำ =====
+    32) สแกนโค้ดที่ "เนื้อหาข้างใน" เคยบันทึกไปแล้ว ระบบจะขึ้นหน้าต่างเตือน "โค้ดซ้ำ"
+        แสดงว่าเคยบันทึกเมื่อไหร่ โดยใคร ประเภทอะไร สต๊อกคงเหลือเท่าไร
+        และไม่บันทึกลงสต๊อกซ้ำ (กันสต๊อกถูกนับเพิ่มสองเท่า เมื่อสแกนฉลากเดิมซ้ำโดยไม่ตั้งใจ)
+    33) ตรวจทั้งสองโหมด: รับเข้าซ้ำโค้ดเดิม = ไม่บันทึก | เบิกออกซ้ำโค้ดเดิม = ไม่บันทึก
+        แต่ลำดับปกติ "รับเข้า -> เบิกออก" ใช้ได้เต็มที่ ไม่ถูกตัดสินเป็นโค้ดซ้ำ
+        (เทียบที่เนื้อหาโค้ดทั้งหมด ไม่แยกว่าเคยบันทึกไว้เป็น plate หรือ chanel)
+    34) กันพลาด 3 ชั้น: ตอนเปิดหน้าต่างกรอกจำนวน / ตอนกดปุ่มบันทึก / ตอนเขียนลงสต๊อกจริง
+    35) เสียงเตือน 2 จังหวะ + สั่นเตือน แยกจากเสียงสแกนปกติ ให้รู้ทันทีโดยไม่ต้องอ่านจอ
     -->
     <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
     <script>window.ZXing || document.write('<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"><\/script>');</script>
@@ -457,6 +467,21 @@
             padding: 8px 10px;
             margin-top: 8px;
         }
+        /* รอบที่ 7: หน้าต่างเตือนโค้ดซ้ำ */
+        .dup-alert {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 10px;
+            padding: 8px 10px;
+            margin-top: 10px;
+        }
+        .dup-alert .info-line { background: transparent; padding: 4px 2px; margin-top: 0; }
+        .dup-alert .dup-head {
+            font-weight: 800;
+            color: #991b1b;
+            font-size: 0.95rem;
+            padding: 2px;
+        }
         .modal-actions {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -703,6 +728,18 @@
     </div>
 </div>
 
+<!-- รอบที่ 7: หน้าต่างเตือน "โค้ดซ้ำ" - โค้ดที่เคยบันทึกแล้ว จะไม่บันทึกลงสต๊อกซ้ำ -->
+<div id="dupModal" class="modal-overlay">
+    <div class="modal-card">
+        <h2 class="modal-title">⛔ โค้ดซ้ำ - ไม่บันทึกข้อมูล</h2>
+        <div class="modal-model"><span class="badge" id="dupCode">-</span> <span id="dupFmt" class="fmt-tag"></span></div>
+        <div id="dupDetail" class="dup-alert"></div>
+        <div class="modal-actions">
+            <button type="button" id="btnDupOk" class="btn-secondary" style="grid-column: 1 / -1;">รับทราบ</button>
+        </div>
+    </div>
+</div>
+
 <script>
     let isScanning = false;
     let isCooldown = false;
@@ -748,6 +785,7 @@
     let lastUsedQty = 1;         // จำนวนที่ใช้ล่าสุด (จำค่าไว้ให้กดเร็วขึ้น)
     let scanLog = [];            // ประวัติการสแกนทั้งหมด
     let chipConfirmName = null;  // รอบที่ 6: ชื่อที่กด ✕ รอยืนยันการลบ (ต้องกดซ้ำถึงลบจริง)
+    let dupCtx = null;           // รอบที่ 7: หน้าต่างเตือน "โค้ดซ้ำ" เปิดอยู่ (พักลูปสแกนชั่วคราว)
 
     /* ===== รอบที่ 4: ZXing engine - QR + Data Matrix + บาร์โค้ดหลัก (เร็วขึ้นหลายเท่า) ===== */
     function getScanFormats() {
@@ -978,6 +1016,7 @@
         safeBind('btnModalSave', 'click', confirmScanModal);
         safeBind('btnModalCancel', 'click', cancelScanModal);
         safeBind('modalQty', 'keydown', (e) => { if (e.key === 'Enter') confirmScanModal(); });
+        safeBind('btnDupOk', 'click', closeDupModal); // รอบที่ 7
         safeBind('btnExportLog', 'click', exportLogCSV);
         safeBind('btnClearLog', 'click', handleClearLogButton);
         // รอบที่ 5: ซูมกล้อง + ปุ่มจับภาพนิ่งสแกนละเอียด
@@ -986,7 +1025,8 @@
         safeBind('btnZoomOut', 'click', () => { if (zoomCaps) applyZoom(zoomValue - (zoomCaps.step || 0.1) * 5); });
         safeBind('btnStillScan', 'click', stillScanFromVideo);
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && modalCtx) cancelScanModal();
+            if (e.key === 'Escape' && dupCtx) closeDupModal();       // รอบที่ 7
+            else if (e.key === 'Escape' && modalCtx) cancelScanModal();
         });
 
         // จำค่าที่ใช้ล่าสุด (จำนวน/ประเภท) เพื่อกดข้ามได้เร็วขึ้น
@@ -1220,6 +1260,80 @@
     }
 
     /* ============================================================
+       รอบที่ 7: กันสแกนซ้ำ - โค้ดที่เคยบันทึกแล้ว จะไม่บันทึกลงสต๊อกซ้ำอีก
+       - เทียบกันที่ "เนื้อหาข้างในของโค้ด" (normalize แล้ว) ทุกประเภท plate/chanel
+         เพราะเนื้อหาโค้ดเดิมคือฉลากใบเดียวกัน
+       - โหมดรับเข้า: โค้ดที่เคย "รับเข้า" มาก่อน -> เตือน + ไม่บันทึก (กันสต๊อกนับเกิน)
+       - โหมดเบิกออก: โค้ดที่เคย "เบิกออก" ไปแล้ว -> เตือน + ไม่บันทึก (กันยอดเบิกเกินจริง)
+       - ลำดับปกติ "รับเข้า -> เบิกออก" ใช้ได้เต็มที่ ไม่ถูกตัดสินเป็นโค้ดซ้ำ
+       ============================================================ */
+    function findDuplicateEntry(code, mode) {
+        const c = normalizeCodeText(code);
+        if (!c) return null;
+        const hit = inventory.find(i => i.code === c &&
+            (mode === 'OUT' ? (i.outTotal || 0) > 0 : (i.inTotal || 0) > 0));
+        return hit || null;
+    }
+
+    // เสียงเตือน 2 จังหวะเสียงต่ำ + สั่นเตือน แยกจากเสียงสแกนปกติ ให้รู้ทันทีว่าเป็น "โค้ดซ้ำ"
+    function triggerFeedbackDup() {
+        if (navigator.vibrate) navigator.vibrate([120, 80, 120]);
+        try {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            [[0, 600], [0.18, 450]].forEach(([delay, freq]) => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime + delay);
+                gain.gain.setValueAtTime(0.18, audioCtx.currentTime + delay);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(audioCtx.currentTime + delay);
+                osc.stop(audioCtx.currentTime + delay + 0.14);
+            });
+        } catch (e) {}
+    }
+
+    function openDupModal(code, fmt, dup) {
+        dupCtx = { code: code };
+        triggerFeedbackDup();
+        const codeEl = document.getElementById('dupCode');
+        const fmtEl = document.getElementById('dupFmt');
+        const detail = document.getElementById('dupDetail');
+        if (codeEl) codeEl.textContent = code;
+        if (fmtEl) fmtEl.textContent = fmt ? '(' + fmt + ')' : '';
+        if (detail) {
+            const isIn = currentMode !== 'OUT';
+            const head = isIn ? '📥 โค้ดนี้ถูกรับเข้ามาแล้ว - จึงไม่บันทึกข้อมูลซ้ำ'
+                              : '📤 โค้ดนี้ถูกเบิกออกไปแล้ว - จึงไม่บันทึกข้อมูลซ้ำ';
+            const why = isIn ? 'โค้ดที่เคยรับเข้าแล้ว ระบบจะไม่บันทึกรับเข้าซ้ำ เพื่อกันสต๊อกนับเกินจริง'
+                             : 'โค้ดที่เคยเบิกออกแล้ว ระบบจะไม่บันทึกเบิกออกซ้ำ เพื่อกันยอดเบิกเกินจริง';
+            detail.innerHTML =
+                '<div class="dup-head">' + head + '</div>' +
+                '<div class="info-line">🕒 บันทึกล่าสุด: <b>' + escapeHtml(dup.lastUpdate || '-') + '</b></div>' +
+                '<div class="info-line">👤 ผู้สแกน: <b>' + escapeHtml(dup.lastBy || '-') + '</b>' +
+                ' | ประเภท: <b>' + escapeHtml(typeLabel(dup.type)) + '</b></div>' +
+                '<div class="info-line">📦 สต๊อกปัจจุบัน: <b>' + (dup.stock || 0) + '</b> ชิ้น' +
+                ' (รับเข้ารวม ' + (dup.inTotal || 0) + ' / เบิกออกรวม ' + (dup.outTotal || 0) + ')</div>' +
+                '<div class="info-line">' + why + '</div>' +
+                '<div class="info-line">🔧 หากบันทึกครั้งก่อนผิด ให้ลบรายการเดิมในตารางก่อน แล้วจึงสแกนใหม่</div>';
+        }
+        const overlay = document.getElementById('dupModal');
+        if (overlay) overlay.classList.add('open');
+    }
+
+    function closeDupModal() {
+        const overlay = document.getElementById('dupModal');
+        if (overlay) overlay.classList.remove('open');
+        dupCtx = null;
+        // ฉลากเดิมมักยังชี้อยู่หน้ากล้อง -> ยับยั้งโค้ดเดิมช่วงสั้น ๆ แล้วค่อยสแกนต่อ
+        isCooldown = true;
+        setTimeout(() => { isCooldown = false; }, SAVE_COOLDOWN_MS);
+        if (isScanning) scheduleDecode(250);
+    }
+
+    /* ============================================================
        รอบที่ 3: หน้าต่างหลังสแกน - กรอกจำนวนชิ้น + เลือก plate/chanel
        เปิดทุกครั้งที่อ่านโค้ดได้ (กล้อง/รูปภาพ/พิมพ์มือ) ก่อนบันทึกลงสต๊อก
        ============================================================ */
@@ -1245,6 +1359,9 @@
 
     function openScanModal(code, fmt) {
         if (!currentUser) { showStatus('⚠️ กรุณาเข้าสู่ระบบก่อนบันทึก', true); return; }
+        // รอบที่ 7: โค้ดที่เคยบันทึกแล้ว -> เปิดหน้าต่างเตือน "โค้ดซ้ำ" แทน ไม่บันทึกลงสต๊อกซ้ำ
+        const dup = findDuplicateEntry(code, currentMode);
+        if (dup) { openDupModal(code, fmt, dup); return; }
         modalCtx = { code: code, fmt: fmt || '' };
         modalType = lastUsedType;
         const codeEl = document.getElementById('modalCode');
@@ -1271,6 +1388,13 @@
 
     function confirmScanModal() {
         if (!modalCtx) return;
+        // รอบที่ 7: ตรวจโค้ดซ้ำอีกชั้นก่อนเขียนลงสต๊อกจริง (กันข้อมูลเปลี่ยนระหว่างกรอก)
+        const dup = findDuplicateEntry(modalCtx.code, currentMode);
+        if (dup) {
+            closeModalBox(false);
+            openDupModal(modalCtx.code, modalCtx.fmt, dup);
+            return;
+        }
         const qtyEl = document.getElementById('modalQty');
         const qty = qtyEl ? parseInt(qtyEl.value, 10) : NaN;
         if (!qty || qty < 1) { modalMsg('กรุณากรอกจำนวนชิ้น (อย่างน้อย 1)', 'err'); return; }
@@ -1603,7 +1727,7 @@
     // ถ้าไม่มี BD (iPhone/Safari) หรือ BD พลาด 4 ครั้งติดกัน จะสลับลอง ZXing 1 รอบ ไม่ปล่อยให้พลาดเงียบ ๆ
     async function runDecodeAttempt() {
         scanTimer = null;
-        if (!isScanning || modalCtx) return; // หน้าต่างกรอกจำนวนเปิดอยู่ -> พักถอดรหัสชั่วคราว
+        if (!isScanning || modalCtx || dupCtx) return; // หน้าต่างกรอกจำนวน/เตือนโค้ดซ้ำเปิดอยู่ -> พักถอดรหัสชั่วคราว
         const t0 = performance.now();
         let handled = false;
         try {
@@ -2065,6 +2189,12 @@
     function processStockUpdate(code, qty, type, fmtName = '') {
         code = normalizeCodeText(code);
         if (!code) return;
+        // รอบที่ 7: กันบันทึกซ้ำขั้นสุดท้าย - โค้ดที่เคยบันทึกตามโหมดนี้แล้ว จะไม่เขียนลงสต๊อกอีก
+        if (findDuplicateEntry(code, currentMode)) {
+            showStatus('⛔ โค้ดซ้ำ "' + code + '" เคยบันทึกไว้แล้ว จึงไม่บันทึกข้อมูลซ้ำ', true);
+            triggerFeedbackDup();
+            return;
+        }
         qty = Math.max(1, parseInt(qty, 10) || 1);
         type = (type === 'plate' || type === 'chanel') ? type : '';
         const who = currentUser ? currentUser.name : '-';
