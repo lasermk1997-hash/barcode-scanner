@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ระบบเช็คสต๊อกสินค้า (Stock Management)</title>
+    <title>ระบบเช็คสต๊อกสินค้า (Camera & Stock)</title>
+    <!-- โหลดไลบรารีสแกนมาตรฐานที่มีความเสถียรสูง -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <style>
         :root {
             --primary: #2563eb;
@@ -50,16 +52,39 @@
             line-height: 1.4;
         }
 
-        .guide-box {
-            background: #eff6ff;
-            border: 1px solid #bfdbfe;
-            color: #1e40af;
-            padding: 12px;
-            border-radius: 10px;
+        .camera-wrapper {
+            position: relative;
+            width: 100%;
+            background: #0f172a;
+            border-radius: 12px;
+            overflow: hidden;
+            min-height: 240px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             margin-bottom: 12px;
-            font-size: 0.85rem;
-            line-height: 1.4;
         }
+        #reader { width: 100%; }
+        #reader video {
+            width: 100% !important;
+            height: auto !important;
+            object-fit: cover !important;
+        }
+        .camera-placeholder {
+            color: #94a3b8;
+            text-align: center;
+            padding: 20px;
+            font-size: 0.9rem;
+            position: absolute;
+        }
+
+        .cam-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .full-width { grid-column: span 2; }
 
         .mode-selector {
             display: grid;
@@ -128,6 +153,7 @@
         button:active, .file-label:active { opacity: 0.8; transform: scale(0.98); }
         .btn-primary { background: var(--primary); color: white; }
         .btn-secondary { background: #e2e8f0; color: #1e293b; }
+        .btn-warning { background: var(--warning); color: white; }
         .btn-success { background: var(--success); color: white; }
         .btn-danger { background: var(--danger); color: white; }
         .btn-sm { padding: 6px 10px; font-size: 0.8rem; border-radius: 6px; }
@@ -187,8 +213,29 @@
     <div id="envWarning" class="alert-box"></div>
     <div id="statusBanner"></div>
 
-    <div class="guide-box">
-        💡 <b>คำแนะนำสำหรับ Data Matrix:</b> เนื่องจากโค้ดบนแผ่นโลหะอ่านผ่านกล้องเว็บได้ยาก แนะนำให้ใช้แอปกล้องมือถือปกติส่องหรือถ่ายรูปป้ายเพื่อ Copy ข้อความ แล้วนำมาวางในช่องกรอกรหัส หรือพิมพ์รหัสสั้นๆ เพื่อความรวดเร็วครับ
+    <!-- กรอบแสดงกล้อง -->
+    <div class="camera-wrapper">
+        <div id="reader"></div>
+        <div id="camPlaceholder" class="camera-placeholder">
+            แตะปุ่ม <b>"📷 เปิดกล้องสแกน"</b> ด้านล่าง
+        </div>
+    </div>
+
+    <!-- ปุ่มควบคุมกล้อง -->
+    <div class="cam-controls">
+        <button type="button" id="btnToggleCam" class="btn-primary full-width">
+            📷 เปิดกล้องสแกน
+        </button>
+        <button type="button" id="btnSwitchCam" class="btn-secondary" style="display:none;">
+            🔄 สลับกล้อง
+        </button>
+        <button type="button" id="btnTorch" class="btn-warning" style="display:none;">
+            🔦 ไฟฉาย
+        </button>
+        <label class="file-label btn-secondary full-width" for="qrFileInput">
+            🖼️ สแกนจากรูปภาพ / ถ่ายรูป
+        </label>
+        <input type="file" id="qrFileInput" accept="image/*" style="display:none;">
     </div>
 
     <!-- เลือกโหมดการทำงาน: รับเข้า หรือ เบิกออก -->
@@ -205,7 +252,7 @@
     <div class="form-group">
         <div class="input-row">
             <input type="number" id="qtyInput" value="1" min="1" placeholder="จำนวน" style="max-width: 90px;">
-            <input type="text" id="manualCodeInput" placeholder="แตะวางรหัสสินค้า หรือพิมพ์...">
+            <input type="text" id="manualCodeInput" placeholder="พิมพ์หรือสแกนรหัสสินค้า...">
             <button type="button" id="btnManualAdd" class="btn-primary" style="white-space: nowrap;">บันทึก</button>
         </div>
     </div>
@@ -246,6 +293,11 @@
 </div>
 
 <script>
+    let html5QrCode = null;
+    let isScanning = false;
+    let isCooldown = false;
+    let currentFacingMode = "environment";
+    let torchOn = false;
     let audioCtx = null;
     let clearConfirmTimer = null;
     let isConfirmingClear = false;
@@ -271,18 +323,14 @@
             warningBox.innerHTML = '⚠️ <b>กำลังเปิดผ่านแอปแชท:</b> กรุณากดจุด 3 จุดมุมจอ แล้วเลือก <b>"เปิดในเบราว์เซอร์ (Chrome / Safari)"</b>';
         }
 
+        safeBind('btnToggleCam', 'click', toggleCamera);
+        safeBind('btnSwitchCam', 'click', switchCamera);
+        safeBind('btnTorch', 'click', toggleTorch);
+        safeBind('qrFileInput', 'change', scanFromFile);
         safeBind('btnManualAdd', 'click', manualAdd);
         safeBind('btnExport', 'click', exportToCSV);
         safeBind('btnClear', 'click', handleClearButton);
         safeBind('searchInput', 'input', renderTable);
-
-        // รองรับการกด Enter เพื่อบันทึกทันที
-        const manualInput = document.getElementById('manualCodeInput');
-        if (manualInput) {
-            manualInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') manualAdd();
-            });
-        }
 
         renderTable();
     });
@@ -330,6 +378,140 @@
             osc.start();
             osc.stop(audioCtx.currentTime + 0.12);
         } catch (e) {}
+    }
+
+    async function toggleCamera() {
+        if (isScanning) {
+            await stopCamera();
+        } else {
+            await startCamera();
+        }
+    }
+
+    async function startCamera() {
+        const btnToggle = document.getElementById('btnToggleCam');
+        const placeholder = document.getElementById('camPlaceholder');
+
+        if (typeof Html5Qrcode === 'undefined') {
+            showStatus('❌ โหลดไลบรารีกล้องไม่สำเร็จ กรุณารีเฟรชหน้าเว็บ', true);
+            return;
+        }
+
+        if (btnToggle) btnToggle.textContent = '⏳ กำลังเปิดกล้อง...';
+
+        try {
+            if (!html5QrCode) {
+                html5QrCode = new Html5Qrcode("reader");
+            }
+
+            await html5QrCode.start(
+                { facingMode: currentFacingMode },
+                {
+                    fps: 15,
+                    qrbox: (w, h) => {
+                        const size = Math.floor(Math.min(w, h) * 0.75);
+                        return { width: size, height: size };
+                    }
+                },
+                (decodedText) => {
+                    if (isCooldown) return;
+                    isCooldown = true;
+                    triggerFeedback();
+                    processStockUpdate(decodedText);
+                    setTimeout(() => { isCooldown = false; }, 2000);
+                },
+                () => {}
+            );
+
+            isScanning = true;
+            if (placeholder) placeholder.style.display = 'none';
+            if (btnToggle) {
+                btnToggle.textContent = '⏹️ ปิดกล้อง';
+                btnToggle.className = 'btn-danger full-width';
+            }
+            const swCam = document.getElementById('btnSwitchCam');
+            if (swCam) swCam.style.display = 'flex';
+            checkTorchSupport();
+
+        } catch (err) {
+            isScanning = false;
+            if (btnToggle) {
+                btnToggle.textContent = '📷 เปิดกล้องสแกน';
+                btnToggle.className = 'btn-primary full-width';
+            }
+            showStatus('❌ เปิดกล้องไม่สำเร็จ กรุณาอนุญาตสิทธิ์กล้อง', true);
+        }
+    }
+
+    async function stopCamera() {
+        if (html5QrCode && isScanning) {
+            try { await html5QrCode.stop(); } catch (e) {}
+            isScanning = false;
+            torchOn = false;
+            const placeholder = document.getElementById('camPlaceholder');
+            if (placeholder) placeholder.style.display = 'block';
+            const btnToggle = document.getElementById('btnToggleCam');
+            if (btnToggle) {
+                btnToggle.textContent = '📷 เปิดกล้องสแกน';
+                btnToggle.className = 'btn-primary full-width';
+            }
+            const swCam = document.getElementById('btnSwitchCam');
+            if (swCam) swCam.style.display = 'none';
+            const torch = document.getElementById('btnTorch');
+            if (torch) torch.style.display = 'none';
+        }
+    }
+
+    async function switchCamera() {
+        if (!isScanning) return;
+        await stopCamera();
+        currentFacingMode = (currentFacingMode === "environment") ? "user" : "environment";
+        await startCamera();
+    }
+
+    function checkTorchSupport() {
+        try {
+            const caps = html5QrCode.getRunningTrackCameraCapabilities();
+            if (caps && caps.torchFeature().isSupported()) {
+                const torch = document.getElementById('btnTorch');
+                if (torch) torch.style.display = 'flex';
+            }
+        } catch (e) {}
+    }
+
+    async function toggleTorch() {
+        try {
+            const torch = html5QrCode.getRunningTrackCameraCapabilities().torchFeature();
+            torchOn = !torchOn;
+            await torch.apply(torchOn);
+            const btnTorch = document.getElementById('btnTorch');
+            if (btnTorch) btnTorch.textContent = torchOn ? '🔦 ปิดไฟฉาย' : '🔦 ไฟฉาย';
+        } catch (e) {
+            showStatus('มือถือไม่รองรับเปิดไฟฉาย', true);
+        }
+    }
+
+    async function scanFromFile(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        if (typeof Html5Qrcode === 'undefined') {
+            showStatus('❌ ระบบสแกนรูปภาพยังไม่พร้อมใช้งาน', true);
+            return;
+        }
+
+        if (isScanning) await stopCamera();
+        if (!html5QrCode) html5QrCode = new Html5Qrcode("reader");
+
+        showStatus('⏳ กำลังอ่านรหัสจากรูป...');
+        try {
+            const decodedText = await html5QrCode.scanFile(file, true);
+            triggerFeedback();
+            processStockUpdate(decodedText);
+        } catch (err) {
+            showStatus('❌ ไม่พบรหัสในรูปภาพนี้', true);
+        }
+        event.target.value = '';
     }
 
     function saveToStorage() {
@@ -398,7 +580,6 @@
             triggerFeedback();
             processStockUpdate(code);
             manualInput.value = '';
-            manualInput.focus();
         } else {
             showStatus('⚠️ กรุณากรอกรหัสสินค้าก่อน', true);
         }
