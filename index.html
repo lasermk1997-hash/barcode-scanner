@@ -57,7 +57,7 @@
             background: #0f172a;
             border-radius: 12px;
             overflow: hidden;
-            min-height: 240px;
+            min-height: 220px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -88,10 +88,10 @@
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 8px;
-            margin-bottom: 10px;
+            margin-bottom: 12px;
         }
         .mode-btn {
-            padding: 10px;
+            padding: 12px;
             border: 2px solid #cbd5e1;
             background: #f8fafc;
             border-radius: 10px;
@@ -112,10 +112,12 @@
             color: #991b1b;
         }
 
+        .form-group {
+            margin-bottom: 10px;
+        }
         .input-row {
             display: flex;
             gap: 8px;
-            margin-bottom: 10px;
         }
         input[type="text"], input[type="number"] {
             width: 100%;
@@ -241,22 +243,42 @@
     </div>
 
     <!-- ช่องกรอกข้อมูล -->
-    <input type="text" id="itemNameInput" placeholder="📝 ชื่อสินค้า / หมายเหตุ (เช่น น้ำดื่ม 500ml)">
+    <div class="form-group">
+        <input type="text" id="itemNameInput" placeholder="📝 ชื่อสินค้า / หมายเหตุ (เช่น น้ำดื่ม 500ml)">
+    </div>
     
-    <div class="input-row">
-        <input type="number" id="qtyInput" value="1" min="1" placeholder="จำนวน" style="max-width: 110px;">
-        <input type="text" id="manualCodeInput" placeholder="หรือพิมพ์รหัสสินค้า...">
-        <button type="button" id="btnManualAdd" class="btn-primary" style="white-space: nowrap;">บันทึก</button>
+    <div class="form-group">
+        <div class="input-row">
+            <input type="number" id="qtyInput" value="1" min="1" placeholder="จำนวน" style="max-width: 110px;">
+            <input type="text" id="manualCodeInput" placeholder="พิมพ์หรือสแกนรหัสสินค้า...">
+            <button type="button" id="btnManualAdd" class="btn-primary" style="white-space: nowrap;">บันทึก</button>
+        </div>
     </div>
 
     <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 15px 0;">
 
     <!-- ช่องค้นหาสต๊อก -->
-    <input type="text" id="searchInput" placeholder="🔍 ค้นหารหัส หรือ ชื่อสินค้าในสต๊อก...">
+    <div class="form-group">
+        <input type="text" id="searchInput" placeholder="🔍 ค้นหารหัส หรือ ชื่อสินค้าในสต๊อก...">
+    </div>
 
     <!-- จัดการข้อมูล -->
     <div class="action-bar">
         <div style="font-size: 0.9rem;">รายการสินค้า: <strong id="totalCount">0</strong> รายการ</div>
         <div class="export-group">
             <button type="button" id="btnExport" class="btn-success btn-sm">📥 โหลดสต๊อก (CSV)</button>
-            <button type="button" id="btnClear" class="btn-
+            <button type="button" id="btnClear" class="btn-danger btn-sm">🗑️ ล้างสต๊อก</button>
+        </div>
+    </div>
+
+    <!-- ตารางสต๊อกสินค้า -->
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>รหัสสินค้า</th>
+                    <th>ชื่อสินค้า / หมายเหตุ</th>
+                    <th>คงเหลือ</th>
+                    <th>รับเข้า</th>
+                    <th>เบิกออก</th>
+                    <th>วันที่ทำรายการ</th>
