@@ -12,6 +12,14 @@
        -> โค้ดขนาดเล็กอย่าง Data Matrix อ่านไม่ออก ต้องขอกล้องความละเอียดสูง
     3) ไม่ได้ตั้ง hints (TRY_HARDER / POSSIBLE_FORMATS)
     4) อ้าง @zxing/library@latest -> เสี่ยง API เปลี่ยน ควร pin เวอร์ชัน (0.21.3)
+
+    ===== รอบที่ 2: แก้อาการ "อ่านข้อมูล Data Matrix ไม่ตรงกับฉลาก" =====
+    5) โค้ด GS1 มีตัวคั่น FNC1/GS (ASCII 29) มองไม่เห็นฝังอยู่ ทำให้ข้อความไม่ตรงฉลาก
+       -> normalizeCodeText แปลงตัวคั่นเป็น | และตัดตัวอักษรซ่อน/ช่องว่างหัว-ท้ายออก
+    6) ฉลากไทยบางรุ่นเข้ารหัส TIS-620 ถอดเป็น UTF-8 จะเพี้ยน
+       -> fixEncoding ถอดซ้ำจากไบต์ดิบด้วย TIS-620 อัตโนมัติเมื่อเจอตัวอักษรเสีย
+    7) เพิ่มโหมดสแกน: ทุกรูปแบบ / เฉพาะ Data Matrix (จำค่าไว้) กันอ่านหลงไปโค้ดอื่น
+    8) เพิ่มกล่อง "อ่านได้ล่าสุด" + ไบต์ดิบ ไว้เทียบข้อความกับฉลากจริง
     -->
     <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
     <script>window.ZXing || document.write('<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"><\/script>');</script>
@@ -130,6 +138,25 @@
             background: #fee2e2;
             color: #991b1b;
         }
+        .mode-btn.active-fmt {
+            border-color: var(--primary);
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .last-read {
+            display: none;
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            color: #1e3a8a;
+            padding: 10px 12px;
+            border-radius: 10px;
+            margin-bottom: 12px;
+            font-size: 0.85rem;
+        }
+        .read-code { font-family: monospace; word-break: break-all; font-size: 1rem; }
+        .read-hex { font-size: 0.7rem; color: #64748b; font-family: monospace; word-break: break-all; margin-top: 4px; }
+        .read-warn { color: #991b1b; margin-top: 4px; font-weight: 600; }
 
         .form-group {
             margin-bottom: 10px;
@@ -239,10 +266,13 @@
         </div>
     </div>
 
+    <div id="lastRead" class="last-read"></div>
+
     <p class="tips">
         เคล็ดลับ: ถ้าโค้ดไม่ติด ให้ถ่ายให้โค้ดใหญ่เต็มกรอบ กล้องห่างโค้ดประมาณ 5-10 ซม.
         ถือมือให้นิ่ง และลองเปิดแฟลชช่วย (ปุ่มแฟลชจะขึ้นเฉพาะเมื่ออุปกรณ์รองรับ)
         - Data Matrix ควรเหลือขอบขาวรอบโค้ดเล็กน้อย อย่าถ่ายตัดขอบชิดโค้ด
+        - กล่อง "อ่านได้ล่าสุด" ใช้เทียบข้อความกับฉลากจริงได้เลย
     </p>
 
     <!-- ปุ่มควบคุมกล้อง -->
@@ -257,6 +287,12 @@
         <button type="button" id="btnTorch" class="btn-secondary full-width" style="display:none;">
             เปิดแฟลช
         </button>
+    </div>
+
+    <!-- เลือกโหมดโค้ดที่จะสแกน: ทุกรูปแบบ หรือ เฉพาะ Data Matrix -->
+    <div class="mode-selector">
+        <div id="fmtAll" class="mode-btn active-fmt" onclick="setFormatMode('ALL')">ทุกรูปแบบ (DM / QR / บาร์โค้ด)</div>
+        <div id="fmtDM" class="mode-btn" onclick="setFormatMode('DM')">เฉพาะ Data Matrix</div>
     </div>
 
     <!-- เลือกโหมดการทำงาน: รับเข้า หรือ เบิกออก -->
@@ -323,13 +359,19 @@
     let torchOn = false;
 
     let currentMode = 'IN';
+    let scanFormatMode = 'ALL';
     let inventory = [];
 
     /* ===== ZXing setup: รองรับ QR + Data Matrix + Barcode 1D ===== */
-    function buildHints() {
-        const formats = [
-            ZXing.BarcodeFormat.QR_CODE,
+    function getScanFormats() {
+        // โหมดล็อก Data Matrix: หลบโค้ดอื่นทั้งหมด (QR / บาร์โค้ด 1D)
+        if (scanFormatMode === 'DM') {
+            return [ZXing.BarcodeFormat.DATA_MATRIX];
+        }
+        // โหมดทุกรูปแบบ: DATA_MATRIX ลำดับแรก เพื่อให้เจอ Data Matrix ก่อนโค้ดอื่นในเฟรมเดียวกัน
+        return [
             ZXing.BarcodeFormat.DATA_MATRIX,
+            ZXing.BarcodeFormat.QR_CODE,
             ZXing.BarcodeFormat.AZTEC,
             ZXing.BarcodeFormat.PDF_417,
             ZXing.BarcodeFormat.CODE_128,
@@ -342,8 +384,11 @@
             ZXing.BarcodeFormat.UPC_E,
             ZXing.BarcodeFormat.ITF
         ];
+    }
+
+    function buildHints() {
         const hints = new Map();
-        hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
+        hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, getScanFormats());
         hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
         hints.set(ZXing.DecodeHintType.CHARACTER_SET, 'UTF-8');
         return hints;
@@ -367,6 +412,78 @@
         } catch (e) {
             return result.text;
         }
+    }
+
+    // ===== รอบที่ 2: ทำให้ข้อความที่อ่านได้ ตรงกับข้อมูลที่เข้ารหัสจริงในโค้ด =====
+
+    // ทำความสะอาดข้อความ: ตัด/แปลงตัวอักษรควบคุมที่มองไม่เห็นซึ่งทำให้จับคู่สต๊อกไม่ตรง
+    function normalizeCodeText(raw) {
+        if (raw === null || raw === undefined) return '';
+        let text = String(raw);
+        // ตัด AIM symbology identifier ที่เครื่องสแกนบางรุ่นแทรกหน้าข้อมูล เช่น ]d2 ]C1
+        text = text.replace(/^\][A-Za-z][0-9]/, '');
+        // ตัวคั่น FNC1/GS (ASCII 29) ซ่อนอยู่ในโค้ด GS1 -> แสดงเป็น | เพื่อให้เห็นชัด
+        text = text.replace(/\u001d/g, '|');
+        // การขึ้นบรรทัดใหม่ที่ฝังในโค้ด -> | เช่นกัน
+        text = text.replace(/[\u000B\u000C\r\n]+/g, '|');
+        // control characters อื่นๆ ที่เหลือ ตัดทิ้ง
+        text = text.replace(/[\u0000-\u0008\u000E-\u001F\u007F]/g, '');
+        // ตัดช่องว่าง/ขึ้นบรรทัดหัว-ท้าย (ฉลากมักพ่วง Enter ท้ายข้อมูล)
+        text = text.replace(/^[\s\u00A0\u3000]+|[\s\u00A0\u3000]+$/g, '');
+        // | ที่ติดกันเป็นกลุ่ม เหลือตัวเดียว และตัด | หัว-ท้าย
+        text = text.replace(/\|{2,}/g, '|');
+        text = text.replace(/^\|+/, '').replace(/\|+$/, '');
+        return text;
+    }
+
+    // แก้ encoding ภาษาไทย: ถ้าถอดด้วย UTF-8 แล้วมีตัวอักษรเสีย (U+FFFD)
+    // ให้ถอดใหม่จากไบต์ดิบด้วย TIS-620 (Windows-874) ซึ่งเป็นมาตรฐานฉลากไทย
+    function fixEncoding(result) {
+        const text = getResultText(result);
+        if (!text || text.indexOf('\uFFFD') === -1) return text;
+        try {
+            if (typeof result.getRawBytes === 'function') {
+                const bytes = result.getRawBytes();
+                if (bytes && bytes.length) {
+                    const alt = new TextDecoder('tis-620').decode(bytes);
+                    if (alt && alt.indexOf('\uFFFD') === -1) return alt;
+                }
+            }
+        } catch (e) {}
+        return text;
+    }
+
+    // กล่อง "อ่านได้ล่าสุด": โชว์ข้อความที่ได้จริง + ไบต์ดิบ ไว้เทียบกับฉลาก
+    function showLastRead(code, fmtName, rawBytes) {
+        const box = document.getElementById('lastRead');
+        if (!box) return;
+        const hasBadChar = code.indexOf('\uFFFD') !== -1;
+        let hex = '';
+        if (rawBytes && rawBytes.length) {
+            const shown = Array.from(rawBytes.slice(0, 48))
+                .map(b => b.toString(16).padStart(2, '0')).join(' ');
+            hex = '<div class="read-hex">ไบต์ดิบ: ' + escapeHtml(shown) + (rawBytes.length > 48 ? ' ...' : '') + '</div>';
+        }
+        box.style.display = 'block';
+        box.innerHTML =
+            'อ่านได้ล่าสุด (' + (fmtName || '?') + '): <b class="read-code">' + escapeHtml(code) + '</b>' +
+            hex +
+            (hasBadChar ? '<div class="read-warn">มีตัวอักษรที่ถอดรหัสไม่ได้ ลองสแกนซ้ำให้ชัดกว่านี้</div>' : '');
+    }
+
+    // จุดรวมผลลัพธ์ทุกทาง (กล้อง / รูปภาพ): แก้ encoding -> ทำความสะอาด -> บันทึกสต๊อก
+    function handleDecodedResult(result) {
+        if (!result) return false;
+        const fmtName = getFormatName(result);
+        let rawBytes = null;
+        try {
+            if (typeof result.getRawBytes === 'function') rawBytes = result.getRawBytes();
+        } catch (e) {}
+        const code = normalizeCodeText(fixEncoding(result));
+        if (!code) return false;
+        showLastRead(code, fmtName, rawBytes);
+        processStockUpdate(code, null, null, fmtName);
+        return true;
     }
 
     try {
@@ -395,6 +512,11 @@
             warningBox.style.display = 'block';
             warningBox.innerHTML = '⚠️ <b>เบราว์เซอร์นี้ไม่รองรับการเปิดกล้อง:</b> กรุณาใช้ Chrome หรือ Safari เวอร์ชันใหม่';
         }
+
+        // โหลดโหมดโค้ดที่เลือกไว้ ก่อนสร้าง reader
+        let savedFmtMode = 'ALL';
+        try { savedFmtMode = localStorage.getItem('barcode_scan_fmt_mode') || 'ALL'; } catch (e) {}
+        setFormatMode(savedFmtMode);
 
         try {
             codeReader = createReader();
@@ -430,6 +552,22 @@
                 btnIn.className = 'mode-btn';
                 btnOut.className = 'mode-btn active-out';
             }
+        }
+    }
+
+    function setFormatMode(mode) {
+        scanFormatMode = (mode === 'DM') ? 'DM' : 'ALL';
+        try { localStorage.setItem('barcode_scan_fmt_mode', scanFormatMode); } catch (e) {}
+        const btnAll = document.getElementById('fmtAll');
+        const btnDM = document.getElementById('fmtDM');
+        if (btnAll && btnDM) {
+            btnAll.className = scanFormatMode === 'ALL' ? 'mode-btn active-fmt' : 'mode-btn';
+            btnDM.className = scanFormatMode === 'DM' ? 'mode-btn active-fmt' : 'mode-btn';
+        }
+        // ถ้ากำลังเปิดกล้องอยู่ ให้ปิด-เปิดใหม่ เพื่อใช้โหมดโค้ดที่เลือกทันที
+        if (isScanning) {
+            stopCamera();
+            startCamera();
         }
     }
 
@@ -546,8 +684,7 @@
         if (isCooldown) return;
         isCooldown = true;
         triggerFeedback();
-        const fmtName = getFormatName(result);
-        processStockUpdate(getResultText(result), null, null, fmtName);
+        handleDecodedResult(result);
         setTimeout(() => { isCooldown = false; }, 2000);
     }
 
@@ -712,7 +849,7 @@
             const img = await loadImageAsync(objectUrl);
             const result = await decodeWithAttempts(img);
             triggerFeedback();
-            processStockUpdate(getResultText(result), null, null, getFormatName(result));
+            handleDecodedResult(result);
         } catch (err) {
             showStatus('❌ ไม่พบรหัสในรูปภาพนี้ (ลองถ่ายใหม่ให้โค้ดใหญ่และชัดกว่านี้)', true);
         } finally {
@@ -728,8 +865,8 @@
     }
 
     function processStockUpdate(code, customQty = null, customName = null, fmtName = '') {
-        if (!code || !code.trim()) return;
-        code = code.trim();
+        code = normalizeCodeText(code);
+        if (!code) return;
 
         const fmtTag = fmtName ? ` [${fmtName}]` : '';
         const qtyInput = document.getElementById('qtyInput');
