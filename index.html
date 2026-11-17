@@ -3,9 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ระบบเช็คสต๊อกสินค้า (Camera & Stock)</title>
-    <!-- โหลดไลบรารีสแกนมาตรฐานที่มีความเสถียรสูง -->
-    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <title>ระบบเช็คสต๊อกสินค้า (Data Matrix & QR Stock)</title>
+    <!--
+    ===== สาเหตุที่สแกนไม่ติด (โค้ดเดิม) =====
+    1) ใช้ ZXing.BrowserQRCodeReader ซึ่งอ่านได้ "เฉพาะ QR Code" เท่านั้น
+       -> Data Matrix ไม่มีทางอ่านได้เลย ต้องเปลี่ยนเป็น BrowserMultiFormatReader
+    2) เปิดกล้องด้วย decodeFromVideoDevice ค่าเริ่มต้น (~640x480)
+       -> โค้ดขนาดเล็กอย่าง Data Matrix อ่านไม่ออก ต้องขอกล้องความละเอียดสูง
+    3) ไม่ได้ตั้ง hints (TRY_HARDER / POSSIBLE_FORMATS)
+    4) อ้าง @zxing/library@latest -> เสี่ยง API เปลี่ยน ควร pin เวอร์ชัน (0.21.3)
+    -->
+    <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
+    <script>window.ZXing || document.write('<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"><\/script>');</script>
     <style>
         :root {
             --primary: #2563eb;
@@ -16,8 +25,8 @@
             --card: #ffffff;
             --text: #0f172a;
         }
-        * { 
-            box-sizing: border-box; 
+        * {
+            box-sizing: border-box;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             -webkit-tap-highlight-color: transparent;
         }
@@ -58,16 +67,16 @@
             background: #0f172a;
             border-radius: 12px;
             overflow: hidden;
-            min-height: 240px;
+            min-height: 260px;
             display: flex;
             align-items: center;
             justify-content: center;
             margin-bottom: 12px;
         }
-        #reader { width: 100%; }
-        #reader video {
+        #video {
             width: 100% !important;
             height: auto !important;
+            max-height: 350px;
             object-fit: cover !important;
         }
         .camera-placeholder {
@@ -76,6 +85,14 @@
             padding: 20px;
             font-size: 0.9rem;
             position: absolute;
+        }
+
+        .tips {
+            font-size: 0.75rem;
+            color: #64748b;
+            text-align: center;
+            margin: 0 0 12px 0;
+            line-height: 1.5;
         }
 
         .cam-controls {
@@ -153,9 +170,10 @@
         button:active, .file-label:active { opacity: 0.8; transform: scale(0.98); }
         .btn-primary { background: var(--primary); color: white; }
         .btn-secondary { background: #e2e8f0; color: #1e293b; }
-        .btn-warning { background: var(--warning); color: white; }
         .btn-success { background: var(--success); color: white; }
         .btn-danger { background: var(--danger); color: white; }
+        .btn-warning { background: var(--warning); color: white; }
+        .btn-torch-active { background: var(--warning); color: white; }
         .btn-sm { padding: 6px 10px; font-size: 0.8rem; border-radius: 6px; }
 
         #statusBanner {
@@ -179,7 +197,7 @@
             gap: 8px;
         }
         .export-group { display: flex; gap: 6px; }
-        
+
         .table-wrapper {
             width: 100%;
             overflow-x: auto;
@@ -208,34 +226,37 @@
 <body>
 
 <div class="container">
-    <h1>📦 ระบบเช็คสต๊อกสินค้า</h1>
+    <h1>📦 ระบบเช็คสต๊อกสินค้า (รองรับ Data Matrix)</h1>
 
     <div id="envWarning" class="alert-box"></div>
     <div id="statusBanner"></div>
 
     <!-- กรอบแสดงกล้อง -->
     <div class="camera-wrapper">
-        <div id="reader"></div>
+        <video id="video" autoplay playsinline muted></video>
         <div id="camPlaceholder" class="camera-placeholder">
             แตะปุ่ม <b>"📷 เปิดกล้องสแกน"</b> ด้านล่าง
         </div>
     </div>
+
+    <p class="tips">
+        เคล็ดลับ: ถ้าโค้ดไม่ติด ให้ถ่ายให้โค้ดใหญ่เต็มกรอบ กล้องห่างโค้ดประมาณ 5-10 ซม.
+        ถือมือให้นิ่ง และลองเปิดแฟลชช่วย (ปุ่มแฟลชจะขึ้นเฉพาะเมื่ออุปกรณ์รองรับ)
+        - Data Matrix ควรเหลือขอบขาวรอบโค้ดเล็กน้อย อย่าถ่ายตัดขอบชิดโค้ด
+    </p>
 
     <!-- ปุ่มควบคุมกล้อง -->
     <div class="cam-controls">
         <button type="button" id="btnToggleCam" class="btn-primary full-width">
             📷 เปิดกล้องสแกน
         </button>
-        <button type="button" id="btnSwitchCam" class="btn-secondary" style="display:none;">
-            🔄 สลับกล้อง
-        </button>
-        <button type="button" id="btnTorch" class="btn-warning" style="display:none;">
-            🔦 ไฟฉาย
-        </button>
         <label class="file-label btn-secondary full-width" for="qrFileInput">
             🖼️ สแกนจากรูปภาพ / ถ่ายรูป
         </label>
         <input type="file" id="qrFileInput" accept="image/*" style="display:none;">
+        <button type="button" id="btnTorch" class="btn-secondary full-width" style="display:none;">
+            เปิดแฟลช
+        </button>
     </div>
 
     <!-- เลือกโหมดการทำงาน: รับเข้า หรือ เบิกออก -->
@@ -248,10 +269,10 @@
     <div class="form-group">
         <input type="text" id="itemNameInput" placeholder="📝 ชื่อสินค้า / หมายเหตุ (เช่น อะไหล่เครื่องจักร)">
     </div>
-    
+
     <div class="form-group">
         <div class="input-row">
-            <input type="number" id="qtyInput" value="1" min="1" placeholder="จำนวน" style="max-width: 90px;">
+            <input type="number" id="qtyInput" value="1" min="1" placeholder="จำนวน" style="max-width: 110px;">
             <input type="text" id="manualCodeInput" placeholder="พิมพ์หรือสแกนรหัสสินค้า...">
             <button type="button" id="btnManualAdd" class="btn-primary" style="white-space: nowrap;">บันทึก</button>
         </div>
@@ -293,17 +314,60 @@
 </div>
 
 <script>
-    let html5QrCode = null;
+    let codeReader = null;
     let isScanning = false;
     let isCooldown = false;
-    let currentFacingMode = "environment";
-    let torchOn = false;
     let audioCtx = null;
     let clearConfirmTimer = null;
     let isConfirmingClear = false;
-    
+    let torchOn = false;
+
     let currentMode = 'IN';
     let inventory = [];
+
+    /* ===== ZXing setup: รองรับ QR + Data Matrix + Barcode 1D ===== */
+    function buildHints() {
+        const formats = [
+            ZXing.BarcodeFormat.QR_CODE,
+            ZXing.BarcodeFormat.DATA_MATRIX,
+            ZXing.BarcodeFormat.AZTEC,
+            ZXing.BarcodeFormat.PDF_417,
+            ZXing.BarcodeFormat.CODE_128,
+            ZXing.BarcodeFormat.CODE_39,
+            ZXing.BarcodeFormat.CODE_93,
+            ZXing.BarcodeFormat.CODABAR,
+            ZXing.BarcodeFormat.EAN_13,
+            ZXing.BarcodeFormat.EAN_8,
+            ZXing.BarcodeFormat.UPC_A,
+            ZXing.BarcodeFormat.UPC_E,
+            ZXing.BarcodeFormat.ITF
+        ];
+        const hints = new Map();
+        hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
+        hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+        hints.set(ZXing.DecodeHintType.CHARACTER_SET, 'UTF-8');
+        return hints;
+    }
+
+    function createReader() {
+        return new ZXing.BrowserMultiFormatReader(buildHints());
+    }
+
+    function getFormatName(result) {
+        try {
+            return ZXing.BarcodeFormat[result.getBarcodeFormat()] || '';
+        } catch (e) {
+            return '';
+        }
+    }
+
+    function getResultText(result) {
+        try {
+            return typeof result.getText === 'function' ? result.getText() : result.text;
+        } catch (e) {
+            return result.text;
+        }
+    }
 
     try {
         inventory = JSON.parse(localStorage.getItem('barcode_stock_inventory')) || [];
@@ -314,17 +378,31 @@
     window.addEventListener('DOMContentLoaded', () => {
         const warningBox = document.getElementById('envWarning');
         const ua = navigator.userAgent || "";
-        
-        if (window.location.protocol === 'file:') {
+
+        if (typeof ZXing === 'undefined') {
             warningBox.style.display = 'block';
-            warningBox.innerHTML = '⚠️ <b>เปิดจากไฟล์ในเครื่อง:</b> กรุณานำไฟล์ไปวางบนเว็บ แล้วเปิดผ่านลิงก์ <b>https://</b>';
+            warningBox.innerHTML = '⚠️ <b>โหลดไลบรารี ZXing ไม่สำเร็จ:</b> ตรวจสอบอินเทอร์เน็ตแล้วรีเฟรชหน้าใหม่';
+        } else if (window.location.protocol === 'file:') {
+            warningBox.style.display = 'block';
+            warningBox.innerHTML = '⚠️ <b>เปิดจากไฟล์ในเครื่อง:</b> กรุณานำไฟล์ไปวางบนเว็บ แล้วเปิดผ่านลิงก์ <b>https://</b> (บางอุปกรณ์จะไม่ให้เปิดกล้องจากไฟล์ในเครื่อง)';
+        } else if (!window.isSecureContext) {
+            warningBox.style.display = 'block';
+            warningBox.innerHTML = '⚠️ <b>หน้านี้ไม่ใช่ HTTPS:</b> เบราว์เซอร์จะไม่อนุญาตให้เปิดกล้อง กรุณาเปิดผ่านลิงก์ <b>https://</b>';
         } else if (/Line|FBAN|FBAV|Instagram/i.test(ua)) {
             warningBox.style.display = 'block';
             warningBox.innerHTML = '⚠️ <b>กำลังเปิดผ่านแอปแชท:</b> กรุณากดจุด 3 จุดมุมจอ แล้วเลือก <b>"เปิดในเบราว์เซอร์ (Chrome / Safari)"</b>';
+        } else if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
+            warningBox.style.display = 'block';
+            warningBox.innerHTML = '⚠️ <b>เบราว์เซอร์นี้ไม่รองรับการเปิดกล้อง:</b> กรุณาใช้ Chrome หรือ Safari เวอร์ชันใหม่';
+        }
+
+        try {
+            codeReader = createReader();
+        } catch (e) {
+            console.error("ZXing init error", e);
         }
 
         safeBind('btnToggleCam', 'click', toggleCamera);
-        safeBind('btnSwitchCam', 'click', switchCamera);
         safeBind('btnTorch', 'click', toggleTorch);
         safeBind('qrFileInput', 'change', scanFromFile);
         safeBind('btnManualAdd', 'click', manualAdd);
@@ -382,136 +460,265 @@
 
     async function toggleCamera() {
         if (isScanning) {
-            await stopCamera();
+            stopCamera();
         } else {
-            await startCamera();
+            startCamera();
         }
     }
 
-    async function startCamera() {
+    function startCamera() {
         const btnToggle = document.getElementById('btnToggleCam');
         const placeholder = document.getElementById('camPlaceholder');
 
-        if (typeof Html5Qrcode === 'undefined') {
-            showStatus('❌ โหลดไลบรารีกล้องไม่สำเร็จ กรุณารีเฟรชหน้าเว็บ', true);
+        if (typeof ZXing === 'undefined' || !ZXing.BrowserMultiFormatReader) {
+            showStatus('❌ ระบบสแกนยังไม่พร้อมใช้งาน', true);
             return;
         }
 
         if (btnToggle) btnToggle.textContent = '⏳ กำลังเปิดกล้อง...';
 
+        // สร้าง reader ใหม่ทุกครั้งที่เปิดกล้อง กันปัญหา stream ค้าง (เฉพาะ iOS Safari)
         try {
-            if (!html5QrCode) {
-                html5QrCode = new Html5Qrcode("reader");
+            codeReader = createReader();
+        } catch (e) {
+            console.error("ZXing init error", e);
+            showStatus('❌ ระบบสแกนยังไม่พร้อมใช้งาน', true);
+            if (btnToggle) {
+                btnToggle.textContent = '📷 เปิดกล้องสแกน';
+                btnToggle.className = 'btn-primary full-width';
             }
+            return;
+        }
 
-            await html5QrCode.start(
-                { facingMode: currentFacingMode },
-                {
-                    fps: 15,
-                    qrbox: (w, h) => {
-                        const size = Math.floor(Math.min(w, h) * 0.75);
-                        return { width: size, height: size };
-                    }
-                },
-                (decodedText) => {
-                    if (isCooldown) return;
-                    isCooldown = true;
-                    triggerFeedback();
-                    processStockUpdate(decodedText);
-                    setTimeout(() => { isCooldown = false; }, 2000);
-                },
-                () => {}
-            );
+        // ขอกล้องหลัง (environment) และความละเอียดสูงสุดเท่าที่อุปกรณ์ให้ได้
+        // Data Matrix เป็นโค้ดขนาดเล็ก ถ้าได้เฟรม 640x480 จะอ่านไม่ออก
+        const constraints = {
+            video: {
+                facingMode: { ideal: 'environment' },
+                width: { ideal: 1920 },
+                height: { ideal: 1080 }
+            }
+        };
 
+        codeReader.decodeFromConstraints(constraints, 'video', onScanResult).then(() => {
             isScanning = true;
             if (placeholder) placeholder.style.display = 'none';
             if (btnToggle) {
                 btnToggle.textContent = '⏹️ ปิดกล้อง';
                 btnToggle.className = 'btn-danger full-width';
             }
-            const swCam = document.getElementById('btnSwitchCam');
-            if (swCam) swCam.style.display = 'flex';
-            checkTorchSupport();
-
-        } catch (err) {
+            updateTorchVisibility();
+        }).catch((err) => {
+            console.error("camera error", err);
             isScanning = false;
             if (btnToggle) {
                 btnToggle.textContent = '📷 เปิดกล้องสแกน';
                 btnToggle.className = 'btn-primary full-width';
             }
             showStatus('❌ เปิดกล้องไม่สำเร็จ กรุณาอนุญาตสิทธิ์กล้อง', true);
+        });
+    }
+
+    function stopCamera() {
+        if (codeReader) {
+            try { codeReader.reset(); } catch (e) {}
+        }
+        isScanning = false;
+        torchOn = false;
+        const btnTorch = document.getElementById('btnTorch');
+        if (btnTorch) {
+            btnTorch.style.display = 'none';
+            btnTorch.textContent = 'เปิดแฟลช';
+            btnTorch.classList.remove('btn-torch-active');
+        }
+        const placeholder = document.getElementById('camPlaceholder');
+        if (placeholder) placeholder.style.display = 'block';
+        const btnToggle = document.getElementById('btnToggleCam');
+        if (btnToggle) {
+            btnToggle.textContent = '📷 เปิดกล้องสแกน';
+            btnToggle.className = 'btn-primary full-width';
         }
     }
 
-    async function stopCamera() {
-        if (html5QrCode && isScanning) {
-            try { await html5QrCode.stop(); } catch (e) {}
-            isScanning = false;
-            torchOn = false;
-            const placeholder = document.getElementById('camPlaceholder');
-            if (placeholder) placeholder.style.display = 'block';
-            const btnToggle = document.getElementById('btnToggleCam');
-            if (btnToggle) {
-                btnToggle.textContent = '📷 เปิดกล้องสแกน';
-                btnToggle.className = 'btn-primary full-width';
-            }
-            const swCam = document.getElementById('btnSwitchCam');
-            if (swCam) swCam.style.display = 'none';
-            const torch = document.getElementById('btnTorch');
-            if (torch) torch.style.display = 'none';
-        }
+    function onScanResult(result, err) {
+        // err ส่วนใหญ่คือ NotFoundException ขณะยังไม่เจอโค้ดในเฟรม ไม่ต้องแสดง
+        if (!result) return;
+        if (isCooldown) return;
+        isCooldown = true;
+        triggerFeedback();
+        const fmtName = getFormatName(result);
+        processStockUpdate(getResultText(result), null, null, fmtName);
+        setTimeout(() => { isCooldown = false; }, 2000);
     }
 
-    async function switchCamera() {
-        if (!isScanning) return;
-        await stopCamera();
-        currentFacingMode = (currentFacingMode === "environment") ? "user" : "environment";
-        await startCamera();
-    }
-
-    function checkTorchSupport() {
+    function getActiveVideoTrack() {
         try {
-            const caps = html5QrCode.getRunningTrackCameraCapabilities();
-            if (caps && caps.torchFeature().isSupported()) {
-                const torch = document.getElementById('btnTorch');
-                if (torch) torch.style.display = 'flex';
+            const stream = codeReader && codeReader.stream;
+            if (stream && typeof stream.getVideoTracks === 'function') {
+                const tracks = stream.getVideoTracks();
+                if (tracks && tracks.length) return tracks[0];
             }
         } catch (e) {}
+        return null;
+    }
+
+    function updateTorchVisibility() {
+        const btn = document.getElementById('btnTorch');
+        if (!btn) return;
+        let supported = false;
+        try {
+            const track = getActiveVideoTrack();
+            const caps = track && typeof track.getCapabilities === 'function' ? track.getCapabilities() : null;
+            supported = !!(caps && ('torch' in caps));
+        } catch (e) {
+            supported = false;
+        }
+        btn.style.display = supported ? 'flex' : 'none';
     }
 
     async function toggleTorch() {
+        const track = getActiveVideoTrack();
+        const btn = document.getElementById('btnTorch');
+        if (!track) return;
         try {
-            const torch = html5QrCode.getRunningTrackCameraCapabilities().torchFeature();
             torchOn = !torchOn;
-            await torch.apply(torchOn);
-            const btnTorch = document.getElementById('btnTorch');
-            if (btnTorch) btnTorch.textContent = torchOn ? '🔦 ปิดไฟฉาย' : '🔦 ไฟฉาย';
+            await track.applyConstraints({ advanced: [{ torch: torchOn }] });
+            if (btn) {
+                btn.textContent = torchOn ? 'ปิดแฟลช' : 'เปิดแฟลช';
+                btn.classList.toggle('btn-torch-active', torchOn);
+            }
         } catch (e) {
-            showStatus('มือถือไม่รองรับเปิดไฟฉาย', true);
+            torchOn = !torchOn;
+            showStatus('อุปกรณ์นี้เปิดแฟลชไม่ได้', true);
         }
+    }
+
+    function loadImageAsync(url) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = () => reject(new Error('load image failed'));
+            img.src = url;
+        });
+    }
+
+    function scaleImageToDataUrl(img, factor) {
+        try {
+            const w = Math.round((img.naturalWidth || img.width) * factor);
+            const h = Math.round((img.naturalHeight || img.height) * factor);
+            if (w < 1 || h < 1 || w > 4096 || h > 4096) return null;
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.imageSmoothingEnabled = true;
+            ctx.drawImage(img, 0, 0, w, h);
+            return canvas.toDataURL('image/png');
+        } catch (e) {
+            return null;
+        }
+    }
+
+    // จำกัดเวลาการอ่านแต่ละครั้ง ป้องกันไลบรารีค้าง (พบว่า decode บางเงื่อนไขไม่ resolve)
+    function decodeWithTimeout(reader, img, timeoutMs) {
+        return new Promise((resolve, reject) => {
+            let settled = false;
+            const timer = setTimeout(() => {
+                if (!settled) {
+                    settled = true;
+                    reject(new Error('decode timeout'));
+                }
+            }, timeoutMs);
+            reader.decodeFromImage(img).then((res) => {
+                if (!settled) {
+                    settled = true;
+                    clearTimeout(timer);
+                    resolve(res);
+                }
+            }).catch((e) => {
+                if (!settled) {
+                    settled = true;
+                    clearTimeout(timer);
+                    reject(e);
+                }
+            });
+        });
+    }
+
+    // เติมขอบขาว (quiet zone) รอบโค้ด: Data Matrix ที่ภาพตัดขอบขาวออกหมดจะอ่านไม่ออก
+    function padImageToDataUrl(img) {
+        try {
+            const w = img.naturalWidth || img.width;
+            const h = img.naturalHeight || img.height;
+            if (!w || !h) return null;
+            const border = Math.max(12, Math.round(Math.min(w, h) * 0.1));
+            const cw = w + border * 2;
+            const ch = h + border * 2;
+            if (cw > 4096 || ch > 4096) return null;
+            const canvas = document.createElement('canvas');
+            canvas.width = cw;
+            canvas.height = ch;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, cw, ch);
+            ctx.drawImage(img, border, border);
+            return canvas.toDataURL('image/png');
+        } catch (e) {
+            return null;
+        }
+    }
+
+    // ลองอ่านหลายเงื่อนไข: ภาพเดิม -> เติมขอบขาว -> เติมขอบขาว+ขยาย 2 เท่า (ช่วย Data Matrix เล็กๆ)
+    async function decodeWithAttempts(img) {
+        if (typeof ZXing === 'undefined') throw new Error('ZXing not loaded');
+        const reader = createReader();
+        const candidates = [img];
+
+        const paddedUrl = padImageToDataUrl(img);
+        let paddedImg = null;
+        if (paddedUrl) {
+            try { paddedImg = await loadImageAsync(paddedUrl); candidates.push(paddedImg); } catch (e) {}
+        }
+
+        const srcW = img.naturalWidth || img.width || 0;
+        if (srcW && srcW < 1600 && paddedImg) {
+            const biggerUrl = scaleImageToDataUrl(paddedImg, 2);
+            if (biggerUrl) {
+                try { candidates.push(await loadImageAsync(biggerUrl)); } catch (e) {}
+            }
+        }
+
+        let lastErr = null;
+        for (const candidate of candidates) {
+            try {
+                const res = await decodeWithTimeout(reader, candidate, 8000);
+                if (res) return res;
+            } catch (e) {
+                lastErr = e;
+            }
+        }
+        throw lastErr || new Error('code not found');
     }
 
     async function scanFromFile(event) {
         const file = event.target.files[0];
         if (!file) return;
 
-        if (typeof Html5Qrcode === 'undefined') {
-            showStatus('❌ ระบบสแกนรูปภาพยังไม่พร้อมใช้งาน', true);
-            return;
-        }
+        if (isScanning) stopCamera();
+        showStatus('⏳ กำลังแกะรหัสจากรูปภาพ...');
 
-        if (isScanning) await stopCamera();
-        if (!html5QrCode) html5QrCode = new Html5Qrcode("reader");
-
-        showStatus('⏳ กำลังอ่านรหัสจากรูป...');
+        const objectUrl = URL.createObjectURL(file);
         try {
-            const decodedText = await html5QrCode.scanFile(file, true);
+            const img = await loadImageAsync(objectUrl);
+            const result = await decodeWithAttempts(img);
             triggerFeedback();
-            processStockUpdate(decodedText);
+            processStockUpdate(getResultText(result), null, null, getFormatName(result));
         } catch (err) {
-            showStatus('❌ ไม่พบรหัสในรูปภาพนี้', true);
+            showStatus('❌ ไม่พบรหัสในรูปภาพนี้ (ลองถ่ายใหม่ให้โค้ดใหญ่และชัดกว่านี้)', true);
+        } finally {
+            URL.revokeObjectURL(objectUrl);
+            event.target.value = '';
         }
-        event.target.value = '';
     }
 
     function saveToStorage() {
@@ -520,10 +727,11 @@
         } catch (e) {}
     }
 
-    function processStockUpdate(code, customQty = null, customName = null) {
+    function processStockUpdate(code, customQty = null, customName = null, fmtName = '') {
         if (!code || !code.trim()) return;
         code = code.trim();
 
+        const fmtTag = fmtName ? ` [${fmtName}]` : '';
         const qtyInput = document.getElementById('qtyInput');
         const qty = customQty !== null ? parseInt(customQty) : (qtyInput ? (parseInt(qtyInput.value) || 1) : 1);
         const nameInput = document.getElementById('itemNameInput');
@@ -536,12 +744,12 @@
             if (currentMode === 'IN') {
                 item.inTotal += qty;
                 item.stock += qty;
-                showStatus(`📥 รับเข้า [+${qty}] "${item.name}" สำเร็จ (เหลือ: ${item.stock})`);
+                showStatus(`📥 รับเข้า [+${qty}] "${item.name}" สำเร็จ (เหลือ: ${item.stock})${fmtTag}`);
             } else {
                 item.outTotal += qty;
                 item.stock -= qty;
                 if (item.stock < 0) item.stock = 0;
-                showStatus(`📤 เบิกออก [-${qty}] "${item.name}" สำเร็จ (เหลือ: ${item.stock})`, item.stock === 0);
+                showStatus(`📤 เบิกออก [-${qty}] "${item.name}" สำเร็จ (เหลือ: ${item.stock})${fmtTag}`, item.stock === 0);
             }
             if (inputName && inputName !== '-') {
                 item.name = inputName;
@@ -561,7 +769,7 @@
                 outTotal: initialOut,
                 lastUpdate: nowStr
             });
-            showStatus(`✨ เพิ่มสินค้าใหม่ในสต๊อกสำเร็จ`);
+            showStatus(`✨ เพิ่มสินค้าใหม่ในสต๊อกสำเร็จ${fmtTag}`);
         }
 
         saveToStorage();
@@ -655,8 +863,8 @@
 
         const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
 
-        const filtered = inventory.filter(item => 
-            item.code.toLowerCase().includes(searchTerm) || 
+        const filtered = inventory.filter(item =>
+            item.code.toLowerCase().includes(searchTerm) ||
             item.name.toLowerCase().includes(searchTerm)
         );
 
@@ -678,7 +886,7 @@
                 <td>
                     <div style="display:flex; gap:4px;">
                         <button type="button" class="btn-success btn-sm" onclick="quickAdjust(${item.id}, 'IN')" title="เพิ่ม +1">+1</button>
-                        <button type="button" class="btn-warning btn-sm" onclick="quickAdjust(${item.id}, 'OUT')" title="ลด -1" style="color:#fff;">-1</button>
+                        <button type="button" class="btn-warning btn-sm" onclick="quickAdjust(${item.id}, 'OUT')" title="ลด -1">-1</button>
                         <button type="button" class="btn-danger btn-sm" onclick="deleteItem(${item.id})" title="ลบ">✕</button>
                     </div>
                 </td>
