@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ระบบสแกนและค้นหาข้อมูล</title>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --success: #16a34a;
+            --danger: #dc2626;
+            --warning: #d97706;
+            --bg: #f1f5f9;
+            --card: #ffffff;
+            --text: #0f172a;
+        }
+        * { 
+            box-sizing: border-box; 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 600px;
+            background: var(--card);
+            padding: 16px;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+        h1 { font-size: 1.2rem; text-align: center; margin: 0 0 12px 0; color: var(--primary); }
+
+        .alert-box {
+            display: none;
+            background: #fee2e2;
+            border: 1px solid #ef4444;
+            color: #991b1b;
+            padding: 12px;
+            border-radius: 10px;
+            margin-bottom: 12px;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .camera-wrapper {
+            position: relative;
+            width: 100%;
+            background: #0f172a;
+            border-radius: 12px;
+            overflow: hidden;
+            min-height: 240px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 12px;
+        }
+        #reader { width: 100%; }
+        #reader video {
+            width: 100% !important;
+            height: auto !important;
+            object-fit: cover !important;
+        }
+        .camera-placeholder {
+            color: #94a3b8;
+            text-align: center;
+            padding: 20px;
+            font-size: 0.9rem;
+        }
+
+        .cam-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+        .full-width { grid-column: span 2; }
+
+        button, .file-label {
+            padding: 14px 12px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            touch-action: manipulation;
+            user-select: none;
+        }
+        button:active, .file-label:active { opacity: 0.8; transform: scale(0.98); }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-secondary { background: #e2e8f0; color: #1e293b; }
+        .btn-warning { background: var(--warning); color: white; }
+        .btn-success { background: var(--success); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-sm { padding: 8px 12px; font-size: 0.85rem; border-radius: 8px; }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            font-size: 16px;
+            margin-bottom: 10px;
+            background: #f8fafc;
+        }
+        input[type="text"]:focus {
+            outline: none;
+            border-color: var(--primary);
+            background: #fff;
+        }
+        .manual-group { display: flex; gap: 8px; margin-bottom: 14px; }
+        .manual-group input { margin-bottom: 0; flex: 1; }
+
+        #statusBanner {
+            display: none;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-align: center;
+        }
+        .status-ok { background: #dcfce7; color: #166534; display: block !important; }
+        .status-err { background: #fee2e2; color: #991b1b; display: block !important; }
+
+        .action-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 14px 0 10px 0;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .export-group { display: flex; gap: 6px; }
+        .table-wrapper {
+            width: 100%;
+            overflow-x: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            max-height: 350px;
+        }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #e2e8f0; font-size: 0.85rem; }
+        th { background-color: #f8fafc; font-weight: 600; position: sticky; top: 0; z-index: 10; }
+        .badge {
+            background: #dbeafe;
+            color: #1e40af;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-weight: bold;
+            word-break: break-all;
+            display: inline-block;
+        }
+        .time-col { font-size: 0.75rem; color: #64748b; white-space: nowrap; }
+        .empty-state { text-align: center; padding: 20px; color: #64748b; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>📱 ระบบสแกนและค้นหาข้อมูล</h1>
+
+    <div id="envWarning" class="alert-box"></div>
+    <div id="statusBanner"></div>
+
+    <!-- กรอบแสดงกล้อง -->
+    <div class="camera-wrapper">
+        <div id="reader"></div>
+        <div id="camPlaceholder" class="camera-placeholder">
+            แตะปุ่ม <b>"📷 เปิดกล้องสแกน"</b> ด้านล่าง
+        </div>
+    </div>
+
+    <!-- ปุ่มควบคุมกล้อง -->
+    <div class="cam-controls">
+        <button type="button" id="btnToggleCam" class="btn-primary full-width">
+            📷 เปิดกล้องสแกน
+        </button>
+        <button type="button" id="btnSwitchCam" class="btn-secondary" style="display:none;">
+            🔄 สลับกล้อง
+        </button>
+        <button type="button" id="btnTorch" class="btn-warning" style="display:none;">
+            🔦 ไฟฉาย
+        </button>
+        <label class="file-label btn-secondary full-width" for="qrFileInput">
+            🖼️ สแกนจากรูปภาพ / ถ่ายรูป
+        </label>
+        <input type="file" id="qrFileInput" accept="image/*" style="display:none;">
+    </div>
+
+    <!-- กรอกข้อมูล -->
+    <input type="text" id="noteInput" placeholder="📝 หมายเหตุ (ใส่ก่อนสแกน เช่น ชื่อสินค้า)">
+    
+    <div class="manual-group">
+        <input type="text" id="manualCodeInput" placeholder="พิมพ์รหัสด้วยตัวเอง...">
+        <button type="button" id="btnManualAdd" class="btn-primary">+ เพิ่ม</button>
+    </div>
+
+    <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 15px 0;">
+
+    <!-- ช่องค้นหาข้อมูลย้อนหลัง -->
+    <input type="text" id="searchInput" placeholder="🔍 ค้นหารหัส หรือ หมายเหตุย้อนหลัง...">
+
+    <!-- จัดการข้อมูล -->
+    <div class="action-bar">
+        <div style="font-size: 0.9rem;">แสดงผล: <strong id="totalCount">0</strong> รายการ</div>
+        <div class="export-group">
+            <button type="button" id="btnExport" class="btn-success btn-sm">📥 โหลด CSV</button>
+            <button type="button" id="btnClear" class="btn-danger btn-sm">🗑️ ล้างทั้งหมด</button>
+        </div>
+    </div>
+
+    <!-- ตารางประวัติ -->
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>เวลา</th>
+                    <th>รหัส</th>
+                    <th>หมายเหตุ</th>
+                    <th>ลบ</th>
+                </tr>
+            </thead>
+            <tbody id="dataTableBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    let html5QrCode = null;
+    let isScanning = false;
+    let isCooldown = false;
+    let currentFacingMode = "environment";
+    let torchOn = false;
+    let audioCtx = null;
+    let clearConfirmTimer = null;
+    let isConfirmingClear = false;
+    let scannedData = [];
+
+    try {
+        scannedData = JSON.parse(localStorage.getItem('mobile_scanned_records')) || [];
+    } catch (e) {
+        scannedData = [];
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+        const warningBox = document.getElementById('envWarning');
+        const ua = navigator.userAgent || "";
+        
+        if (window.location.protocol === 'file:') {
+            warningBox.style.display = 'block';
+            warningBox.innerHTML = '⚠️ <b>เปิดจากไฟล์ในเครื่องโดยตรง:</b> มือถือจะบล็อกการทำงานของปุ่มและกล้อง กรุณานำไฟล์ไปวางบนเว็บ (เช่น Netlify Drop) แล้วเปิดผ่านลิงก์ <b>https://</b>';
+        } else if (/Line|FBAN|FBAV|Instagram/i.test(ua)) {
+            warningBox.style.display = 'block';
+            warningBox.innerHTML = '⚠️ <b>คุณกำลังเปิดผ่านแอปแชท (LINE/Facebook):</b> กรุณากดปุ่ม <b>จุด 3 จุด (⋮)</b> มุมจอ แล้วเลือก <b>"เปิดในเบราว์เซอร์ (Chrome / Safari)"</b>';
+        }
+
+        document.getElementById('btnToggleCam').addEventListener('click', toggleCamera);
+        document.getElementById('btnSwitchCam').addEventListener('click', switchCamera);
+        document.getElementById('btnTorch').addEventListener('click', toggleTorch);
+        document.getElementById('qrFileInput').addEventListener('change', scanFromFile);
+        document.getElementById('btnManualAdd').addEventListener('click', manualAdd);
+        document.getElementById('btnExport').addEventListener('click', exportToCSV);
+        document.getElementById('btnClear').addEventListener('click', handleClearButton);
+        
+        // ผูก Event ช่องค้นหา
+        document.getElementById('searchInput').addEventListener('input', renderTable);
+
+        renderTable();
+    });
+
+    function showStatus(msg, isError = false) {
+        const banner = document.getElementById('statusBanner');
+        banner.textContent = msg;
+        banner.className = isError ? 'status-err' : 'status-ok';
+        setTimeout(() => { banner.style.display = 'none'; banner.className = ''; }, 3500);
+    }
+
+    function triggerFeedback() {
+        if (navigator.vibrate) navigator.vibrate(150);
+        try {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = "sine";
+            osc.frequency.setValueAtTime(1000, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.12);
+        } catch (e) {}
+    }
+
+    async function toggleCamera() {
+        try {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        } catch (e) {}
+
+        if (isScanning) {
+            await stopCamera();
+        } else {
+            await startCamera();
+        }
+    }
+
+    async function startCamera() {
+        const btnToggle = document.getElementById('btnToggleCam');
+        const placeholder = document.getElementById('camPlaceholder');
+
+        if (typeof Html5Qrcode === 'undefined') {
+            showStatus('❌ ระบบสแกนยังโหลดไม่เสร็จ กรุณารีเฟรช', true);
+            return;
+        }
+
+        btnToggle.textContent = '⏳ กำลังเปิดกล้อง...';
+
+        try {
+            if (!html5QrCode) {
+                html5QrCode = new Html5Qrcode("reader");
+            }
+
+            await html5QrCode.start(
+                { facingMode: currentFacingMode },
+                {
+                    fps: 12,
+                    qrbox: (w, h) => {
+                        const size = Math.floor(Math.min(w, h) * 0.72);
+                        return { width: size, height: size };
+                    }
+                },
+                (decodedText) => {
+                    if (isCooldown) return;
+                    isCooldown = true;
+                    triggerFeedback();
+                    saveRecord(decodedText);
+                    showStatus(`✅ บันทึกแล้ว: ${decodedText}`);
+                    setTimeout(() => { isCooldown = false; }, 1800);
+                },
+                () => {}
+            );
+
+            isScanning = true;
+            placeholder.style.display = 'none';
+            btnToggle.textContent = '⏹️ ปิดกล้อง';
+            btnToggle.className = 'btn-danger full-width';
+            document.getElementById('btnSwitchCam').style.display = 'flex';
+            checkTorchSupport();
+
+        } catch (err) {
+            isScanning = false;
+            btnToggle.textContent = '📷 เปิดกล้องสแกน';
+            btnToggle.className = 'btn-primary full-width';
+            showStatus('❌ เปิดกล้องไม่สำเร็จ กรุณาตรวจสอบสิทธิ์', true);
+        }
+    }
+
+    async function stopCamera() {
+        if (html5QrCode && isScanning) {
+            try { await html5QrCode.stop(); } catch (e) {}
+            isScanning = false;
+            torchOn = false;
+            document.getElementById('camPlaceholder').style.display = 'block';
+            const btnToggle = document.getElementById('btnToggleCam');
+            btnToggle.textContent = '📷 เปิดกล้องสแกน';
+            btnToggle.className = 'btn-primary full-width';
+            document.getElementById('btnSwitchCam').style.display = 'none';
+            document.getElementById('btnTorch').style.display = 'none';
+        }
+    }
+
+    async function switchCamera() {
+        if (!isScanning) return;
+        await stopCamera();
+        currentFacingMode = (currentFacingMode === "environment") ? "user" : "environment";
+        await startCamera();
+    }
+
+    function checkTorchSupport() {
+        try {
+            const caps = html5QrCode.getRunningTrackCameraCapabilities();
+            if (caps.torchFeature().isSupported()) {
+                document.getElementById('btnTorch').style.display = 'flex';
+            }
+        } catch (e) {}
+    }
+
+    async function toggleTorch() {
+        try {
+            const torch = html5QrCode.getRunningTrackCameraCapabilities().torchFeature();
+            torchOn = !torchOn;
+            await torch.apply(torchOn);
+            document.getElementById('btnTorch').textContent = torchOn ? '🔦 ปิดไฟฉาย' : '🔦 ไฟฉาย';
+        } catch (e) {
+            showStatus('มือถือไม่รองรับเปิดไฟฉายผ่านเว็บ', true);
+        }
+    }
+
+    async function scanFromFile(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        if (isScanning) await stopCamera();
+        if (!html5QrCode) html5QrCode = new Html5Qrcode("reader");
+
+        showStatus('⏳ กำลังอ่านรหัสจากรูป...');
+        try {
+            const decodedText = await html5QrCode.scanFile(file, true);
+            triggerFeedback();
+            saveRecord(decodedText);
+            showStatus(`✅ สแกนสำเร็จ: ${decodedText}`);
+        } catch (err) {
+            showStatus('❌ ไม่พบรหัสในรูปภาพนี้', true);
+        }
+        event.target.value = '';
+    }
+
+    function saveDataToStorage() {
+        try {
+            localStorage.setItem('mobile_scanned_records', JSON.stringify(scannedData));
+        } catch (e) {}
+    }
+
+    function saveRecord(code) {
+        if (!code.trim()) return;
+        const note = document.getElementById('noteInput').value.trim();
+        const now = new Date();
+        const timeStr = now.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' }) + 
+                        ' ' + now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+        scannedData.unshift({
+            id: Date.now(),
+            timestamp: timeStr,
+            code: code.trim(),
+            note: note || '-'
+        });
+
+        saveDataToStorage();
+        document.getElementById('searchInput').value = ''; // ล้างคำค้นหาเพื่อให้เห็นรายการใหม่ล่าสุดทันที
+        renderTable();
+    }
+
+    function manualAdd() {
+        const input = document.getElementById('manualCodeInput');
+        if (input.value.trim()) {
+            triggerFeedback();
+            saveRecord(input.value);
+            showStatus(`✅ เพิ่มข้อมูลแล้ว`);
+            input.value = '';
+        } else {
+            showStatus('⚠️ กรุณาพิมพ์รหัสก่อนกดเพิ่ม', true);
+        }
+    }
+
+    function deleteRecord(id) {
+        scannedData = scannedData.filter(item => item.id !== id);
+        saveDataToStorage();
+        renderTable();
+    }
+
+    function handleClearButton() {
+        if (scannedData.length === 0) {
+            showStatus('ไม่มีข้อมูลให้ล้าง', true);
+            return;
+        }
+        const btn = document.getElementById('btnClear');
+        if (!isConfirmingClear) {
+            isConfirmingClear = true;
+            btn.textContent = '⚠️ กดซ้ำเพื่อยืนยันลบ';
+            btn.style.background = '#991b1b';
+            clearConfirmTimer = setTimeout(() => {
+                isConfirmingClear = false;
+                btn.textContent = '🗑️ ล้างทั้งหมด';
+                btn.style.background = '';
+            }, 3000);
+        } else {
+            clearTimeout(clearConfirmTimer);
+            isConfirmingClear = false;
+            btn.textContent = '🗑️ ล้างทั้งหมด';
+            btn.style.background = '';
+            scannedData = [];
+            saveDataToStorage();
+            renderTable();
+            showStatus('🗑️ ล้างข้อมูลทั้งหมดเรียบร้อย');
+        }
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // ฟังก์ชันแสดงตารางพร้อมระบบกรองค้นหา
+    function renderTable() {
+        const tbody = document.getElementById('dataTableBody');
+        const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
+
+        // กรองข้อมูลตามคำค้นหา
+        const filteredData = scannedData.filter(item => 
+            item.code.toLowerCase().includes(searchTerm) || 
+            item.note.toLowerCase().includes(searchTerm) ||
+            item.timestamp.toLowerCase().includes(searchTerm)
+        );
+
+        document.getElementById('totalCount').textContent = filteredData.length;
+
+        if (filteredData.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="4" class="empty-state">ไม่พบข้อมูลที่ค้นหา</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = filteredData.map(item => `
+            <tr>
+                <td class="time-col">${item.timestamp}</td>
+                <td><span class="badge">${escapeHtml(item.code)}</span></td>
+                <td>${escapeHtml(item.note)}</td>
+                <td><button type="button" class="btn-danger btn-sm" onclick="deleteRecord(${item.id})">✕</button></td>
+            </tr>
+        `).join('');
+    }
+
+    function exportToCSV() {
+        if (scannedData.length === 0) {
+            showStatus('⚠️ ไม่มีข้อมูลสำหรับส่งออก', true);
+            return;
+        }
+
+        let csvContent = "\uFEFFวัน-เวลา,รหัสที่สแกนได้,หมายเหตุ\n";
+        scannedData.forEach(row => {
+            csvContent += `"${row.timestamp}","${row.code.replace(/"/g, '""')}","${row.note.replace(/"/g, '""')}"\n`;
+        });
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `scan_${new Date().toISOString().slice(0,10)}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+</script>
+
+</body>
+</html>
