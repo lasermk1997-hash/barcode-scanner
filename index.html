@@ -79,6 +79,29 @@
         (เทียบที่เนื้อหาโค้ดทั้งหมด ไม่แยกว่าเคยบันทึกไว้เป็น plate หรือ chanel)
     34) กันพลาด 3 ชั้น: ตอนเปิดหน้าต่างกรอกจำนวน / ตอนกดปุ่มบันทึก / ตอนเขียนลงสต๊อกจริง
     35) เสียงเตือน 2 จังหวะ + สั่นเตือน แยกจากเสียงสแกนปกติ ให้รู้ทันทีโดยไม่ต้องอ่านจอ
+
+    ===== รอบที่ 8: คลาวด์จัดเก็บเบื้องหลัง + แก้ "มือถือต้องลงทะเบียนใหม่ทุกครั้ง" =====
+    36) ตรวจสุขภาพการจำข้อมูล: ถ้าเบราว์เซอร์เก็บข้อมูลไม่ถาวร (โหมดไม่ระบุตัวตน/ห้ามเก็บข้อมูล)
+        จะเตือนบนหน้าล็อกอินทันทีพร้อมวิธีแก้ และขอสิทธิ์เก็บข้อมูลถาวร (storage.persist) ให้เครื่อง
+    37) ระบบคลาวด์สำรองอัตโนมัติ (telegra.ph API ฟรี ไม่ต้องสมัครสมาชิก):
+        ลงทะเบียน/เปิดใช้ครั้งแรก -> สร้าง "ร้านบนคลาวด์" ให้เอง พร้อม "รหัสร้าน" สำหรับกู้คืน
+    38) ทุกครั้งที่ผู้ใช้/สต๊อก/ประวัติเปลี่ยน จะ push ขึ้นคลาวด์เบื้องหลังเอง (รวบของ 2.5 วินาที)
+        แถบสถานะคลาวด์บอกทุกขั้น: กำลังบันทึก / บันทึกแล้วเมื่อไหร่ / บันทึกไม่สำเร็จ (ออฟไลน์)
+    39) เครื่องใหม่หรือเครื่องที่ข้อมูลถูกล้าง: วาง "รหัสร้าน" ที่หน้าล็อกอิน (หรือเปิด "ลิงก์กู้คืน"
+        ที่พ่วง #c=รหัสร้าน) ระบบกู้ผู้ใช้+สต๊อก+ประวัติให้อัตโนมัติ แล้วล็อกอินด้วย PIN เดิมได้เลย
+        ไม่ต้องลงทะเบียนใหม่อีกเลย - นี่คือสาเหตุ+วิธีแก้ของอาการ "ต้องสมัครใหม่ทุกครั้ง"
+    40) ใช้หลายเครื่องพร้อมกันได้: ดึงข้อมูลเครื่องอื่นมารวมแบบ "รายการที่แก้ล่าสุดชนะ"
+        ลบรายการแล้วไม่ฟื้นคืนจากเครื่องอื่น (tombstone) และถ้าออฟไลน์ใช้งานจากเครื่องได้ปกติทุกอย่าง
+        ค่อยซิงค์ทีหลังเองเมื่อเน็ตกลับมา
+    41) กันข้อมูลโดนเขียนทับ: ก่อน push ทุกครั้ง ระบบจะดึงข้อมูลล่าสุดจากคลาวด์มารวมเข้าเครื่องก่อน
+        แล้วจึง push สถานะที่รวมแล้วขึ้นไป (ถ้าดึงไม่สำเร็จจะไม่ push ใบ ๆ - รอลองใหม่
+        กันเครื่องอื่นที่เพิ่งบันทึกถูกทับด้วยข้อมูลเก่า)
+    42) ทุกครั้งที่อ่านข้อมูลจากคลาวด์จะแถมพารามิเตอร์กันแคช (cache-bust) เพราะเบราว์เซอร์/
+        เครือข่ายมือถือบางที่ให้ข้อมูลเก่าที่แคชไว้ ทำให้กู้คืนได้ข้อมูลไม่ครบ
+    43) หน้าเก็บข้อมูลบนคลาวด์เป็น "ชุดกลาง" เดียวกันทั้งร้าน: ทุกเครื่องยึด path จากคลาวด์เสมอ
+        กันสร้างหน้าซ้ำชื่อเดียวกันหลังกู้คืน (เครื่องละชุด อ่าน/เขียนไม่ตรงกัน)
+    44) ลบรายการที่เครื่องหนึ่ง เครื่องอื่นจะลบตามเมื่อดึงข้อมูล (tombstone) | ถ้า pull ไม่สำเร็จ
+        (เน็ตอ่อน) จะลองใหม่เองด้วยระยะห่างที่เพิ่มขึ้น ไม่ปล่อยพลาดเงียบ ๆ
     -->
     <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
     <script>window.ZXing || document.write('<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"><\/script>');</script>
@@ -515,6 +538,43 @@
             animation: pulseDot 1s infinite;
         }
         @keyframes pulseDot { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+
+        /* ===== รอบที่ 8: คลาวด์จัดเก็บเบื้องหลัง + กู้คืนข้ามเครื่อง ===== */
+        .cloud-bar {
+            background: #f0f9ff;
+            border: 1px solid #bae6fd;
+            border-radius: 12px;
+            padding: 10px 12px;
+            margin-top: 10px;
+            font-size: 0.85rem;
+            color: #0f172a;
+        }
+        .cloud-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .cloud-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
+        .dot-ok { background: #22c55e; }
+        .dot-pending { background: #f59e0b; }
+        .dot-error { background: #ef4444; }
+        .dot-off { background: #94a3b8; }
+        .cloud-coderow { margin-top: 6px; word-break: break-all; color: #334155; }
+        .cloud-code {
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            padding: 2px 6px;
+            font-size: 0.72rem;
+            font-family: monospace;
+        }
+        .cloud-btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+        .cloud-hint { color: #64748b; font-size: 0.74rem; margin-top: 7px; }
+        .cloud-restore {
+            background: #f0f9ff;
+            border: 1px solid #bae6fd;
+            border-radius: 10px;
+            padding: 10px 12px;
+            margin-top: 14px;
+            text-align: left;
+        }
+        .cloud-restore-title { font-size: 0.8rem; font-weight: 700; color: #0c4a6e; }
     </style>
 </head>
 <body>
@@ -553,6 +613,17 @@
             </div>
             <button type="button" id="btnRegister" class="btn-success" style="width: 100%;">ลงทะเบียนผู้ใช้ใหม่</button>
         </div>
+
+        <!-- รอบที่ 8: กู้คืนข้อมูลจากคลาวด์ - ใช้เมื่อเครื่องลืมข้อมูล/เครื่องใหม่ ไม่ต้องลงทะเบียนซ้ำ -->
+        <div id="cloudRestoreBox" class="cloud-restore">
+            <div class="cloud-restore-title">☁️ เคยลงทะเบียนไว้แต่เครื่องจำไม่ได้? กู้คืนด้วย "รหัสร้าน"</div>
+            <div class="form-group" style="margin: 8px 0 6px 0;">
+                <input type="text" id="restoreCode" placeholder="วางรหัสร้านที่คัดลอกมาจากเครื่องเดิม" autocomplete="off">
+            </div>
+            <button type="button" id="btnRestoreCloud" class="btn-primary" style="width: 100%;">☁️ กู้คืนผู้ใช้ + สต๊อกจากคลาวด์</button>
+            <div id="restoreMsg" class="login-msg"></div>
+        </div>
+        <div id="loginWarn" class="alert-box" style="display:none;"></div>
         <div id="loginMsg" class="login-msg"></div>
         <p class="login-note">
             ลงทะเบียนครั้งเดียว ระบบจดจำชื่อ + รหัส PIN ไว้ในเครื่องนี้ตลอดไป
@@ -569,6 +640,27 @@
     <div class="user-bar">
         <span>👤 ผู้สแกน: <b id="userChip">-</b></span>
         <button type="button" id="btnLogout" class="btn-secondary btn-sm">ออกจากระบบ</button>
+    </div>
+
+    <!-- รอบที่ 8: แถบคลาวด์จัดเก็บเบื้องหลัง -->
+    <div id="cloudBar" class="cloud-bar">
+        <div class="cloud-line">
+            <span id="cloudDot" class="cloud-dot dot-off"></span><b>☁️ คลาวด์</b>
+            <span id="cloudState">กำลังตรวจ...</span>
+        </div>
+        <div id="cloudCodeRow" class="cloud-coderow" style="display:none;">
+            รหัสร้าน: <span id="cloudCodeTxt" class="cloud-code">-</span>
+        </div>
+        <div class="cloud-btns" id="cloudOnRow" style="display:none;">
+            <button type="button" id="btnCloudOn" class="btn-success btn-sm">☁️ เปิดคลาวด์สำรอง</button>
+        </div>
+        <div class="cloud-btns" id="cloudCtlRow" style="display:none;">
+            <button type="button" id="btnCloudCopy" class="btn-secondary btn-sm">📋 คัดลอกรหัสร้าน</button>
+            <button type="button" id="btnCloudLink" class="btn-secondary btn-sm">🔗 คัดลอกลิงก์กู้คืน</button>
+            <button type="button" id="btnCloudPull" class="btn-secondary btn-sm">🔄 ดึงข้อมูล</button>
+            <button type="button" id="btnCloudOff" class="btn-danger btn-sm">ปิดคลาวด์</button>
+        </div>
+        <div id="cloudHint" class="cloud-hint"></div>
     </div>
 
     <div id="envWarning" class="alert-box"></div>
@@ -1017,6 +1109,14 @@
         safeBind('btnModalCancel', 'click', cancelScanModal);
         safeBind('modalQty', 'keydown', (e) => { if (e.key === 'Enter') confirmScanModal(); });
         safeBind('btnDupOk', 'click', closeDupModal); // รอบที่ 7
+        // รอบที่ 8: คลาวด์ + กู้คืนข้ามเครื่อง
+        safeBind('btnRestoreCloud', 'click', doRestoreCloud);
+        safeBind('restoreCode', 'keydown', (e) => { if (e.key === 'Enter') doRestoreCloud(); });
+        safeBind('btnCloudCopy', 'click', copyCloudCode);
+        safeBind('btnCloudLink', 'click', copyCloudLink);
+        safeBind('btnCloudPull', 'click', manualCloudPull);
+        safeBind('btnCloudOff', 'click', handleCloudOffButton);
+        safeBind('btnCloudOn', 'click', enableCloud);
         safeBind('btnExportLog', 'click', exportLogCSV);
         safeBind('btnClearLog', 'click', handleClearLogButton);
         // รอบที่ 5: ซูมกล้อง + ปุ่มจับภาพนิ่งสแกนละเอียด
@@ -1037,6 +1137,9 @@
         restoreSession();
         renderTable();
         renderLog();
+        // รอบที่ 8: ตรวจสุขภาพการจำข้อมูล + เริ่มระบบคลาวด์เบื้องหลัง
+        probeAndWarnStorage();
+        initCloud();
     });
 
     function safeBind(id, event, fn) {
@@ -1059,6 +1162,7 @@
 
     function saveUsers(users) {
         try { localStorage.setItem(USERS_KEY, JSON.stringify(users)); } catch (e) {}
+        scheduleCloudPush(); // รอบที่ 8: ผู้ใช้เปลี่ยน -> สำรองคลาวด์เบื้องหลัง
     }
 
     /* ===== รอบที่ 6: จดจำการลงทะเบียน - ลงครั้งเดียว ใช้รหัสเดิมได้ตลอด =====
@@ -1218,6 +1322,7 @@
         if (nameEl) nameEl.value = '';
         if (pinEl) pinEl.value = '';
         setLoginMsg('', '');
+        requestPersistentStorage(); // รอบที่ 8: ขอสิทธิ์เก็บข้อมูลถาวรให้เบราว์เซอร์
         showAppView();
         showStatus('👋 ยินดีต้อนรับ ' + user.name);
     }
@@ -1250,6 +1355,8 @@
         if (pin2El) pin2El.value = '';
         showAppView();
         showStatus('✅ ลงทะเบียนผู้ใช้ใหม่สำเร็จ: ' + name);
+        requestPersistentStorage(); // รอบที่ 8
+        ensureCloudWorkspace();    // รอบที่ 8: สร้าง "ร้านบนคลาวด์" ให้อัตโนมัติ (ครั้งแรกของร้าน)
     }
 
     function doLogout() {
@@ -1331,6 +1438,620 @@
         isCooldown = true;
         setTimeout(() => { isCooldown = false; }, SAVE_COOLDOWN_MS);
         if (isScanning) scheduleDecode(250);
+    }
+
+    /* ============================================================
+       รอบที่ 8: คลาวด์จัดเก็บข้อมูลเบื้องหลัง + กู้คืนเครื่องใหม่
+       ปัญหาเดิม: มือถือบางเครื่อง/บางวิธีเปิดจะล้าง localStorage ทิ้ง
+       -> ต้องลงทะเบียนใหม่ทุกครั้ง
+       วิธีแก้: เก็บข้อมูลสำรองบนคลาวด์ (telegra.ph API ฟรี ไม่ต้องสมัครสมาชิก)
+       - ลงทะเบียนผู้ใช้แรก (หรือเครื่องที่มีข้อมูลอยู่แล้ว) -> สร้าง "ร้านบนคลาวด์"
+         อัตโนมัติ ได้ "รหัสร้าน" (access token) ไว้กู้คืนข้อมูลทุกอย่าง
+       - ทุกครั้งที่ข้อมูลเปลี่ยนจะ push ขึ้นคลาวด์เบื้องหลัง (รวบของ 2.5 วินาที)
+       - เครื่องไหนจำไม่ได้: วาง "รหัสร้าน" ที่หน้าล็อกอิน หรือเปิด "ลิงก์กู้คืน"
+         (พ่วง #c=รหัสร้าน) ระบบกู้ผู้ใช้+สต๊อก+ประวัติให้อัตโนมัติ
+       - ข้อมูลแบ่งเป็นชิ้นเล็ก (<=40KB) เก็บเป็นหน้าชื่อ STOCKWS:chunk:<i>
+         ชิ้น meta (ชิ้น 0) เขียนเป็นชิ้นสุดท้ายเหมือน "ตราประทับ" ถ้าชุดไม่ครบ
+         (ซิงค์ค้าง) จะไม่เอาข้อมูลครึ่ง ๆ กลาง ๆ มาเขียนทับเครื่อง
+       - ลบรายการ -> จด tombstone กันข้อมูลเก่าจากเครื่องอื่นกลับมาฟื้น
+       - ออฟไลน์/คลาวด์ล่ม: ใช้งานจากเครื่องได้ปกติ แล้วลอง push ใหม่เองเมื่อเน็ตกลับ
+       ============================================================ */
+    const CLOUD_TOKEN_KEY = 'stock_cloud_code';
+    const CLOUD_PAGES_KEY = 'stock_cloud_pages';
+    const CLOUD_TOMB_KEY = 'stock_tombstones';
+    const CLOUD_INFO_KEY = 'stock_cloud_info';
+    const CLOUD_API = 'https://api.telegra.ph/';
+    const CLOUD_TITLE_PREFIX = 'STOCKWS:chunk:';
+    const CLOUD_CHUNK_INNER_LIMIT = 33000;  // ไบต์ข้อมูลต่อชิ้น (โควตาหน้าละ ~50KB)
+    const CLOUD_PUSH_DELAY_MS = 2500;
+    const CLOUD_PULL_INTERVAL_MS = 90000;
+    let cloudPagePaths = {};     // { ชิ้นที่: path ของหน้าบนคลาวด์ }
+    let cloudTombstones = [];    // รายการที่ถูกลบ (กันฟื้นคืน)
+    let cloudBusy = false;
+    let cloudPushTimer = null;
+    let cloudRetryTimer = null;
+    let cloudPullTimer = null;
+    let cloudPullRetryTimer = null;
+    let cloudPullAttempts = 0;
+    let cloudStatus = 'off';     // off | ok | pending | error
+    let cloudInfo = { lastPushAt: 0, lastPullAt: 0, lastError: '' };
+    let cloudApplying = false;   // กำลังเขียนข้อมูลจากคลาวด์ลงเครื่อง (ไม่ push วนซ้ำ)
+    let cloudLastSig = {};       // ลายเซ็นชิ้นที่ push ล่าสุด (ข้ามชิ้นที่ไม่เปลี่ยน)
+
+    function cloudGetToken() { try { return localStorage.getItem(CLOUD_TOKEN_KEY) || ''; } catch (e) { return ''; } }
+    function cloudSetToken(t) { try { if (t) localStorage.setItem(CLOUD_TOKEN_KEY, t); else localStorage.removeItem(CLOUD_TOKEN_KEY); } catch (e) {} }
+    function cloudSaveInfo() { try { localStorage.setItem(CLOUD_INFO_KEY, JSON.stringify(cloudInfo)); } catch (e) {} }
+    function cloudSavePages() { try { localStorage.setItem(CLOUD_PAGES_KEY, JSON.stringify(cloudPagePaths)); } catch (e) {} }
+    function cloudSaveTombs() { try { localStorage.setItem(CLOUD_TOMB_KEY, JSON.stringify(cloudTombstones)); } catch (e) {} }
+    function cloudLoadTombs() { try { return JSON.parse(localStorage.getItem(CLOUD_TOMB_KEY)) || []; } catch (e) { return []; } }
+
+    function itemMs(i) { return i.lastUpdateMs || i.id || 0; }
+
+    function addTombstone(item) {
+        if (!item) return;
+        const key = (item.code || '') + '|' + (item.type || '');
+        const found = cloudTombstones.find(t => t.key === key);
+        if (found) found.ms = Date.now(); else cloudTombstones.push({ key: key, ms: Date.now() });
+        if (cloudTombstones.length > 300) cloudTombstones = cloudTombstones.slice(-300);
+        cloudSaveTombs();
+    }
+
+    function isTombstoned(item) {
+        const key = (item.code || '') + '|' + (item.type || '');
+        const t = cloudTombstones.find(x => x.key === key);
+        return !!(t && (t.ms || 0) > itemMs(item));
+    }
+
+    // ===== เครือข่าย: GET / POST แบบ form-encoded ง่าย ๆ + timeout 15 วินาที =====
+    // GET ต้องแถมพารามิเตอร์กันแคชทุกครั้ง (มิฉะนั้นเบราว์เซอร์/เครือข่ายมือถือ
+    // อาจให้ข้อมูลเก่าที่แคชไว้ ทำให้กู้คืนได้ข้อมูลไม่ครบ ราวกับเครื่องจำไม่ได้)
+    function cloudFetch(method, params, post) {
+        const opt = post ? {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams(params).toString()
+        } : { method: 'GET' };
+        let timer = null;
+        try {
+            if (typeof AbortController === 'function') {
+                const ctrl = new AbortController();
+                opt.signal = ctrl.signal;
+                timer = setTimeout(() => { try { ctrl.abort(); } catch (e) {} }, 15000);
+            }
+        } catch (e) {}
+        let qs = '';
+        if (!post) {
+            const p2 = Object.assign({}, params, { _cb: Date.now() + '.' + Math.floor(Math.random() * 9999) });
+            qs = '?' + new URLSearchParams(p2).toString();
+        }
+        const url = CLOUD_API + method + qs;
+        return fetch(url, opt).then(r => r.json()).finally(() => { if (timer) clearTimeout(timer); });
+    }
+
+    function cloudNode(inner) { return JSON.stringify([{ tag: 'pre', children: [inner] }]); }
+
+    function cloudParseNode(content) {
+        try {
+            const raw = content && content[0] && content[0].children && content[0].children[0];
+            return raw ? JSON.parse(raw) : null;
+        } catch (e) { return null; }
+    }
+
+    function utf8Len(s) { try { return new TextEncoder().encode(s).length; } catch (e) { return s.length; } }
+
+    // แบ่งรายการเป็นชิ้น ๆ ไม่ให้ชิ้นใหญ่เกินโควตาหน้าของคลาวด์
+    function splitChunks(items) {
+        const parts = [];
+        let cur = [], bytes = 0;
+        items.forEach(it => {
+            const b = utf8Len(JSON.stringify(it)) + 1;
+            if (cur.length && bytes + b > CLOUD_CHUNK_INNER_LIMIT) { parts.push(cur); cur = []; bytes = 0; }
+            cur.push(it); bytes += b;
+        });
+        if (cur.length || !parts.length) parts.push(cur);
+        return parts;
+    }
+
+    function setCloudStatus(st) { cloudStatus = st; refreshCloudBar(); }
+
+    function refreshCloudBar() {
+        const dot = document.getElementById('cloudDot');
+        const state = document.getElementById('cloudState');
+        const codeRow = document.getElementById('cloudCodeRow');
+        const ctlRow = document.getElementById('cloudCtlRow');
+        const onRow = document.getElementById('cloudOnRow');
+        const hint = document.getElementById('cloudHint');
+        const tok = cloudGetToken();
+        const on = !!tok;
+        if (codeRow) codeRow.style.display = on ? 'block' : 'none';
+        if (ctlRow) ctlRow.style.display = on ? 'flex' : 'none';
+        if (onRow) onRow.style.display = on ? 'none' : 'flex';
+        const codeTxt = document.getElementById('cloudCodeTxt');
+        if (codeTxt) codeTxt.textContent = tok ? tok.slice(0, 10) + '…' + tok.slice(-6) + ' (' + tok.length + ' ตัวอักษร)' : '-';
+        if (state) {
+            if (!on) state.textContent = 'ปิดอยู่ - ข้อมูลเก็บในเครื่องเท่านั้น';
+            else if (cloudStatus === 'ok') state.textContent = cloudInfo.lastPushAt
+                ? 'สำรองล่าสุด ' + new Date(cloudInfo.lastPushAt).toLocaleTimeString('th-TH')
+                : 'พร้อมใช้งาน';
+            else if (cloudStatus === 'pending') state.textContent = 'กำลังบันทึกขึ้นคลาวด์...';
+            else if (cloudStatus === 'error') state.textContent = 'บันทึกไม่สำเร็จ (เน็ต/คลาวด์) จะลองใหม่เอง - ข้อมูลในเครื่องปกติ';
+            else state.textContent = 'กำลังตรวจ...';
+        }
+        if (dot) dot.className = 'cloud-dot ' + (!on ? 'dot-off'
+            : cloudStatus === 'ok' ? 'dot-ok'
+            : cloudStatus === 'pending' ? 'dot-pending'
+            : cloudStatus === 'error' ? 'dot-error' : 'dot-off');
+        if (hint) hint.textContent = on
+            ? 'รหัสร้าน = กุญแจกู้ข้อมูลทั้งหมด เก็บไว้ให้ดี (ให้เฉพาะคนในร้าน) - เครื่องไหนจำลงทะเบียนไม่ได้ เอารหัสนี้ไปกู้ที่หน้าล็อกอิน หรือเปิด "ลิงก์กู้คืน" ที่ตัวเองส่งเก็บไว้'
+            : 'เปิดคลาวด์เพื่อสำรองข้อมูลอัตโนมัติ + กู้คืนข้ามเครื่อง (แนะนำ)';
+    }
+
+    async function cloudPushNow() {
+        if (cloudApplying) return;
+        const tok = cloudGetToken();
+        if (!tok) return;
+        if (cloudBusy) return;
+        cloudBusy = true;
+        setCloudStatus('pending');
+        try {
+            // กันข้อมูลเครื่องอื่นที่เพิ่งบันทึกถูกเขียนทับ: ดึงข้อมูลล่าสุดจากคลาวด์
+            // มารวมเข้าเครื่องนี้ก่อนเสมอ แล้วจึง push สถานะที่รวมแล้วขึ้นไป
+            // (ถ้าดึงไม่สำเร็จจะไม่ push ใบ ๆ - รอลองใหม่ ยกเว้นร้านใหม่ที่ยังไม่มีข้อมูล)
+            const pre = await cloudPullInner();
+            if (!pre.ok && pre.error !== 'no-data') {
+                // syncing = เครื่องอื่นกำลัง push อยู่ รอให้เขาเสร็จก่อน ไม่ push ทับใบ ๆ
+                throw new Error(pre.error || 'pull ก่อนบันทึกล้มเหลว');
+            }
+            if (pre.ok && (pre.stats.invAdded || pre.stats.invUpdated || pre.stats.usersAdded)) {
+                // มีข้อมูลจากเครื่องอื่นเพิ่มเข้ามา -> ข้อมูลเปลี่ยนแล้ว push ต้นฉบับใหม่ทั้งหมด
+                for (const k of Object.keys(cloudLastSig)) delete cloudLastSig[k];
+            }
+            const ts = Date.now();
+            const invParts = splitChunks(inventory);
+            const logParts = splitChunks(scanLog);
+            const total = 1 + invParts.length + logParts.length;
+            // สร้างหน้าที่ยังไม่มี (ครั้งแรกของแต่ละชิ้น)
+            for (let i = 0; i < total; i++) {
+                if (cloudPagePaths[i]) continue;
+                const r = await cloudFetch('createPage', {
+                    access_token: tok, title: CLOUD_TITLE_PREFIX + i,
+                    content: cloudNode(JSON.stringify({ tsMs: ts, i: i, kind: i === 0 ? 'meta' : 'inv', part: [] })),
+                    return_content: 'false'
+                }, true);
+                if (!r.ok) throw new Error(r.error || 'createPage ล้มเหลว');
+                cloudPagePaths[i] = r.result.path;
+            }
+            cloudSavePages();
+            // เขียนชิ้นข้อมูล (inv/log) ก่อน แล้วปิดท้ายด้วย meta = ตราประทับ
+            for (let i = 1; i < total; i++) {
+                const isInv = i <= invParts.length;
+                const part = isInv ? invParts[i - 1] : logParts[i - invParts.length - 1];
+                const inner = JSON.stringify({ tsMs: ts, i: i, kind: isInv ? 'inv' : 'log', part: part });
+                if (cloudLastSig[i] === inner) continue; // ชิ้นนี้ไม่เปลี่ยน ข้ามได้
+                const r = await cloudFetch('editPage', {
+                    access_token: tok, path: cloudPagePaths[i], title: CLOUD_TITLE_PREFIX + i,
+                    content: cloudNode(inner), return_content: 'false'
+                }, true);
+                if (!r.ok) throw new Error(r.error || 'editPage ล้มเหลว');
+                cloudLastSig[i] = inner;
+            }
+            const meta = {
+                tsMs: ts, i: 0, kind: 'meta',
+                part: {
+                    v: 3,
+                    users: loadUsers(),
+                    tombstones: cloudTombstones,
+                    invChunks: invParts.length,
+                    logChunks: logParts.length,
+                    savedAt: new Date().toLocaleString('th-TH')
+                }
+            };
+            const r0 = await cloudFetch('editPage', {
+                access_token: tok, path: cloudPagePaths[0], title: CLOUD_TITLE_PREFIX + '0',
+                content: cloudNode(JSON.stringify(meta)), return_content: 'false'
+            }, true);
+            if (!r0.ok) throw new Error(r0.error || 'editPage meta ล้มเหลว');
+            cloudLastSig[0] = JSON.stringify(meta);
+            cloudInfo.lastPushAt = Date.now();
+            cloudInfo.lastError = '';
+            cloudSaveInfo();
+            setCloudStatus('ok');
+        } catch (e) {
+            cloudInfo.lastError = String((e && e.message) || e);
+            cloudSaveInfo();
+            setCloudStatus('error');
+            if (cloudRetryTimer) clearTimeout(cloudRetryTimer);
+            cloudRetryTimer = setTimeout(() => { cloudRetryTimer = null; cloudPushNow(); }, 30000);
+        } finally {
+            cloudBusy = false;
+        }
+    }
+
+    function scheduleCloudPush(delay) {
+        if (!cloudGetToken() || cloudApplying) return;
+        setCloudStatus('pending');
+        if (cloudPushTimer) clearTimeout(cloudPushTimer);
+        cloudPushTimer = setTimeout(() => { cloudPushTimer = null; cloudPushNow(); }, delay || CLOUD_PUSH_DELAY_MS);
+    }
+
+    // ดึงข้อมูลไม่สำเร็จ (เน็ตอ่อน/คลาวด์ติดขัด) -> ลองใหม่เองด้วยระยะห่างที่เพิ่มขึ้น
+    // สำคัญมากบนมือถือ: ถ้า pull ครั้งแรกพลาดแล้วไม่ลองใหม่ ผู้ใช้จะเจอ "ลงทะเบียนไม่จำ" อีก
+    function scheduleCloudPullRetry() {
+        if (!cloudGetToken()) return;
+        if (cloudPullAttempts >= 6) return;
+        if (cloudPullRetryTimer) clearTimeout(cloudPullRetryTimer);
+        cloudPullAttempts++;
+        const delay = Math.min(5000 * cloudPullAttempts, 40000);
+        cloudPullRetryTimer = setTimeout(() => {
+            cloudPullRetryTimer = null;
+            cloudPull().then(res => {
+                if (res.ok) { cloudPullAttempts = 0; return; }
+                if (res.error !== 'busy' && res.error !== 'no-data' && res.error !== 'syncing') scheduleCloudPullRetry();
+            }).catch(() => scheduleCloudPullRetry());
+            refreshCloudBar();
+        }, delay);
+    }
+
+    async function cloudPull() {
+        const tok = cloudGetToken();
+        if (!tok) return { ok: false, error: 'no-token' };
+        if (cloudBusy) return { ok: false, error: 'busy' };
+        cloudBusy = true;
+        try {
+            return await cloudPullInner();
+        } finally {
+            cloudBusy = false;
+        }
+    }
+
+    // เนื้อความของการดึงข้อมูล (ผู้เรียกต้องจับ cloudBusy เองแล้ว)
+    async function cloudPullInner() {
+        const tok = cloudGetToken();
+        try {
+            const list = await cloudFetch('getPageList', { access_token: tok, limit: 200 });
+            if (!list.ok) throw new Error(list.error || 'getPageList ล้มเหลว');
+            const byIndex = {};
+            ((list.result && list.result.pages) || []).forEach(p => {
+                const m = new RegExp('^STOCKWS:chunk:(\\d+)$').exec(p.title || '');
+                if (m && !(m[1] in byIndex)) byIndex[m[1]] = p.path;
+            });
+            if (!('0' in byIndex)) return { ok: false, error: 'no-data' };
+            // ยึดหน้าชุดที่อยู่บนคลาวด์เป็นชุดกลางของทั้งร้าน: ถ้าเครื่องนี้จำ path ต่างออกไป
+            // (เช่น เพิ่งกู้คืนเครื่องใหม่) ให้เปลี่ยนไปใช้ path จากคลาวด์เสมอ
+            // กันสร้างหน้าซ้ำชื่อเดียวกัน ซึ่งทำให้แต่ละเครื่องอ่าน/เขียนคนละชุดข้อมูล
+            let pagesChanged = false;
+            for (const idx of Object.keys(byIndex)) {
+                const num = parseInt(idx, 10);
+                if (cloudPagePaths[num] !== byIndex[idx]) {
+                    cloudPagePaths[num] = byIndex[idx];
+                    pagesChanged = true;
+                }
+            }
+            if (pagesChanged) cloudSavePages();
+            const chunks = {};
+            for (const idx of Object.keys(byIndex)) {
+                const g = await cloudFetch('getPage', { path: byIndex[idx], return_content: 'true' });
+                if (!g.ok) throw new Error(g.error || 'getPage ล้มเหลว');
+                const c = cloudParseNode(g.result && g.result.content);
+                if (c && typeof c.tsMs === 'number') chunks[idx] = c;
+            }
+            const meta = chunks['0'];
+            if (!meta || !meta.part) return { ok: false, error: 'no-data' };
+            const ts = meta.tsMs;
+            const total = 1 + (meta.part.invChunks || 0) + (meta.part.logChunks || 0);
+            let complete = true;
+            for (let i = 1; i < total; i++) {
+                if (!chunks[String(i)] || chunks[String(i)].tsMs !== ts) { complete = false; break; }
+            }
+            if (!complete) return { ok: false, error: 'syncing' };
+            let inv = [];
+            for (let i = 1; i <= meta.part.invChunks; i++) inv = inv.concat(chunks[String(i)].part || []);
+            let log = [];
+            for (let i = meta.part.invChunks + 1; i < total; i++) log = log.concat(chunks[String(i)].part || []);
+            const stats = applyCloudData(meta.part.users || [], inv, log, meta.part.tombstones || []);
+            cloudInfo.lastPullAt = Date.now();
+            cloudInfo.lastError = '';
+            cloudSaveInfo();
+            setCloudStatus('ok');
+            return { ok: true, stats: stats };
+        } catch (e) {
+            cloudInfo.lastError = String((e && e.message) || e);
+            cloudSaveInfo();
+            setCloudStatus('error');
+            return { ok: false, error: cloudInfo.lastError };
+        }
+    }
+
+    // รวมข้อมูลจากคลาวด์เข้าเครื่องนี้: ผู้ใช้รวมชื่อ (ไม่ทับ PIN เดิมของเครื่อง)
+    // สต๊อก: แถวที่แก้ล่าสุดชนะ | ประวัติ: รวมไม่ให้ซ้ำ | ลบแล้วมี tombstone จะไม่ฟื้น
+    function applyCloudData(usersCloud, invCloud, logCloud, tombCloud) {
+        cloudApplying = true;
+        try {
+            const stats = { usersAdded: 0, invAdded: 0, invUpdated: 0, logAdded: 0 };
+            (tombCloud || []).forEach(t => {
+                if (!t || !t.key) return;
+                const ex = cloudTombstones.find(x => x.key === t.key);
+                if (ex) { if ((t.ms || 0) > ex.ms) ex.ms = t.ms; }
+                else cloudTombstones.push({ key: t.key, ms: t.ms || 0 });
+            });
+            if (cloudTombstones.length > 300) cloudTombstones = cloudTombstones.slice(-300);
+            cloudSaveTombs();
+
+            // ลบรายการที่เครื่องอื่นลบไปแล้ว (tombstone ที่ใหม่กว่าการแก้ล่าสุดของรายการ = ถูกลบ)
+            // เครื่องอื่นลบ -> เครื่องนี้ก็ลบตาม รายการจึงหายจริงทุกเครื่อง
+            inventory = inventory.filter(item => !isTombstoned(item));
+
+            const curUsers = loadUsers();
+            (usersCloud || []).forEach(u => {
+                if (!u || !u.name || !u.hash) return;
+                if (!curUsers.some(x => x.name.toLowerCase() === u.name.toLowerCase())) {
+                    curUsers.push({ name: u.name, hash: u.hash });
+                    stats.usersAdded++;
+                }
+            });
+            if (stats.usersAdded) saveUsers(curUsers);
+
+            (invCloud || []).forEach(c => {
+                if (!c || !c.code) return;
+                if (isTombstoned(c)) return;
+                const ex = inventory.find(i => i.code === c.code && (i.type || '') === (c.type || ''));
+                if (!ex) { inventory.push(c); stats.invAdded++; }
+                else if (itemMs(c) > itemMs(ex)) {
+                    const at = inventory.indexOf(ex);
+                    if (at >= 0) inventory[at] = c;
+                    stats.invUpdated++;
+                }
+            });
+            saveToStorage();
+
+            const sig = e => [e.t || '', e.user || '', e.code || '', e.type || '', e.qty || '', e.mode || ''].join('|');
+            const seen = {};
+            scanLog.forEach(e => { seen[sig(e)] = 1; });
+            (logCloud || []).forEach(e => {
+                if (e && !seen[sig(e)]) { scanLog.push(e); stats.logAdded++; }
+            });
+            scanLog.sort((a, b) => (b.ms || 0) - (a.ms || 0));
+            if (scanLog.length > 300) scanLog = scanLog.slice(0, 300);
+            try { localStorage.setItem('stock_scan_log', JSON.stringify(scanLog)); } catch (e) {}
+
+            renderTable();
+            renderLog();
+            renderRegisteredUsers();
+            return stats;
+        } finally { cloudApplying = false; }
+    }
+
+    function initCloud() {
+        try { cloudInfo = JSON.parse(localStorage.getItem(CLOUD_INFO_KEY)) || cloudInfo; } catch (e) {}
+        try { cloudPagePaths = JSON.parse(localStorage.getItem(CLOUD_PAGES_KEY)) || {}; } catch (e) { cloudPagePaths = {}; }
+        cloudTombstones = cloudLoadTombs();
+        requestPersistentStorage();
+        // ลิงก์กู้คืน: เปิดมาพร้อม #c=<รหัสร้าน> -> ตั้งรหัสแล้วกู้เองอัตโนมัติ
+        let hashTok = '';
+        try {
+            const m = /[#&]c=([A-Za-z0-9]+)/.exec(location.hash || '');
+            if (m) hashTok = m[1];
+        } catch (e) {}
+        if (hashTok && hashTok !== cloudGetToken()) {
+            cloudSetToken(hashTok);
+            cloudPagePaths = {}; cloudSavePages();
+            cloudLastSig = {};
+        }
+        try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+        const tok = cloudGetToken();
+        if (tok) {
+            setCloudStatus('pending');
+            cloudPull().then(res => {
+                if (res.ok) {
+                    cloudPullAttempts = 0;
+                    restoreSession(); // เช็ค session ใหม่ (เครื่องที่เพิ่งกู้จะได้ชื่อในหน้าล็อกอิน)
+                    const s = res.stats || {};
+                    if (s.usersAdded && !currentUser) {
+                        setLoginMsg('☁️ กู้คืนจากคลาวด์แล้ว: พบผู้ใช้ในร้านนี้แล้ว แตะชื่อแล้วใส่ PIN เดิมได้เลย', 'ok');
+                    }
+                    if (s.usersAdded || s.invAdded || s.invUpdated || s.logAdded) scheduleCloudPush();
+                } else if (res.error !== 'busy') {
+                    scheduleCloudPullRetry(); // เน็ตอ่อน/คลาวด์ติดขัด -> ลองใหม่เอง
+                }
+                refreshCloudBar();
+            }).catch(() => { scheduleCloudPullRetry(); refreshCloudBar(); });
+        } else if (loadUsers().length) {
+            // เครื่องที่มีข้อมูลผู้ใช้อยู่แล้วแต่ยังไม่มีคลาวด์ -> สร้างร้านบนคลาวด์ให้เอง
+            ensureCloudWorkspace();
+        } else {
+            refreshCloudBar();
+        }
+        // ดึงข้อมูลเครื่องอื่นเงียบ ๆ ทุก 90 วินาที (หลายเครื่องใช้พร้อมกัน)
+        if (cloudPullTimer) clearInterval(cloudPullTimer);
+        cloudPullTimer = setInterval(() => {
+            if (document.visibilityState !== 'visible') return;
+            if (!cloudGetToken() || cloudBusy || modalCtx || dupCtx) return;
+            cloudPull().then(res => {
+                if (res.ok) cloudPullAttempts = 0;
+                refreshCloudBar();
+            }).catch(() => {});
+        }, CLOUD_PULL_INTERVAL_MS);
+    }
+
+    async function ensureCloudWorkspace() {
+        if (cloudGetToken()) return true;
+        if (cloudBusy) return false;
+        setCloudStatus('pending');
+        try {
+            const r = await cloudFetch('createAccount', {
+                short_name: 'stock' + String(Math.floor(Math.random() * 9000) + 1000),
+                author_name: 'stock system'
+            });
+            if (!r.ok || !r.result || !r.result.access_token) throw new Error(r.error || 'สร้างคลาวด์ไม่สำเร็จ');
+            cloudSetToken(r.result.access_token);
+            cloudPagePaths = {}; cloudSavePages();
+            cloudLastSig = {};
+            refreshCloudBar();
+            await cloudPushNow();
+            return true;
+        } catch (e) {
+            cloudInfo.lastError = String((e && e.message) || e);
+            cloudSaveInfo();
+            setCloudStatus('error');
+            return false;
+        }
+    }
+
+    function cloudErrText(err) {
+        const s = String(err || '');
+        if (s === 'no-data') return 'รหัสร้านนี้ยังไม่มีข้อมูลบนคลาวด์';
+        if (s === 'syncing') return 'คลาวด์กำลังบันทึกอยู่ ลองอีกครั้งในอีกสักครู่';
+        if (s === 'busy') return 'ระบบกำลังทำงานอยู่ ลองอีกครั้ง';
+        if (s === 'no-token') return 'ยังไม่ได้ใส่รหัสร้าน';
+        if (s.indexOf('TOKEN') >= 0) return 'รหัสร้านไม่ถูกต้อง';
+        if (s.indexOf('fetch') >= 0 || s.indexOf('Network') >= 0 || s.indexOf('Failed') >= 0) return 'เข้าอินเทอร์เน็ตไม่ได้ ตรวจเน็ตแล้วลองใหม่';
+        return s;
+    }
+
+    async function doRestoreCloud() {
+        const input = document.getElementById('restoreCode');
+        const msg = document.getElementById('restoreMsg');
+        const tok = input ? input.value.trim() : '';
+        const setMsg = (text, cls) => { if (msg) { msg.textContent = text; msg.className = 'login-msg ' + (cls || ''); } };
+        if (!/^[a-f0-9]{40,}$/i.test(tok)) {
+            setMsg('รหัสร้านไม่ถูกต้อง - ควรเป็นตัวอักษร/ตัวเลขยาว ๆ ที่กดคัดลอกจากเครื่องเดิม', 'err');
+            return;
+        }
+        setMsg('กำลังดึงข้อมูลจากคลาวด์ (ประมาณ 3-8 วินาที)...', '');
+        const prevTok = cloudGetToken();
+        const prevPages = cloudPagePaths;
+        cloudSetToken(tok);
+        cloudPagePaths = {}; cloudSavePages();
+        cloudLastSig = {};
+        const res = await cloudPull();
+        if (res.ok) {
+            refreshCloudBar();
+            const s = res.stats || {};
+            setMsg('☁️ กู้คืนสำเร็จ! ผู้ใช้เพิ่มใหม่ ' + (s.usersAdded || 0)
+                + ' คน / สต๊อกเพิ่ม-ปรับ ' + ((s.invAdded || 0) + (s.invUpdated || 0))
+                + ' รายการ - ไปแท็บ "เข้าสู่ระบบ" แตะชื่อที่ลงทะเบียนไว้ ใส่ PIN เดิมได้เลย', 'ok');
+            if (input) input.value = '';
+            showLoginTab('login');
+            const usersNow = loadUsers();
+            if (usersNow.length === 1) {
+                const nameEl = document.getElementById('loginName');
+                if (nameEl) nameEl.value = usersNow[0].name;
+                const pinEl = document.getElementById('loginPin');
+                if (pinEl) { try { pinEl.focus(); } catch (e) {} }
+            }
+        } else {
+            cloudSetToken(prevTok); // กู้ไม่สำเร็จ คืนค่ารหัสเดิมของเครื่องนี้
+            cloudPagePaths = prevPages; cloudSavePages();
+            refreshCloudBar();
+            setMsg('❌ กู้คืนไม่สำเร็จ: ' + cloudErrText(res.error), 'err');
+        }
+    }
+
+    function fallbackCopy(text) {
+        try {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            const ok = document.execCommand('copy');
+            document.body.removeChild(ta);
+            return ok;
+        } catch (e) { return false; }
+    }
+
+    function copyTextToClipboard(text) {
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                return navigator.clipboard.writeText(text).then(() => true).catch(() => fallbackCopy(text));
+            }
+        } catch (e) {}
+        return Promise.resolve(fallbackCopy(text));
+    }
+
+    function copyCloudCode() {
+        const tok = cloudGetToken();
+        if (!tok) { showStatus('ยังไม่ได้เปิดใช้คลาวด์', true); return; }
+        copyTextToClipboard(tok).then(ok =>
+            showStatus(ok ? '📋 คัดลอกรหัสร้านแล้ว - เก็บไว้เพื่อกู้คืนข้อมูลบนเครื่องอื่น' : 'คัดลอกไม่ได้ ลองเลือกข้อความแล้วกดคัดลอกเอง', !ok));
+    }
+
+    function copyCloudLink() {
+        const tok = cloudGetToken();
+        if (!tok) { showStatus('ยังไม่ได้เปิดใช้คลาวด์', true); return; }
+        let base = '';
+        try { base = location.href.split('#')[0]; } catch (e) {}
+        const link = base + '#c=' + tok;
+        copyTextToClipboard(link).then(ok =>
+            showStatus(ok ? '🔗 คัดลอกลิงก์กู้คืนแล้ว - ส่งเก็บไว้ (เช่น ส่งหาตัวเองทางไลน์) เปิดลิงก์เมื่อไหร่ ข้อมูลกลับมาทันที' : 'คัดลอกไม่ได้', !ok));
+    }
+
+    function manualCloudPull() {
+        if (!cloudGetToken()) { showStatus('ยังไม่ได้เปิดใช้คลาวด์', true); return; }
+        showStatus('🔄 กำลังดึงข้อมูลจากคลาวด์...');
+        cloudPull().then(res => {
+            if (res.ok) showStatus('✅ ดึงข้อมูลจากคลาวด์เรียบร้อย');
+            else showStatus('❌ ดึงข้อมูลไม่สำเร็จ: ' + cloudErrText(res.error), true);
+            refreshCloudBar();
+        });
+    }
+
+    let isConfirmingCloudOff = false;
+    function handleCloudOffButton() {
+        const btn = document.getElementById('btnCloudOff');
+        if (!isConfirmingCloudOff) {
+            isConfirmingCloudOff = true;
+            if (btn) btn.textContent = '⚠️ กดซ้ำเพื่อยืนยัน';
+            setTimeout(() => {
+                isConfirmingCloudOff = false;
+                if (btn) btn.textContent = 'ปิดคลาวด์';
+            }, 3000);
+        } else {
+            isConfirmingCloudOff = false;
+            if (btn) btn.textContent = 'ปิดคลาวด์';
+            cloudSetToken('');
+            cloudPagePaths = {}; cloudSavePages();
+            cloudLastSig = {};
+            if (cloudPushTimer) clearTimeout(cloudPushTimer);
+            setCloudStatus('off');
+            showStatus('ปิดคลาวด์แล้ว ข้อมูลยังอยู่ในเครื่องครบ (กดเปิดใหม่ได้เสมอ)');
+        }
+    }
+
+    function enableCloud() {
+        showStatus('☁️ กำลังเปิดคลาวด์...');
+        ensureCloudWorkspace().then(ok => {
+            if (ok) showStatus('☁️ เปิดคลาวด์สำเร็จ! กด "คัดลอกรหัสร้าน" เก็บไว้ได้เลย');
+            else showStatus('❌ เปิดคลาวด์ไม่สำเร็จ: ' + cloudErrText(cloudInfo.lastError) + ' (จะลองใหม่เมื่อเปิดหน้าถัดไป)', true);
+        });
+    }
+
+    function requestPersistentStorage() {
+        try {
+            if (navigator.storage && typeof navigator.storage.persist === 'function') {
+                navigator.storage.persist().catch(() => {});
+            }
+        } catch (e) {}
+    }
+
+    // ตรวจว่าเบราว์เซอร์นี้เก็บข้อมูลถาวรได้จริงไหม (โหมดไม่ระบุตัวตน/ห้ามเก็บ = เตือนทันที)
+    function probeAndWarnStorage() {
+        let ok = false;
+        try {
+            const k = '__stock_probe_v1', v = 'p' + Date.now();
+            localStorage.setItem(k, v);
+            ok = localStorage.getItem(k) === v;
+            try { localStorage.removeItem(k); } catch (e) {}
+        } catch (e) { ok = false; }
+        if (ok) return;
+        const msg = '⚠️ <b>เบราว์เซอร์นี้เก็บข้อมูลไม่ถาวร!</b> (โหมดไม่ระบุตัวตน หรือห้ามเก็บข้อมูล) '
+            + 'ลงทะเบียน/สแกนเท่าไรก็จะหายหมดเมื่อปิดหน้า และจำรหัสร้านไว้กู้คืนไม่ได้<br>'
+            + 'วิธีแก้: ออกจากโหมดไม่ระบุตัวตน แล้วเปิดด้วย Chrome/Safari ปกติผ่านลิงก์ https เดิมเสมอ';
+        const lw = document.getElementById('loginWarn');
+        if (lw) { lw.style.display = 'block'; lw.innerHTML = msg; }
+        const ew = document.getElementById('envWarning');
+        if (ew) { ew.style.display = 'block'; ew.innerHTML = msg; }
     }
 
     /* ============================================================
@@ -1437,6 +2158,7 @@
     function pushScanLog(entry) {
         scanLog.unshift({
             t: new Date().toLocaleString('th-TH'),
+            ms: Date.now(),
             user: entry.user || '-',
             code: entry.code || '-',
             type: entry.type || '',
@@ -1446,6 +2168,7 @@
         });
         if (scanLog.length > 300) scanLog = scanLog.slice(0, 300);
         try { localStorage.setItem('stock_scan_log', JSON.stringify(scanLog)); } catch (e) {}
+        scheduleCloudPush(); // รอบที่ 8: ประวัติเปลี่ยน -> สำรองคลาวด์เบื้องหลัง
         renderLog();
     }
 
@@ -1495,6 +2218,7 @@
             if (btn) btn.textContent = '🗑️ ล้างประวัติ';
             scanLog = [];
             try { localStorage.setItem('stock_scan_log', '[]'); } catch (e) {}
+            scheduleCloudPush(); // รอบที่ 8
             renderLog();
             showStatus('🗑️ ล้างประวัติการสแกนเรียบร้อย');
         }
@@ -2184,6 +2908,7 @@
         try {
             localStorage.setItem('barcode_stock_inventory', JSON.stringify(inventory));
         } catch (e) {}
+        scheduleCloudPush(); // รอบที่ 8: สต๊อกเปลี่ยน -> สำรองคลาวด์เบื้องหลัง
     }
 
     function processStockUpdate(code, qty, type, fmtName = '') {
@@ -2218,6 +2943,7 @@
             }
             item.lastUpdate = nowStr;
             item.lastBy = who;
+            item.lastUpdateMs = Date.now(); // รอบที่ 8: ประทับเวลาไว้รวมข้อมูลข้ามเครื่อง (อันใหม่ชนะ)
         } else {
             const initialStock = currentMode === 'IN' ? qty : 0;
 
@@ -2230,7 +2956,8 @@
                 inTotal: currentMode === 'IN' ? qty : 0,
                 outTotal: currentMode === 'OUT' ? qty : 0,
                 lastUpdate: nowStr,
-                lastBy: who
+                lastBy: who,
+                lastUpdateMs: Date.now()
             });
             showStatus(`✨ เพิ่มใหม่ ${typeTag} "${code}" ×${qty} โดย ${who}${fmtTag}`);
         }
@@ -2270,12 +2997,15 @@
         }
         item.lastUpdate = new Date().toLocaleString('th-TH');
         item.lastBy = who;
+        item.lastUpdateMs = Date.now(); // รอบที่ 8
         pushScanLog({ code: item.code, type: item.type, qty: 1, mode: mode, user: who, fmt: 'ปุ่มในตาราง' });
         saveToStorage();
         renderTable();
     }
 
     function deleteItem(id) {
+        const victim = inventory.find(item => item.id === id);
+        if (victim) addTombstone(victim); // รอบที่ 8: จด tombstone กันข้อมูลเก่าจากคลาวด์ฟื้นคืน
         inventory = inventory.filter(item => item.id !== id);
         saveToStorage();
         renderTable();
