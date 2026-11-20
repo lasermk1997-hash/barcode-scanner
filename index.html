@@ -21,11 +21,14 @@
   * พนักงาน: สแกนรับเข้า/เบิกออกเท่านั้น
 - หน้าเข้าสู่ระบบ: มีแค่ช่องเข้าสู่ระบบอย่างเดียว (จำบัญชีที่ลงทะเบียนไว้)
   มีข้อความลิงก์ไป "หน้าสมัครไอดีใหม่" (#register) ซึ่งเป็นหน้าเว็บแยกของตัวเอง
-  หน้าสมัครไอดีใหม่มี: ลงทะเบียนพนักงาน + ช่องเชื่อมต่อรหัสห้องคลาวด์
-  (ดึงบัญชีเดิมจากคอมพิวเตอร์ ไม่ต้องสมัครใหม่) + รหัสซิงค์/ไฟล์ข้อมูล
-- ปุ่มตั้งค่า (⚙): เปลี่ยนธีมพื้นหลัง 6 แบบ (พาสเทลทั้งหมด: ชมพู/มินต์/ลาเวนเดอร์/ฟ้าอ่อน/ครีม/พีช)
-  / เปิด-ปิดเสียงและการสั่น
-  / ซิงค์ข้อมูล / เปลี่ยนรหัสผ่านของฉัน / จัดการบัญชี+เครื่องมือ admin / ออกจากระบบ
+  หน้าสมัครไอดีใหม่: มีแค่ฟอร์มลงทะเบียนบัญชีพนักงานอย่างเดียว (ไม่มีอย่างอื่น)
+  เชื่อมห้องคลาวด์/ย้ายข้อมูล ทำได้ที่ปุ่มตั้งค่า (⚙) ของ admin หรือผ่านลิงก์เชิญ
+- ปุ่มตั้งค่า (⚙):
+  * พนักงาน: เห็นแค่ธีมพื้นหลัง + เสียง/การสั่นเตือน + ปุ่มปิดการตั้งค่า + ออกจากระบบ เท่านั้น
+  * admin: จัดเป็น 3 แท็บ ใช้งานสบายทั้งมือถือและคอมพิวเตอร์
+    - แท็บ "หน้าตา": ธีมพาสเทล 6 แบบ (ชมพู/มินต์/ลาเวนเดอร์/ฟ้าอ่อน/ครีม/พีช) + เสียง/การสั่น
+    - แท็บ "ซิงค์ข้อมูล": คลาวด์ร้าน + ส่งออก/นำเข้าไฟล์ .json + รหัสซิงค์
+    - แท็บ "บัญชี/เครื่องมือ": เปลี่ยนรหัสผ่านของฉัน + จัดการบัญชี + CSV + ล้างข้อมูล
 - คลาวด์ร้าน (ผ่าน textdb.dev ฟรี ไม่ต้องสมัครสมาชิก): สร้าง/เชื่อมต่อ "รหัสห้อง"
   แล้วบัญชี รหัสผ่าน สต๊อก ประวัติ จะถูกจัดเก็บบนคลาวด์
   และซิงค์อัตโนมัติทุกเครื่องที่ใช้รหัสห้องเดียวกัน:
@@ -41,7 +44,7 @@
   เปิดลิงก์แล้วระบบเชื่อมต่อห้องให้เอง บัญชีเดิมโผล่ที่หน้าเข้าสู่ระบบทันที
   ใช้รหัสผ่านเดิมจากเครื่องอื่นได้เลย ไม่ต้องลงทะเบียนใหม่
 - ซิงค์สำรอง (ไม่ใช้เน็ต): "รหัสซิงค์" คัดลอก/วางผ่าน LINE ได้ และ
-  "ส่งออก/นำเข้าไฟล์ข้อมูล" (.json) - หน้าสมัครไอดีใหม่และหน้าตั้งค่ามีช่องใช้พร้อมใช้
+  "ส่งออก/นำเข้าไฟล์ข้อมูล" (.json) - อยู่ในแท็บ "ซิงค์ข้อมูล" ของปุ่มตั้งค่า (admin)
 -->
 <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
 <script>window.ZXing || document.write('<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"><\/script>');</script>
@@ -619,6 +622,60 @@
     textarea.mono-area:focus { border-color: var(--primary); }
     #settingsModal .btn.full { margin-top: 8px; }
     .transfer-wrap { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
+
+    /* ===== หน้าต่างตั้งค่า (พนักงาน: ธีม+เสียง | admin: 3 แท็บ) ===== */
+    .settings-card { max-width: 560px; padding: 0; display: flex; flex-direction: column; overflow: hidden; }
+    .settings-head {
+        display: flex; align-items: center; justify-content: space-between; gap: 10px;
+        padding: 13px 18px 11px;
+        border-bottom: 1px solid var(--line);
+        background: var(--soft);
+        flex: none;
+    }
+    .settings-head .modal-title { margin: 0; text-align: left; font-size: 1.08rem; }
+    .settings-x {
+        width: 38px; height: 38px; flex: none;
+        border: 1.5px solid var(--line); border-radius: 10px;
+        background: var(--card); color: var(--ink);
+        font-size: 1.1rem; font-weight: 800; line-height: 1; cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+    }
+    .settings-x:active { transform: scale(.94); }
+    .settings-tabs { display: flex; gap: 6px; padding: 10px 14px 0; flex: none; }
+    .settings-tab {
+        flex: 1; min-height: 46px; padding: 6px 4px;
+        border: 1.5px solid var(--line); border-radius: 12px;
+        background: var(--soft); color: var(--soft-ink);
+        font-weight: 800; font-size: .88rem; cursor: pointer;
+    }
+    .settings-tab.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .settings-body {
+        flex: 1; min-height: 0;
+        padding: 2px 18px 14px;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .settings-actions {
+        display: flex; gap: 8px;
+        padding: 12px 18px calc(12px + env(safe-area-inset-bottom));
+        border-top: 1px solid var(--line);
+        background: var(--soft);
+        flex: none;
+    }
+    .settings-actions .btn { flex: 1; min-height: 48px; }
+    .settings-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+    .settings-grid2 .btn { min-height: 44px; }
+    @media (max-width: 600px) {
+        .settings-tab { font-size: .8rem; min-height: 44px; padding: 5px 2px; }
+        .settings-grid2 { grid-template-columns: 1fr; } /* มือถือ: ปุ่มเต็มแถว กดง่าย */
+        .settings-head { padding: 12px 14px 10px; }
+        .settings-body { padding: 2px 14px 12px; }
+        .settings-actions { padding-left: 14px; padding-right: 14px; }
+    }
+    @media (min-width: 940px) {
+        .settings-card { max-width: 620px; } /* คอม: การ์ดกว้างขึ้น เนื้อหาโล่งตา */
+    }
+
     .cloud-status {
         display: none;
         margin-top: 8px;
@@ -699,7 +756,8 @@
             <p class="login-note">บัญชี สต๊อก และประวัติ ซิงค์กันอัตโนมัติทุกเครื่องที่เปิดไฟล์นี้ (มือถือ ↔ คอมพิวเตอร์ ไม่ต้องตั้งค่า) - ลงทะเบียนครั้งเดียว เครื่องจำไว้เอง (ธีม/เสียง/ซิงค์ อยู่ในปุ่ม ⚙ ตั้งค่า)</p>
         </div>
 
-        <!-- หน้าสมัครไอดีใหม่: เป็นหน้าเว็บแยกของตัวเอง (ลิงก์ #register) -->
+        <!-- หน้าสมัครไอดีใหม่: เป็นหน้าเว็บแยกของตัวเอง (ลิงก์ #register)
+             แสดงแค่ฟอร์มสมัครบัญชีอย่างเดียว - ไม่มีช่องอื่นใด ๆ -->
         <div id="pageRegister" style="display:none">
             <h2 class="page-title">สมัครไอดีใหม่</h2>
             <div id="registerForm">
@@ -710,27 +768,6 @@
                 <p class="login-note">บัญชีพนักงานสแกนรับเข้า/เบิกออกได้เท่านั้น - ชื่อ admin สงวนไว้สำหรับผู้ดูแลระบบ (พิมพ์ admin ที่หน้าเข้าสู่ระบบ)</p>
             </div>
             <div id="regMsg" class="login-msg"></div>
-
-            <div class="transfer-wrap">
-                <div class="saved-title">☁ ปกติบัญชีเดิมจะขึ้นเองที่หน้าเข้าสู่ระบบ (ซิงค์อัตโนมัติ) - ช่องนี้ใช้เมื่อต้องการเชื่อมห้องร้านอื่นด้วยตนเอง</div>
-                <div id="cloudStatusReg" class="cloud-status" style="display:none"></div>
-                <div class="input-row" style="margin-top:8px">
-                    <input type="text" id="regRoomInput" placeholder="รหัสห้องคลาวด์ของร้าน เช่น STK-XXXX-XXXX" autocomplete="off">
-                    <button type="button" id="btnRegRoomJoin" class="btn btn-primary">เชื่อมต่อ</button>
-                </div>
-                <button type="button" id="btnRegRoomCreate" class="link-btn">ยังไม่มีห้อง? สร้างห้องคลาวด์ใหม่สำหรับร้านที่นี่</button>
-                <p class="sync-hint">ใส่รหัสห้องที่ได้จาก admin แล้วกดเชื่อมต่อ ระบบจะดึงบัญชี สต๊อก และประวัติทั้งหมดมาที่เครื่องนี้ กลับไปหน้าเข้าสู่ระบบแล้วใช้ชื่อ/รหัสผ่านเดิมจากเครื่องนั้นได้เลย (ไม่ต้องลงทะเบียนใหม่)</p>
-            </div>
-
-            <div class="transfer-wrap">
-                <div class="saved-title">ย้ายข้อมูลจากเครื่องเดิมโดยไม่ใช้เน็ต (สำรอง) บัญชี admin/พนักงาน + สต๊อก + ประวัติ ย้ายมาทั้งหมด</div>
-                <textarea id="regSyncIn" class="mono-area" rows="3" placeholder="วางรหัสซิงค์ที่คัดลอกจากเครื่องเดิม (ขึ้นต้น STOCK1:)"></textarea>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
-                    <button type="button" id="btnRegSyncCode" class="btn btn-primary">นำเข้ารหัสซิงค์</button>
-                    <button type="button" id="btnRegImportFile" class="btn btn-ghost">นำเข้าไฟล์ข้อมูล</button>
-                </div>
-                <input type="file" id="regImportFileInput" accept=".json,application/json" style="display:none">
-            </div>
 
             <a class="register-link" href="#login">&lsaquo; กลับหน้าเข้าสู่ระบบ</a>
         </div>
@@ -877,71 +914,96 @@
     </div>
 </div>
 
-<!-- หน้าต่างตั้งค่า: ธีม / เสียง / ซิงค์ / รหัสผ่าน / จัดการบัญชี (admin) / ออกจากระบบ -->
+<!-- หน้าต่างตั้งค่า
+     - พนักงาน: เห็นแค่ธีม + เสียง/การสั่นเตือน + ปุ่มปิดการตั้งค่า + ออกจากระบบ เท่านั้น
+     - admin: จัดเป็น 3 แท็บ (หน้าตา / ซิงค์ข้อมูล / บัญชี-เครื่องมือ) ใช้งานสบายทั้งมือถือและคอม -->
 <div id="settingsModal" class="modal-overlay">
-    <div class="modal-card">
-        <h2 class="modal-title">ตั้งค่า</h2>
-
-        <div class="modal-label" style="margin-top:2px">ธีมพื้นหลัง</div>
-        <div id="themeGrid" class="theme-grid"></div>
-
-        <div class="modal-label">เสียงและการสั่นเตือน</div>
-        <label class="check-row"><input type="checkbox" id="optSound" checked> เปิดเสียงเตือนและการสั่นเมื่อสแกน/โค้ดซ้ำ</label>
-
-        <div class="modal-label">☁ คลาวด์ร้าน - ซิงค์อัตโนมัติทุกเครื่อง (จำบัญชี/รหัสผ่าน/สต๊อก)</div>
-        <div id="cloudStatus" class="cloud-status" style="display:none"></div>
-        <div class="input-row" style="margin-top:8px">
-            <input type="text" id="cloudRoomInput" placeholder="รหัสห้องคลาวด์" autocomplete="off">
-            <button type="button" id="btnCloudJoin" class="btn btn-primary">เชื่อมต่อ</button>
+    <div class="modal-card settings-card">
+        <div class="settings-head">
+            <h2 class="modal-title">ตั้งค่า</h2>
+            <button type="button" id="btnSettingsCloseX" class="settings-x" title="ปิดการตั้งค่า">&times;</button>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
-            <button type="button" id="btnCloudCreate" class="btn btn-ghost">สร้างห้องใหม่</button>
-            <button type="button" id="btnCloudLeave" class="btn btn-danger" style="display:none">ออกจากห้อง</button>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
-            <button type="button" id="btnCloudCopyRoom" class="btn btn-ghost">คัดลอกรหัสห้อง</button>
-            <button type="button" id="btnCloudCopyInvite" class="btn btn-primary">คัดลอกลิงก์เชิญ (สำหรับมือถือ)</button>
-        </div>
-        <p class="sync-hint">เมื่อเชื่อมต่อแล้ว บัญชี รหัสผ่าน สต๊อก และประวัติจะถูกจัดเก็บบนคลาวด์ เครื่องไหนใช้รหัสห้องเดียวกันข้อมูลจะตรงกันหมด: สมัคร/เปลี่ยนรหัสผ่านที่เครื่องใด เครื่องอื่นเข้าได้ทันที สแกนที่เครื่องใด ตารางทุกเครื่องอัปเดตใน ~15 วิ ลบรายการแล้วหายทุกเครื่อง</p>
-        <p class="sync-hint">วิธีเพิ่มมือถือ/เครื่องใหม่ให้ง่ายที่สุด: กด "คัดลอกลิงก์เชิญ" ส่งลิงก์ไปที่มือถือ (LINE) แล้วเปิดลิงก์นั้น ระบบจะเชื่อมต่อห้องให้เอง บัญชีที่สมัครไว้จะโผล่ที่หน้าเข้าสู่ระบบทันที ใช้รหัสผ่านเดิมได้เลย ไม่ต้องลงทะเบียนใหม่ (รหัสห้องคือกุญแจของร้าน อย่าเปิดเผยให้คนนอกทีม ต้องมีอินเทอร์เน็ต)</p>
 
-        <div class="modal-label">ซิงค์ด้วยไฟล์ / รหัสซิงค์ (สำรอง ไม่ใช้เน็ต)</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-            <button type="button" id="btnExportData" class="btn btn-primary">ส่งออกไฟล์ข้อมูล</button>
-            <button type="button" id="btnImportData" class="btn btn-ghost">นำเข้าไฟล์ข้อมูล</button>
+        <!-- แท็บ (เฉพาะ admin) -->
+        <div id="settingsTabs" class="settings-tabs admin-only">
+            <button type="button" class="settings-tab active" data-stab="display">หน้าตา</button>
+            <button type="button" class="settings-tab" data-stab="sync">ซิงค์ข้อมูล</button>
+            <button type="button" class="settings-tab" data-stab="account">บัญชี/เครื่องมือ</button>
         </div>
-        <input type="file" id="importFileInput" accept=".json,application/json" style="display:none">
-        <div class="modal-label" style="margin-top:10px">หรือใช้ "รหัสซิงค์" (ข้อความ ส่งผ่าน LINE ได้)</div>
-        <button type="button" id="btnGenSyncCode" class="btn btn-primary full">สร้างรหัสซิงค์จากเครื่องนี้</button>
-        <textarea id="syncCodeOut" class="mono-area" rows="3" readonly placeholder="รหัสซิงค์จะแสดงที่นี่"></textarea>
-        <button type="button" id="btnCopySyncCode" class="btn btn-ghost full">คัดลอกรหัสซิงค์</button>
-        <textarea id="syncCodeIn" class="mono-area" rows="3" placeholder="วางรหัสซิงค์ที่ได้รับจากเครื่องอื่น (ขึ้นต้น STOCK1:)"></textarea>
-        <button type="button" id="btnPasteSyncCode" class="btn btn-primary full">นำเข้าข้อมูลจากรหัสซิงค์</button>
-        <p class="sync-hint">เครื่องใดก็ได้กด "สร้างรหัสซิงค์" คัดลอกส่งเป็นข้อความไปอีกเครื่อง (LINE/อีเมล) แล้ววางในช่องข้างบนแล้วกดนำเข้า ระบบจะรวมบัญชี สต๊อก และประวัติให้เป็นชุดเดียวกันโดยยึดรายการที่แก้ล่าสุดเสมอ ใช้ชื่อ/รหัสผ่านเดิมข้ามเครื่องได้ทันที ถ้าข้อมูลเยอะจนรหัสยาวเกินไป ให้ใช้ "ส่งออกไฟล์ข้อมูล" แทน</p>
 
-        <div class="modal-label">เปลี่ยนรหัสผ่านของฉัน (ทุกบัญชี)</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-            <input type="password" id="setNewPin" inputmode="numeric" placeholder="รหัสใหม่ (4-6 หลัก)">
-            <input type="password" id="setNewPin2" inputmode="numeric" placeholder="ยืนยันรหัสใหม่">
-        </div>
-        <button type="button" id="btnChangeMyPin" class="btn btn-ghost full">บันทึกรหัสผ่านใหม่</button>
-        <div id="settingsMsg" class="login-msg"></div>
+        <div class="settings-body">
+            <!-- แท็บ หน้าตา: ทุกบัญชีเห็น (พนักงานเห็นแค่ส่วนนี้ + ปิด/ออกจากระบบ) -->
+            <div id="stabDisplay" class="stab">
+                <div class="modal-label" style="margin-top:4px">ธีมพื้นหลัง</div>
+                <div id="themeGrid" class="theme-grid"></div>
 
-        <div id="settingsAdminSection" class="admin-card admin-only" style="border-radius:12px;padding:12px;margin-top:12px">
-            <div class="modal-label" style="margin-top:0">จัดการบัญชี (admin)</div>
-            <div id="adminUserList"></div>
-            <div class="modal-label">เครื่องมือ admin</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-                <button type="button" id="btnExport" class="btn btn-sm btn-ghost">โหลดสต๊อก (CSV)</button>
-                <button type="button" id="btnExportLog" class="btn btn-sm btn-ghost">โหลดประวัติ (CSV)</button>
-                <button type="button" id="btnClear" class="btn btn-sm btn-danger">ล้างสต๊อก</button>
-                <button type="button" id="btnClearLog" class="btn btn-sm btn-danger">ล้างประวัติ</button>
+                <div class="modal-label">เสียงและการสั่นเตือน</div>
+                <label class="check-row"><input type="checkbox" id="optSound" checked> เปิดเสียงเตือนและการสั่นเมื่อสแกน/โค้ดซ้ำ</label>
             </div>
+
+            <!-- แท็บ ซิงค์ข้อมูล (admin) -->
+            <div id="stabSync" class="stab admin-only" style="display:none">
+                <div class="modal-label" style="margin-top:4px">☁ คลาวด์ร้าน - ซิงค์อัตโนมัติทุกเครื่อง (จำบัญชี/รหัสผ่าน/สต๊อก)</div>
+                <div id="cloudStatus" class="cloud-status" style="display:none"></div>
+                <div class="input-row" style="margin-top:8px">
+                    <input type="text" id="cloudRoomInput" placeholder="รหัสห้องคลาวด์" autocomplete="off">
+                    <button type="button" id="btnCloudJoin" class="btn btn-primary">เชื่อมต่อ</button>
+                </div>
+                <div class="settings-grid2">
+                    <button type="button" id="btnCloudCreate" class="btn btn-ghost">สร้างห้องใหม่</button>
+                    <button type="button" id="btnCloudLeave" class="btn btn-danger" style="display:none">ออกจากห้อง</button>
+                </div>
+                <div class="settings-grid2">
+                    <button type="button" id="btnCloudCopyRoom" class="btn btn-ghost">คัดลอกรหัสห้อง</button>
+                    <button type="button" id="btnCloudCopyInvite" class="btn btn-primary">คัดลอกลิงก์เชิญ (สำหรับมือถือ)</button>
+                </div>
+                <p class="sync-hint">เมื่อเชื่อมต่อแล้ว บัญชี รหัสผ่าน สต๊อก และประวัติจะถูกจัดเก็บบนคลาวด์ เครื่องไหนใช้รหัสห้องเดียวกันข้อมูลจะตรงกันหมด: สมัคร/เปลี่ยนรหัสผ่านที่เครื่องใด เครื่องอื่นเข้าได้ทันที สแกนที่เครื่องใด ตารางทุกเครื่องอัปเดตใน ~15 วิ ลบรายการแล้วหายทุกเครื่อง</p>
+                <p class="sync-hint">วิธีเพิ่มมือถือ/เครื่องใหม่ให้ง่ายที่สุด: กด "คัดลอกลิงก์เชิญ" ส่งลิงก์ไปที่มือถือ (LINE) แล้วเปิดลิงก์นั้น ระบบจะเชื่อมต่อห้องให้เอง บัญชีที่สมัครไว้จะโผล่ที่หน้าเข้าสู่ระบบทันที ใช้รหัสผ่านเดิมได้เลย ไม่ต้องลงทะเบียนใหม่ (รหัสห้องคือกุญแจของร้าน อย่าเปิดเผยให้คนนอกทีม ต้องมีอินเทอร์เน็ต)</p>
+
+                <div class="modal-label">ซิงค์ด้วยไฟล์ / รหัสซิงค์ (สำรอง ไม่ใช้เน็ต)</div>
+                <div class="settings-grid2" style="margin-top:0">
+                    <button type="button" id="btnExportData" class="btn btn-primary">ส่งออกไฟล์ข้อมูล</button>
+                    <button type="button" id="btnImportData" class="btn btn-ghost">นำเข้าไฟล์ข้อมูล</button>
+                </div>
+                <input type="file" id="importFileInput" accept=".json,application/json" style="display:none">
+                <div class="modal-label">หรือใช้ "รหัสซิงค์" (ข้อความ ส่งผ่าน LINE ได้)</div>
+                <button type="button" id="btnGenSyncCode" class="btn btn-primary full">สร้างรหัสซิงค์จากเครื่องนี้</button>
+                <textarea id="syncCodeOut" class="mono-area" rows="3" readonly placeholder="รหัสซิงค์จะแสดงที่นี่"></textarea>
+                <button type="button" id="btnCopySyncCode" class="btn btn-ghost full">คัดลอกรหัสซิงค์</button>
+                <textarea id="syncCodeIn" class="mono-area" rows="3" placeholder="วางรหัสซิงค์ที่ได้รับจากเครื่องอื่น (ขึ้นต้น STOCK1:)"></textarea>
+                <button type="button" id="btnPasteSyncCode" class="btn btn-primary full">นำเข้าข้อมูลจากรหัสซิงค์</button>
+                <p class="sync-hint">เครื่องใดก็ได้กด "สร้างรหัสซิงค์" คัดลอกส่งเป็นข้อความไปอีกเครื่อง (LINE/อีเมล) แล้ววางในช่องข้างบนแล้วกดนำเข้า ระบบจะรวมบัญชี สต๊อก และประวัติให้เป็นชุดเดียวกันโดยยึดรายการที่แก้ล่าสุดเสมอ ใช้ชื่อ/รหัสผ่านเดิมข้ามเครื่องได้ทันที ถ้าข้อมูลเยอะจนรหัสยาวเกินไป ให้ใช้ "ส่งออกไฟล์ข้อมูล" แทน</p>
+            </div>
+
+            <!-- แท็บ บัญชี/เครื่องมือ (admin) -->
+            <div id="stabAccount" class="stab admin-only" style="display:none">
+                <div class="modal-label" style="margin-top:4px">เปลี่ยนรหัสผ่านของฉัน</div>
+                <div class="settings-grid2" style="margin-top:0">
+                    <input type="password" id="setNewPin" inputmode="numeric" placeholder="รหัสใหม่ (4-6 หลัก)">
+                    <input type="password" id="setNewPin2" inputmode="numeric" placeholder="ยืนยันรหัสใหม่">
+                </div>
+                <button type="button" id="btnChangeMyPin" class="btn btn-ghost full">บันทึกรหัสผ่านใหม่</button>
+
+                <div class="admin-card" style="border-radius:12px;padding:12px;margin-top:14px">
+                    <div class="modal-label" style="margin-top:0">จัดการบัญชี (admin)</div>
+                    <div id="adminUserList"></div>
+                </div>
+
+                <div class="modal-label">เครื่องมือ admin</div>
+                <div class="settings-grid2" style="margin-top:0">
+                    <button type="button" id="btnExport" class="btn btn-sm btn-ghost">โหลดสต๊อก (CSV)</button>
+                    <button type="button" id="btnExportLog" class="btn btn-sm btn-ghost">โหลดประวัติ (CSV)</button>
+                    <button type="button" id="btnClear" class="btn btn-sm btn-danger">ล้างสต๊อก</button>
+                    <button type="button" id="btnClearLog" class="btn btn-sm btn-danger">ล้างประวัติ</button>
+                </div>
+            </div>
+
+            <div id="settingsMsg" class="login-msg"></div>
         </div>
 
-        <div class="modal-actions">
+        <div class="settings-actions">
             <button type="button" id="btnSettingsLogout" class="btn btn-danger">ออกจากระบบ</button>
-            <button type="button" id="btnSettingsClose" class="btn btn-ghost">ปิด</button>
+            <button type="button" id="btnSettingsClose" class="btn btn-ghost">ปิดการตั้งค่า</button>
         </div>
     </div>
 </div>
@@ -1230,7 +1292,13 @@
         // ปุ่มตั้งค่า + ธีม + เสียง (ออกจากระบบอยู่ในหน้าต่างตั้งค่า)
         safeBind('btnSettings', 'click', openSettings);
         safeBind('btnSettingsClose', 'click', closeSettings);
+        safeBind('btnSettingsCloseX', 'click', closeSettings);
         safeBind('btnSettingsLogout', 'click', doLogout);
+        // แท็บของหน้าต่างตั้งค่า (admin): หน้าตา / ซิงค์ข้อมูล / บัญชี-เครื่องมือ
+        safeBind('settingsTabs', 'click', (e) => {
+            const b = e.target.closest ? e.target.closest('.settings-tab') : null;
+            if (b) showSettingsTab(b.getAttribute('data-stab'));
+        });
         safeBind('themeGrid', 'click', (e) => {
             const opt = e.target.closest ? e.target.closest('.theme-opt') : null;
             if (opt) applyTheme(opt.getAttribute('data-theme-id'));
@@ -1267,13 +1335,7 @@
             pickSavedUser(name);
         });
 
-        // ซิงค์ด้วยไฟล์ข้อมูล (หน้าสมัครไอดีใหม่)
-        safeBind('btnRegImportFile', 'click', () => { const n = el('regImportFileInput'); if (n) n.click(); });
-        safeBind('regImportFileInput', 'change', (e) => {
-            const f = e.target.files[0];
-            if (f) importDataFile(f, true);
-            e.target.value = '';
-        });
+        // ซิงค์ด้วยไฟล์ข้อมูล (หน้าต่างตั้งค่า)
         safeBind('btnImportData', 'click', () => { const n = el('importFileInput'); if (n) n.click(); });
         safeBind('importFileInput', 'change', (e) => {
             const f = e.target.files[0];
@@ -1296,13 +1358,9 @@
         safeBind('btnGenSyncCode', 'click', generateSyncCode);
         safeBind('btnCopySyncCode', 'click', copySyncCode);
         safeBind('btnPasteSyncCode', 'click', importFromSyncBox);
-        safeBind('btnRegSyncCode', 'click', importRegSyncCode);
         safeBind('btnChangeMyPin', 'click', changeMyPin);
         safeBind('setNewPin2', 'keydown', (e) => { if (e.key === 'Enter') changeMyPin(); });
-        // คลาวด์ร้าน: เชื่อมต่อห้องจากหน้าสมัครไอดี / แผง admin / ตั้งค่า + ลิงก์เชิญ
-        safeBind('btnRegRoomJoin', 'click', () => cloudJoin(el('regRoomInput') ? el('regRoomInput').value : ''));
-        safeBind('btnRegRoomCreate', 'click', () => cloudCreateRoom(el('regRoomInput') ? el('regRoomInput').value : ''));
-        safeBind('regRoomInput', 'keydown', (e) => { if (e.key === 'Enter') cloudJoin(el('regRoomInput') ? el('regRoomInput').value : ''); });
+        // คลาวด์ร้าน: เชื่อมต่อห้องจากแผงตั้งรหัส admin (หน้าเข้าสู่ระบบ) / แท็บซิงค์ข้อมูล + ลิงก์เชิญ
         safeBind('btnAsRoomJoin', 'click', () => cloudJoin(el('asRoomInput') ? el('asRoomInput').value : ''));
         safeBind('asRoomInput', 'keydown', (e) => { if (e.key === 'Enter') cloudJoin(el('asRoomInput') ? el('asRoomInput').value : ''); });
         safeBind('btnCloudJoin', 'click', () => cloudJoin(el('cloudRoomInput') ? el('cloudRoomInput').value : ''));
@@ -2854,8 +2912,24 @@
         try { return localStorage.getItem(STORAGE_KEYS.sound) !== '0'; } catch (e) { return true; }
     }
 
+    /* แท็บของหน้าต่างตั้งค่า (admin): display / sync / account
+       พนักงานไม่มีแท็บ (CSS ซ่อน) เห็นแค่แท็บ "หน้าตา" + ปิด/ออกจากระบบ */
+    function showSettingsTab(tab) {
+        ['Display', 'Sync', 'Account'].forEach(k => {
+            const pane = el('stab' + k);
+            if (pane) pane.style.display = (k.toLowerCase() === tab) ? '' : 'none';
+        });
+        const tabs = el('settingsTabs');
+        if (tabs && tabs.querySelectorAll) {
+            tabs.querySelectorAll('.settings-tab').forEach(b => {
+                b.classList.toggle('active', (b.getAttribute('data-stab') || '') === tab);
+            });
+        }
+    }
+
     function openSettings() {
         settingsCtx = true;
+        showSettingsTab('display');
         renderThemeGrid();
         const snd = el('optSound');
         if (snd) snd.checked = soundEnabled();
@@ -2969,18 +3043,6 @@
         }
     }
 
-    function importRegSyncCode() {
-        const inp = el('regSyncIn');
-        const raw = inp ? inp.value : '';
-        if (!raw.trim()) { setRegMsg('วางรหัสซิงค์ที่คัดลอกจากเครื่องเดิมลงช่องก่อน', 'err'); return; }
-        try {
-            applyImportedData(parseSyncCode(raw), true);
-            if (inp) inp.value = '';
-        } catch (e) {
-            setRegMsg('รหัสซิงค์ไม่ถูกต้อง ต้องขึ้นต้นด้วย STOCK1: และครบทั้งข้อความ', 'err');
-        }
-    }
-
     /* ==================================================================
        คลาวด์ร้าน - ซิงค์อัตโนมัติข้ามเครื่องด้วย "รหัสห้อง"
        - สร้างห้อง = อัปโหลดข้อมูลร้านขึ้นคลาวด์ (textdb.dev ฟรี ไม่ต้องสมัคร)
@@ -3049,7 +3111,7 @@
     }
 
     function setCloudStatus(cls, text) {
-        ['cloudStatus', 'cloudStatusLogin', 'cloudStatusReg', 'cloudStatusAdmin'].forEach(id => {
+        ['cloudStatus', 'cloudStatusLogin', 'cloudStatusAdmin'].forEach(id => {
             const box = el(id);
             if (!box) return;
             if (!text) { box.style.display = 'none'; box.textContent = ''; return; }
@@ -3063,7 +3125,7 @@
         const key = cloudRoomKey();
         const leave = el('btnCloudLeave');
         if (leave) leave.style.display = key ? '' : 'none';
-        ['cloudRoomInput', 'regRoomInput', 'asRoomInput'].forEach(id => {
+        ['cloudRoomInput', 'asRoomInput'].forEach(id => {
             const n = el(id);
             if (n) n.placeholder = key ? ('ห้องปัจจุบัน: ' + key) : 'รหัสห้องคลาวด์ เช่น STK-XXXX-XXXX';
         });
