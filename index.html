@@ -17,12 +17,19 @@
 - บัญชีผู้ใช้: ลงทะเบียนครั้งเดียว เครื่องจำไว้ตลอด
   * admin มีได้คนเดียว: พิมพ์ชื่อ "admin" ที่หน้าเข้าสู่ระบบ
     (ครั้งแรกให้ตั้งรหัสผ่านเอง ครั้งถัดไปใช้รหัสเดิมได้ตลอด)
-  * admin จัดการได้ครบ: แก้/ลบรายการ, CSV, จัดการบัญชี, ซิงค์ข้อมูล, เปลี่ยนรหัส
+  * admin จัดการได้ครบ: แก้/ลบรายการ, CSV, จัดการบัญชี, เปลี่ยนรหัสผ่าน
   * พนักงาน: สแกนรับเข้า/เบิกออกเท่านั้น
-- ซิงค์ข้อมูลมือถือ-คอมพิวเตอร์: กด "ส่งออกไฟล์ข้อมูล" จากเครื่องหนึ่ง
-  แล้วกด "นำเข้าไฟล์ข้อมูล" ที่อีกเครื่อง ระบบรวมข้อมูลให้เอง (รายการที่แก้ล่าสุดชนะ)
-  รวมทั้งบัญชีผู้ใช้ สต๊อก และประวัติ ใช้ชื่อ/รหัสผ่านเดิมข้ามเครื่องได้
-- ไม่มีระบบคลาวด์: ข้อมูลเก็บในเครื่อง และซิงค์ด้วยไฟล์ข้อมูลทั้งหมด
+- ปุ่มตั้งค่า (⚙): เปลี่ยนธีมพื้นหลัง 6 แบบ / เปิด-ปิดเสียงและการสั่น
+  / ซิงค์ข้อมูล / เปลี่ยนรหัสผ่านของฉัน / จัดการบัญชี+เครื่องมือ admin / ออกจากระบบ
+- คลาวด์ร้าน (ผ่าน textdb.dev ฟรี ไม่ต้องสมัครสมาชิก): สร้าง/เชื่อมต่อ "รหัสห้อง"
+  ครั้งเดียวต่อเครื่อง แล้วบัญชี รหัสผ่าน สต๊อก ประวัติ จะถูกจัดเก็บบนคลาวด์
+  และซิงค์อัตโนมัติทุกเครื่องที่ใช้รหัสห้องเดียวกัน:
+  สมัคร/เปลี่ยนรหัสผ่านที่เครื่องใด เครื่องอื่นเข้าได้ทันที (ไม่ต้องสมัครใหม่)
+  สแกนที่เครื่องใด ตารางทุกเครื่องอัปเดตภายใน ~15 วินาที
+  ลบรายการ/บัญชี แล้วจะหายจากทุกเครื่อง (ส่งผ่านด้วย tombstone)
+  ออฟไลน์ก็ใช้งานได้ปกติ ข้อมูลเก็บในเครื่องไว้ กลับออนไลน์ค่อยซิงค์เอง
+- ซิงค์สำรอง (ไม่ใช้เน็ต): "รหัสซิงค์" คัดลอก/วางผ่าน LINE ได้ และ
+  "ส่งออก/นำเข้าไฟล์ข้อมูล" (.json) - หน้าเข้าสู่ระบบมีช่องใช้พร้อมใช้
 -->
 <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
 <script>window.ZXing || document.write('<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"><\/script>');</script>
@@ -34,6 +41,10 @@
         --ink: #0f172a;
         --muted: #64748b;
         --line: #e2e8f0;
+        --soft: #f8fafc;
+        --soft-ink: #475569;
+        --seg-bg: #eef2f7;
+        --chip-bg: #f1f5f9;
         --primary: #2563eb;
         --in: #16a34a;
         --in-soft: #dcfce7;
@@ -41,8 +52,66 @@
         --out: #dc2626;
         --out-soft: #fee2e2;
         --out-ink: #991b1b;
+        --header1: #0f2a6b;
+        --header2: #1d4ed8;
+        --login1: #10275e;
+        --login2: #1d4ed8;
+        --login3: #2563eb;
+        --toast-bg: #0f172a;
+        --badge-bg: #eff6ff;
+        --badge-ink: #1d4ed8;
+        --plate-soft: #dbeafe;
+        --plate-ink: #1e40af;
+        --chanel-soft: #ccfbf1;
+        --chanel-ink: #0f766e;
+        --admin-soft: #f8fbff;
+        --admin-line: #bfdbfe;
         --radius: 14px;
         --shadow: 0 1px 2px rgba(15,23,42,.06), 0 10px 28px rgba(15,23,42,.07);
+    }
+    /* ===== ธีมพื้นหลัง (เลือกได้ในปุ่มตั้งค่า) ===== */
+    :root[data-theme="dark"] {
+        --bg: #0b1220; --card: #151d2e; --ink: #e7eef9; --muted: #94a3b8; --line: #2b3850;
+        --soft: #1a2337; --soft-ink: #a5b4cf; --seg-bg: #182136; --chip-bg: #1c2740;
+        --primary: #3b82f6;
+        --in: #22c55e; --in-soft: #14532d; --in-ink: #86efac;
+        --out: #ef4444; --out-soft: #7f1d1d; --out-ink: #fca5a5;
+        --header1: #0b1220; --header2: #1e3a8a;
+        --login1: #0b1220; --login2: #172554; --login3: #1e3a8a;
+        --toast-bg: #1e293b;
+        --badge-bg: #1e3a8a; --badge-ink: #bfdbfe;
+        --plate-soft: #1e3a8a; --plate-ink: #bfdbfe;
+        --chanel-soft: #134e4a; --chanel-ink: #99f6e4;
+        --admin-soft: #121a2c; --admin-line: #2b3850;
+        --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 28px rgba(0,0,0,.45);
+    }
+    :root[data-theme="ocean"] {
+        --bg: #e8f1fa; --primary: #0284c7;
+        --header1: #075985; --header2: #0284c7;
+        --login1: #0c4a6e; --login2: #0284c7; --login3: #38bdf8;
+        --badge-bg: #e0f2fe; --badge-ink: #0369a1;
+        --plate-soft: #e0f2fe; --plate-ink: #075985;
+    }
+    :root[data-theme="green"] {
+        --bg: #eaf7ef; --primary: #16a34a;
+        --header1: #14532d; --header2: #16a34a;
+        --login1: #14532d; --login2: #16a34a; --login3: #22c55e;
+        --badge-bg: #dcfce7; --badge-ink: #15803d;
+        --plate-soft: #dcfce7; --plate-ink: #166534;
+    }
+    :root[data-theme="purple"] {
+        --bg: #f3effb; --primary: #7c3aed;
+        --header1: #4c1d95; --header2: #7c3aed;
+        --login1: #3b0764; --login2: #7c3aed; --login3: #a78bfa;
+        --badge-bg: #ede9fe; --badge-ink: #6d28d9;
+        --plate-soft: #ede9fe; --plate-ink: #5b21b6;
+    }
+    :root[data-theme="sunset"] {
+        --bg: #fdf3ea; --primary: #ea580c;
+        --header1: #9a3412; --header2: #ea580c;
+        --login1: #7c2d12; --login2: #ea580c; --login3: #fb923c;
+        --badge-bg: #ffedd5; --badge-ink: #c2410c;
+        --plate-soft: #ffedd5; --plate-ink: #9a3412;
     }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     html, body { margin: 0; padding: 0; }
@@ -60,13 +129,13 @@
         padding: 10px 14px;
         font-size: 16px;
         color: var(--ink);
-        background: #f8fafc;
+        background: var(--soft);
         border: 1.5px solid var(--line);
         border-radius: 12px;
         outline: none;
         transition: border-color .15s;
     }
-    input:focus { border-color: var(--primary); background: #fff; }
+    input:focus { border-color: var(--primary); background: var(--card); }
 
     .btn {
         display: inline-flex;
@@ -87,7 +156,7 @@
     .btn:active { transform: scale(.98); }
     .btn-primary { background: var(--primary); color: #fff; }
     .btn-danger { background: var(--out); color: #fff; }
-    .btn-ghost { background: #fff; color: #334155; border: 1.5px solid var(--line); }
+    .btn-ghost { background: var(--card); color: var(--ink); border: 1.5px solid var(--line); }
     .btn-in { background: var(--in); color: #fff; }
     .btn-out2 { background: var(--out); color: #fff; }
     .btn-del { background: var(--out-soft); color: var(--out-ink); }
@@ -101,14 +170,14 @@
         position: fixed;
         inset: 0;
         z-index: 1000;
-        background: linear-gradient(165deg, #10275e 0%, #1d4ed8 60%, #2563eb 100%);
+        background: linear-gradient(165deg, var(--login1) 0%, var(--login2) 60%, var(--login3) 100%);
         align-items: center;
         justify-content: center;
         padding: 16px;
         overflow: auto;
     }
     .login-card {
-        background: #fff;
+        background: var(--card);
         border-radius: 20px;
         box-shadow: 0 24px 70px rgba(2,8,30,.45);
         width: 100%;
@@ -121,7 +190,7 @@
     .seg-tabs {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        background: #eef2f7;
+        background: var(--seg-bg);
         border-radius: 12px;
         padding: 4px;
         gap: 4px;
@@ -133,7 +202,7 @@
         border-radius: 9px;
         font-weight: 700;
         font-size: .9rem;
-        color: #475569;
+        color: var(--soft-ink);
         cursor: pointer;
         user-select: none;
     }
@@ -161,19 +230,19 @@
         line-height: 1.6;
     }
     .saved-users-wrap { display: none; margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
-    .saved-title { font-size: .76rem; font-weight: 700; color: #475569; margin-bottom: 8px; }
+    .saved-title { font-size: .76rem; font-weight: 700; color: var(--soft-ink); margin-bottom: 8px; }
     .saved-list { display: flex; flex-wrap: wrap; gap: 6px; }
     .saved-chip {
         display: inline-flex;
         align-items: center;
         gap: 7px;
-        background: #f1f5f9;
-        border: 1px solid #cbd5e1;
+        background: var(--chip-bg);
+        border: 1px solid var(--line);
         border-radius: 999px;
         padding: 8px 8px 8px 14px;
         font-size: .9rem;
         font-weight: 600;
-        color: #1e293b;
+        color: var(--ink);
         cursor: pointer;
         user-select: none;
         max-width: 100%;
@@ -186,8 +255,8 @@
         width: 18px;
         height: 18px;
         border-radius: 50%;
-        background: #e2e8f0;
-        color: #64748b;
+        background: var(--line);
+        color: var(--muted);
         font-size: 11px;
         line-height: 18px;
         text-align: center;
@@ -226,14 +295,14 @@
         flex: none;
     }
     .role-admin-badge { background: #fbbf24; color: #78350f; }
-    .role-user-badge { background: #e2e8f0; color: #334155; }
+    .role-user-badge { background: var(--chip-bg); color: var(--ink); }
 
     /* ===== แถบหัวแอป ===== */
     .app-header {
         position: sticky;
         top: 0;
         z-index: 900;
-        background: linear-gradient(120deg, #0f2a6b, #1d4ed8);
+        background: linear-gradient(120deg, var(--header1), var(--header2));
         color: #fff;
         padding: 10px 14px;
         display: flex;
@@ -261,7 +330,7 @@
         font-size: .85rem;
         flex: none;
     }
-    .btn-logout {
+    .btn-headtool {
         min-height: 34px;
         padding: 5px 12px;
         font-size: .8rem;
@@ -290,7 +359,7 @@
     }
     .card-title::before { content: ""; width: 4px; height: 18px; border-radius: 4px; background: var(--primary); }
     .card-tools { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
-    .count-chip { background: #eef2f7; color: #475569; border-radius: 999px; padding: 3px 10px; font-size: .78rem; font-weight: 700; }
+    .count-chip { background: var(--seg-bg); color: var(--soft-ink); border-radius: 999px; padding: 3px 10px; font-size: .78rem; font-weight: 700; }
 
     /* ===== การ์ดสแกน ===== */
     .mode-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
@@ -298,10 +367,10 @@
         min-height: 52px;
         border-radius: 12px;
         border: 1.5px solid var(--line);
-        background: #f8fafc;
+        background: var(--soft);
         font-weight: 800;
         font-size: .95rem;
-        color: #475569;
+        color: var(--soft-ink);
         cursor: pointer;
         user-select: none;
         display: flex;
@@ -364,7 +433,7 @@
     .last-read {
         display: none;
         margin-top: 10px;
-        background: #f8fafc;
+        background: var(--soft);
         border: 1px solid var(--line);
         border-radius: 10px;
         padding: 8px 11px;
@@ -380,12 +449,12 @@
     .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; -webkit-overflow-scrolling: touch; }
     table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: .86rem; }
     th, td { padding: 9px 10px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
-    th { background: #f8fafc; font-size: .76rem; color: #475569; text-transform: uppercase; letter-spacing: .3px; }
+    th { background: var(--soft); font-size: .76rem; color: var(--soft-ink); text-transform: uppercase; letter-spacing: .3px; }
     tbody tr:last-child td { border-bottom: 0; }
     .badge {
         display: inline-block;
-        background: #eff6ff;
-        color: #1d4ed8;
+        background: var(--badge-bg);
+        color: var(--badge-ink);
         border-radius: 7px;
         padding: 3px 8px;
         font-size: .8rem;
@@ -414,7 +483,7 @@
         transform: translateX(-50%);
         z-index: 1800;
         max-width: 92vw;
-        background: #0f172a;
+        background: var(--toast-bg);
         color: #fff;
         border-radius: 12px;
         padding: 11px 16px;
@@ -438,28 +507,30 @@
     }
     .modal-overlay.open { display: flex; }
     .modal-card {
-        background: #fff;
+        background: var(--card);
         border-radius: 18px;
         padding: 20px;
         width: 100%;
         max-width: 410px;
+        max-height: 88vh;
+        overflow-y: auto;
         box-shadow: 0 20px 50px rgba(0,0,0,.3);
     }
     .modal-title { margin: 0 0 12px; font-size: 1.05rem; text-align: center; }
     .modal-model { text-align: center; margin-bottom: 6px; font-size: 1.02rem; }
     .fmt-tag { color: var(--muted); font-size: .8rem; }
-    .modal-label { font-size: .85rem; font-weight: 700; color: #334155; margin: 12px 0 6px; }
-    .info-line { font-size: .88rem; color: #334155; background: #f8fafc; border-radius: 9px; padding: 8px 10px; margin-top: 8px; }
-    .dup-alert { background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px; padding: 8px 10px; margin-top: 10px; }
+    .modal-label { font-size: .85rem; font-weight: 700; color: var(--ink); margin: 12px 0 6px; }
+    .info-line { font-size: .88rem; color: var(--ink); background: var(--soft); border-radius: 9px; padding: 8px 10px; margin-top: 8px; }
+    .dup-alert { background: var(--out-soft); border: 1px solid var(--out); border-radius: 10px; padding: 8px 10px; margin-top: 10px; }
     .dup-alert .info-line { background: transparent; padding: 4px 2px; margin-top: 0; }
     .dup-head { font-weight: 800; color: var(--out-ink); font-size: .92rem; padding: 2px; }
     .modal-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
     #modalQty { font-size: 20px; text-align: center; font-weight: 800; }
-    .type-plate.active { border-color: var(--primary); background: #dbeafe; color: #1e40af; }
-    .type-chanel.active { border-color: #0d9488; background: #ccfbf1; color: #0f766e; }
+    .type-plate.active { border-color: var(--primary); background: var(--plate-soft); color: var(--plate-ink); }
+    .type-chanel.active { border-color: #0d9488; background: var(--chanel-soft); color: var(--chanel-ink); }
 
     /* ===== แผง admin ===== */
-    .admin-card { border: 1.5px solid #bfdbfe; background: #f8fbff; }
+    .admin-card { border: 1.5px solid var(--admin-line); background: var(--admin-soft); }
     .user-row {
         display: flex;
         align-items: center;
@@ -472,6 +543,58 @@
     .user-row-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
     .muted-small { color: var(--muted); font-size: .75rem; }
     .sync-hint { color: var(--muted); font-size: .78rem; margin: 8px 0 0; line-height: 1.65; }
+
+    /* ===== ปุ่มตั้งค่า / ธีม / ย้ายข้อมูล ===== */
+    .theme-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .theme-opt {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 10px;
+        border: 1.5px solid var(--line);
+        border-radius: 12px;
+        background: var(--soft);
+        cursor: pointer;
+        font-size: .85rem;
+        font-weight: 700;
+        color: var(--ink);
+        user-select: none;
+    }
+    .theme-opt.active { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); background: var(--card); }
+    .theme-swatch { width: 20px; height: 20px; border-radius: 50%; flex: none; box-shadow: inset 0 0 0 2px rgba(255,255,255,.5); }
+    .check-row { display: flex; align-items: center; gap: 10px; padding: 4px 2px; font-size: .88rem; font-weight: 600; color: var(--ink); cursor: pointer; }
+    .check-row input { width: 20px; height: 20px; accent-color: var(--primary); flex: none; }
+    textarea.mono-area {
+        width: 100%;
+        margin-top: 8px;
+        padding: 9px 11px;
+        font-size: .8rem;
+        line-height: 1.5;
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+        color: var(--ink);
+        background: var(--soft);
+        border: 1.5px solid var(--line);
+        border-radius: 10px;
+        outline: none;
+        resize: vertical;
+        word-break: break-all;
+    }
+    textarea.mono-area:focus { border-color: var(--primary); }
+    #settingsModal .btn.full { margin-top: 8px; }
+    .transfer-wrap { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
+    .cloud-status {
+        display: none;
+        margin-top: 8px;
+        padding: 8px 10px;
+        border-radius: 10px;
+        font-size: .8rem;
+        line-height: 1.55;
+        background: var(--soft);
+        color: var(--muted);
+        word-break: break-all;
+    }
+    .cloud-status.ok { background: var(--in-soft); color: var(--in-ink); }
+    .cloud-status.err { background: var(--out-soft); color: var(--out-ink); }
 
     /* ===== จอใหญ่: 2 คอลัมน์ ===== */
     @media (min-width: 940px) {
@@ -516,8 +639,6 @@
                 <div class="saved-title">บัญชีที่ลงทะเบียนไว้ในเครื่องนี้ - แตะชื่อแล้วใส่รหัสเดิม (กด x 2 ครั้งเพื่อลบชื่อ)</div>
                 <div id="savedUsersList" class="saved-list"></div>
             </div>
-            <button type="button" id="loginImportBtn" class="link-btn">นำเข้าไฟล์ข้อมูลสำรอง (ย้ายเครื่อง / กู้คืนข้อมูล)</button>
-            <input type="file" id="loginImportInput" accept=".json,application/json" style="display:none">
         </div>
 
         <div id="registerForm" style="display:none">
@@ -529,7 +650,7 @@
         </div>
 
         <div id="adminSetupForm" style="display:none">
-            <div class="admin-hint" style="margin:0 0 10px">ตั้งรหัสผ่านของบัญชี admin (ทำครั้งแรกครั้งเดียว) บัญชี admin มีได้คนเดียวและจัดการระบบได้ทุกอย่าง</div>
+            <div class="admin-hint" style="margin:0 0 10px">ตั้งรหัสผ่านของบัญชี admin (ทำครั้งแรกครั้งเดียว) บัญชี admin มีได้คนเดียวและจัดการระบบได้ทุกอย่าง ถ้าเคยตั้งรหัส admin ไว้บนคอมพิวเตอร์หรือมือถือเครื่องอื่นแล้ว ไม่ต้องตั้งใหม่ ใช้ช่อง "ย้ายข้อมูลจากเครื่องเดิม" ด้านล่างแล้วใส่รหัสเดิมได้เลย</div>
             <div class="form-group"><input type="password" id="asPin" inputmode="numeric" placeholder="ตั้งรหัสผ่าน admin (ตัวเลข 4-6 หลัก)"></div>
             <div class="form-group"><input type="password" id="asPin2" inputmode="numeric" placeholder="ยืนยันรหัสผ่านอีกครั้ง"></div>
             <button type="button" id="btnAdminSetup" class="btn btn-primary full">สร้างบัญชี admin</button>
@@ -537,6 +658,24 @@
 
         <div id="loginWarn" class="alert-box"></div>
         <div id="loginMsg" class="login-msg"></div>
+        <div class="transfer-wrap">
+            <div class="saved-title">☁ คลาวด์ร้าน - จำบัญชี รหัสผ่าน สต๊อก ทุกเครื่องอัตโนมัติ (แนะนำ)</div>
+            <div id="cloudStatusLogin" class="cloud-status" style="display:none"></div>
+            <div class="input-row" style="margin-top:8px">
+                <input type="text" id="cloudRoomLogin" placeholder="รหัสห้องคลาวด์ เช่น STK-XXXX-XXXX" autocomplete="off">
+                <button type="button" id="btnCloudJoinLogin" class="btn btn-primary">เชื่อมต่อ</button>
+            </div>
+            <button type="button" id="btnCloudCreateLogin" class="link-btn">ยังไม่มีห้อง? สร้างห้องคลาวด์ใหม่สำหรับร้าน (จะได้รหัสห้องไปให้พนักงาน)</button>
+        </div>
+        <div class="transfer-wrap">
+            <div class="saved-title">ย้ายข้อมูลจากเครื่องเดิม โดยไม่ใช้เน็ต (สำรอง) บัญชี admin/พนักงาน + สต๊อก + ประวัติ ย้ายมาทั้งหมด</div>
+            <textarea id="loginSyncIn" class="mono-area" rows="3" placeholder="วางรหัสซิงค์ที่คัดลอกจากเครื่องเดิม (ขึ้นต้น STOCK1:)"></textarea>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+                <button type="button" id="btnLoginSyncCode" class="btn btn-primary">นำเข้ารหัสซิงค์</button>
+                <button type="button" id="loginImportBtn" class="btn btn-ghost">นำเข้าไฟล์ข้อมูล</button>
+            </div>
+            <input type="file" id="loginImportInput" accept=".json,application/json" style="display:none">
+        </div>
         <p class="login-note">ลงทะเบียนครั้งเดียว เครื่องจะจำชื่อและรหัสผ่านไว้ให้เอง เปิดใช้ครั้งถัดไปเข้าได้ทันทีจนกว่าจะกดออกจากระบบ</p>
     </div>
 </div>
@@ -548,7 +687,7 @@
         <span id="userChip">-</span>
         <span id="userRoleBadge" class="role-badge role-user-badge">-</span>
     </div>
-    <button type="button" id="btnLogout" class="btn btn-logout">ออกจากระบบ</button>
+    <button type="button" id="btnSettings" class="btn btn-headtool">⚙ ตั้งค่า</button>
 </header>
 
 <!-- ================= เนื้อหาแอป ================= -->
@@ -600,12 +739,7 @@
     <!-- คอลัมน์ข้อมูล -->
     <div class="col-main">
         <div class="card">
-            <h2 class="card-title">สต๊อกสินค้า <span id="totalCount" class="count-chip">0</span>
-                <span class="card-tools admin-only">
-                    <button type="button" id="btnExport" class="btn btn-sm btn-ghost">โหลดสต๊อก (CSV)</button>
-                    <button type="button" id="btnClear" class="btn btn-sm btn-danger">ล้างสต๊อก</button>
-                </span>
-            </h2>
+            <h2 class="card-title">สต๊อกสินค้า <span id="totalCount" class="count-chip">0</span></h2>
             <div class="form-group"><input type="text" id="searchInput" placeholder="ค้นหา Model หรือประเภท (plate/chanel)..."></div>
             <div class="table-wrap">
                 <table>
@@ -627,12 +761,7 @@
         </div>
 
         <div class="card">
-            <h2 class="card-title">ประวัติการสแกน <span id="logCount" class="count-chip">0</span>
-                <span class="card-tools admin-only">
-                    <button type="button" id="btnExportLog" class="btn btn-sm btn-ghost">โหลดประวัติ (CSV)</button>
-                    <button type="button" id="btnClearLog" class="btn btn-sm btn-danger">ล้างประวัติ</button>
-                </span>
-            </h2>
+            <h2 class="card-title">ประวัติการสแกน <span id="logCount" class="count-chip">0</span></h2>
             <div class="table-wrap">
                 <table>
                     <thead>
@@ -649,30 +778,6 @@
                     <tbody id="logTableBody"></tbody>
                 </table>
             </div>
-        </div>
-
-        <!-- แผง admin: มีไว้สำหรับบัญชี admin เท่านั้น -->
-        <div class="card admin-card admin-only" id="adminPanel">
-            <h2 class="card-title">สำหรับ admin</h2>
-
-            <div class="modal-label" style="margin-top:2px">บัญชีผู้ใช้ทั้งหมด</div>
-            <div id="adminUserList"></div>
-
-            <div class="modal-label">ซิงค์ข้อมูลระหว่างมือถือกับคอมพิวเตอร์</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-                <button type="button" id="btnExportData" class="btn btn-primary">ส่งออกไฟล์ข้อมูล</button>
-                <button type="button" id="btnImportData" class="btn btn-ghost">นำเข้าไฟล์ข้อมูล</button>
-            </div>
-            <input type="file" id="importFileInput" accept=".json,application/json" style="display:none">
-            <p class="sync-hint">เครื่องใดก็ได้กด "ส่งออกไฟล์ข้อมูล" แล้วนำไฟล์ไปกด "นำเข้าไฟล์ข้อมูล" ที่อีกเครื่อง ระบบจะรวมบัญชี สต๊อก และประวัติให้เป็นชุดเดียวกันโดยยึดรายการที่แก้ล่าสุดเสมอ ใช้ชื่อและรหัสผ่านเดิมข้ามเครื่องได้ทันที (เครื่องใหม่ที่ยังไม่มีบัญชี ให้กด "นำเข้าไฟล์ข้อมูลสำรอง" ที่หน้าเข้าสู่ระบบแทน)</p>
-
-            <div class="modal-label">เปลี่ยนรหัสผ่าน admin</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-                <input type="password" id="adminNewPin" inputmode="numeric" placeholder="รหัสใหม่ (4-6 หลัก)">
-                <input type="password" id="adminNewPin2" inputmode="numeric" placeholder="ยืนยันรหัสใหม่">
-            </div>
-            <button type="button" id="btnChangePin" class="btn btn-ghost full" style="margin-top:8px">บันทึกรหัสผ่านใหม่</button>
-            <div id="adminMsg" class="login-msg"></div>
         </div>
     </div>
 </div>
@@ -714,6 +819,71 @@
         </div>
     </div>
 </div>
+
+<!-- หน้าต่างตั้งค่า: ธีม / เสียง / ซิงค์ / รหัสผ่าน / จัดการบัญชี (admin) / ออกจากระบบ -->
+<div id="settingsModal" class="modal-overlay">
+    <div class="modal-card">
+        <h2 class="modal-title">ตั้งค่า</h2>
+
+        <div class="modal-label" style="margin-top:2px">ธีมพื้นหลัง</div>
+        <div id="themeGrid" class="theme-grid"></div>
+
+        <div class="modal-label">เสียงและการสั่นเตือน</div>
+        <label class="check-row"><input type="checkbox" id="optSound" checked> เปิดเสียงเตือนและการสั่นเมื่อสแกน/โค้ดซ้ำ</label>
+
+        <div class="modal-label">☁ คลาวด์ร้าน - ซิงค์อัตโนมัติทุกเครื่อง (จำบัญชี/รหัสผ่าน/สต๊อก)</div>
+        <div id="cloudStatus" class="cloud-status" style="display:none"></div>
+        <div class="input-row" style="margin-top:8px">
+            <input type="text" id="cloudRoomInput" placeholder="รหัสห้องคลาวด์" autocomplete="off">
+            <button type="button" id="btnCloudJoin" class="btn btn-primary">เชื่อมต่อ</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+            <button type="button" id="btnCloudCreate" class="btn btn-ghost">สร้างห้องใหม่</button>
+            <button type="button" id="btnCloudLeave" class="btn btn-danger" style="display:none">ออกจากห้อง</button>
+        </div>
+        <button type="button" id="btnCloudCopyRoom" class="btn btn-ghost full">คัดลอกรหัสห้อง ส่งให้พนักงาน/อีกเครื่อง</button>
+        <p class="sync-hint">เมื่อเชื่อมต่อแล้ว บัญชี รหัสผ่าน สต๊อก และประวัติจะถูกจัดเก็บบนคลาวด์ เครื่องไหนใช้รหัสห้องเดียวกันข้อมูลจะตรงกันหมด: สมัคร/เปลี่ยนรหัสผ่านที่เครื่องใด เครื่องอื่นเข้าได้ทันที สแกนที่เครื่องใด ตารางทุกเครื่องอัปเดตใน ~15 วิ ลบรายการแล้วหายทุกเครื่อง รหัสห้องคือกุญแจของร้าน อย่าเปิดเผยให้คนนอกทีม (ต้องมีอินเทอร์เน็ต)</p>
+
+        <div class="modal-label">ซิงค์ด้วยไฟล์ / รหัสซิงค์ (สำรอง ไม่ใช้เน็ต)</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <button type="button" id="btnExportData" class="btn btn-primary">ส่งออกไฟล์ข้อมูล</button>
+            <button type="button" id="btnImportData" class="btn btn-ghost">นำเข้าไฟล์ข้อมูล</button>
+        </div>
+        <input type="file" id="importFileInput" accept=".json,application/json" style="display:none">
+        <div class="modal-label" style="margin-top:10px">หรือใช้ "รหัสซิงค์" (ข้อความ ส่งผ่าน LINE ได้)</div>
+        <button type="button" id="btnGenSyncCode" class="btn btn-primary full">สร้างรหัสซิงค์จากเครื่องนี้</button>
+        <textarea id="syncCodeOut" class="mono-area" rows="3" readonly placeholder="รหัสซิงค์จะแสดงที่นี่"></textarea>
+        <button type="button" id="btnCopySyncCode" class="btn btn-ghost full">คัดลอกรหัสซิงค์</button>
+        <textarea id="syncCodeIn" class="mono-area" rows="3" placeholder="วางรหัสซิงค์ที่ได้รับจากเครื่องอื่น (ขึ้นต้น STOCK1:)"></textarea>
+        <button type="button" id="btnPasteSyncCode" class="btn btn-primary full">นำเข้าข้อมูลจากรหัสซิงค์</button>
+        <p class="sync-hint">เครื่องใดก็ได้กด "สร้างรหัสซิงค์" คัดลอกส่งเป็นข้อความไปอีกเครื่อง (LINE/อีเมล) แล้ววางในช่องข้างบนแล้วกดนำเข้า ระบบจะรวมบัญชี สต๊อก และประวัติให้เป็นชุดเดียวกันโดยยึดรายการที่แก้ล่าสุดเสมอ ใช้ชื่อ/รหัสผ่านเดิมข้ามเครื่องได้ทันที ถ้าข้อมูลเยอะจนรหัสยาวเกินไป ให้ใช้ "ส่งออกไฟล์ข้อมูล" แทน</p>
+
+        <div class="modal-label">เปลี่ยนรหัสผ่านของฉัน (ทุกบัญชี)</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <input type="password" id="setNewPin" inputmode="numeric" placeholder="รหัสใหม่ (4-6 หลัก)">
+            <input type="password" id="setNewPin2" inputmode="numeric" placeholder="ยืนยันรหัสใหม่">
+        </div>
+        <button type="button" id="btnChangeMyPin" class="btn btn-ghost full">บันทึกรหัสผ่านใหม่</button>
+        <div id="settingsMsg" class="login-msg"></div>
+
+        <div id="settingsAdminSection" class="admin-card admin-only" style="border-radius:12px;padding:12px;margin-top:12px">
+            <div class="modal-label" style="margin-top:0">จัดการบัญชี (admin)</div>
+            <div id="adminUserList"></div>
+            <div class="modal-label">เครื่องมือ admin</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                <button type="button" id="btnExport" class="btn btn-sm btn-ghost">โหลดสต๊อก (CSV)</button>
+                <button type="button" id="btnExportLog" class="btn btn-sm btn-ghost">โหลดประวัติ (CSV)</button>
+                <button type="button" id="btnClear" class="btn btn-sm btn-danger">ล้างสต๊อก</button>
+                <button type="button" id="btnClearLog" class="btn btn-sm btn-danger">ล้างประวัติ</button>
+            </div>
+        </div>
+
+        <div class="modal-actions">
+            <button type="button" id="btnSettingsLogout" class="btn btn-danger">ออกจากระบบ</button>
+            <button type="button" id="btnSettingsClose" class="btn btn-ghost">ปิด</button>
+        </div>
+    </div>
+</div>
 <script>
     /* ==================================================================
        สถานะรวมของระบบ
@@ -727,7 +897,11 @@
         lastUser: 'stock_last_user',
         lastType: 'stock_last_type',
         lastQty: 'stock_last_qty',
-        fmtMode: 'barcode_scan_fmt_mode_v2'
+        fmtMode: 'barcode_scan_fmt_mode_v2',
+        theme: 'stock_theme',
+        sound: 'stock_sound',
+        cloud: 'stock_cloud_room',
+        tombs: 'stock_tombstones'
     };
 
     let isScanning = false;
@@ -781,10 +955,17 @@
     let lastUsedQty = 1;
     let chipConfirmName = null;
     let dupCtx = null;
+    let settingsCtx = false;
+    let tombs = { items: {}, users: {}, logs: {} };
 
     /* โหลดข้อมูลเดิมจากเครื่องนี้ */
     try { inventory = JSON.parse(localStorage.getItem(STORAGE_KEYS.inventory)) || []; } catch (e) { inventory = []; }
     try { scanLog = JSON.parse(localStorage.getItem(STORAGE_KEYS.log)) || []; } catch (e) { scanLog = []; }
+    try { tombs = JSON.parse(localStorage.getItem(STORAGE_KEYS.tombs)) || {}; } catch (e) { tombs = {}; }
+    tombs = (tombs && typeof tombs === 'object') ? tombs : {};
+    tombs.items = tombs.items || {};
+    tombs.users = tombs.users || {};
+    tombs.logs = tombs.logs || {};
 
     function el(id) { return document.getElementById(id); }
     function setDisp(id, show) { const n = el(id); if (n) n.style.display = show ? '' : 'none'; }
@@ -945,6 +1126,11 @@
        เริ่มระบบเมื่อหน้าเปิด
        ================================================================== */
     window.addEventListener('DOMContentLoaded', () => {
+        // ธีมพื้นหลังที่เคยเลือกไว้ (ค่าเริ่มต้น: สว่าง)
+        let savedTheme = 'light';
+        try { savedTheme = localStorage.getItem(STORAGE_KEYS.theme) || 'light'; } catch (e) {}
+        applyTheme(savedTheme);
+
         // ตรวจสภาพแวดล้อม (กล้องใช้ไม่ได้กรณีใด บอกทันที)
         const ua = navigator.userAgent || "";
         if (typeof ZXing === 'undefined') {
@@ -979,7 +1165,18 @@
         safeBind('btnLogin', 'click', doLogin);
         safeBind('btnRegister', 'click', doRegister);
         safeBind('btnAdminSetup', 'click', doAdminSetup);
-        safeBind('btnLogout', 'click', doLogout);
+        // ปุ่มตั้งค่า + ธีม + เสียง (ออกจากระบบอยู่ในหน้าต่างตั้งค่า)
+        safeBind('btnSettings', 'click', openSettings);
+        safeBind('btnSettingsClose', 'click', closeSettings);
+        safeBind('btnSettingsLogout', 'click', doLogout);
+        safeBind('themeGrid', 'click', (e) => {
+            const opt = e.target.closest ? e.target.closest('.theme-opt') : null;
+            if (opt) applyTheme(opt.getAttribute('data-theme-id'));
+        });
+        safeBind('optSound', 'change', (e) => {
+            try { localStorage.setItem(STORAGE_KEYS.sound, e.target.checked ? '1' : '0'); } catch (err) {}
+            showStatus(e.target.checked ? 'เปิดเสียงและการสั่นเตือนแล้ว' : 'ปิดเสียงและการสั่นเตือนแล้ว');
+        });
         safeBind('tabLogin', 'click', () => showLoginPanel('login'));
         safeBind('tabRegister', 'click', () => showLoginPanel('register'));
         safeBind('loginName', 'keydown', (e) => { if (e.key === 'Enter') doLogin(); });
@@ -1033,10 +1230,26 @@
         safeBind('btnClearLog', 'click', handleClearLogButton);
         safeBind('searchInput', 'input', renderTable);
         safeBind('btnExportData', 'click', exportDataFile);
-        safeBind('btnChangePin', 'click', changeAdminPin);
+        // รหัสซิงค์ + เปลี่ยนรหัสผ่านของฉัน
+        safeBind('btnGenSyncCode', 'click', generateSyncCode);
+        safeBind('btnCopySyncCode', 'click', copySyncCode);
+        safeBind('btnPasteSyncCode', 'click', importFromSyncBox);
+        safeBind('btnLoginSyncCode', 'click', importLoginSyncCode);
+        safeBind('btnChangeMyPin', 'click', changeMyPin);
+        safeBind('setNewPin2', 'keydown', (e) => { if (e.key === 'Enter') changeMyPin(); });
+        // คลาวด์ร้าน: สร้างห้อง/เชื่อมต่อห้อง (หน้าเข้าสู่ระบบ + ในตั้งค่า)
+        safeBind('btnCloudJoinLogin', 'click', () => cloudJoin(el('cloudRoomLogin') ? el('cloudRoomLogin').value : ''));
+        safeBind('btnCloudCreateLogin', 'click', () => cloudCreateRoom(el('cloudRoomLogin') ? el('cloudRoomLogin').value : ''));
+        safeBind('cloudRoomLogin', 'keydown', (e) => { if (e.key === 'Enter') cloudJoin(el('cloudRoomLogin') ? el('cloudRoomLogin').value : ''); });
+        safeBind('btnCloudJoin', 'click', () => cloudJoin(el('cloudRoomInput') ? el('cloudRoomInput').value : ''));
+        safeBind('btnCloudCreate', 'click', () => cloudCreateRoom(el('cloudRoomInput') ? el('cloudRoomInput').value : ''));
+        safeBind('cloudRoomInput', 'keydown', (e) => { if (e.key === 'Enter') cloudJoin(el('cloudRoomInput') ? el('cloudRoomInput').value : ''); });
+        safeBind('btnCloudLeave', 'click', cloudLeave);
+        safeBind('btnCloudCopyRoom', 'click', cloudCopyRoom);
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && dupCtx) closeDupModal();
             else if (e.key === 'Escape' && modalCtx) cancelScanModal();
+            else if (e.key === 'Escape' && settingsCtx) closeSettings();
         });
 
         // จำค่าที่ใช้ล่าสุด (จำนวน/ประเภท) ให้กดข้ามได้เร็วขึ้น
@@ -1048,6 +1261,11 @@
         renderTable();
         renderLog();
         probeAndWarnStorage();
+
+        // คลาวด์ร้าน: ดึงข้อมูลล่าสุดทันที (ถ้าเคยเชื่อมต่อ) + ตรวจงานใหม่ทุก 15 วินาที
+        renderCloudUI();
+        if (cloudRoomKey()) cloudSync('auto');
+        setInterval(() => { if (cloudRoomKey() && !document.hidden) cloudSync('auto'); }, 15000);
     });
 
     function showEnvWarn(msg) {
@@ -1127,12 +1345,7 @@
         box.className = 'login-msg ' + (cls || '');
     }
 
-    function setAdminMsg(text, cls) {
-        const box = el('adminMsg');
-        if (!box) return;
-        box.textContent = text;
-        box.className = 'login-msg ' + (cls || '');
-    }
+    function setAdminMsg(text, cls) { return setSettingsMsg(text, cls); }
 
     function showLoginPanel(which) {
         const tL = el('tabLogin'), tR = el('tabRegister');
@@ -1315,6 +1528,7 @@
         const users = loadUsers().filter(u => u.name.toLowerCase() !== ADMIN_NAME);
         users.push({ name: ADMIN_NAME, role: 'admin', hash: hash, updatedAt: Date.now() });
         saveUsers(users);
+        scheduleCloudPush();
         if (el('asPin')) el('asPin').value = '';
         if (el('asPin2')) el('asPin2').value = '';
         finishLogin({ name: ADMIN_NAME, role: 'admin' });
@@ -1339,6 +1553,7 @@
         const hash = await hashPin(pin);
         users.push({ name: name, role: 'user', hash: hash, updatedAt: Date.now() });
         saveUsers(users);
+        scheduleCloudPush();
         if (nameEl) nameEl.value = '';
         if (pinEl) pinEl.value = '';
         if (pin2El) pin2El.value = '';
@@ -1346,6 +1561,7 @@
     }
 
     function doLogout() {
+        closeSettings();
         stopCamera();
         currentUser = null;
         try { localStorage.removeItem(STORAGE_KEYS.session); } catch (e) {}
@@ -1385,27 +1601,32 @@
             setTimeout(() => { btn.dataset.confirm = ''; btn.textContent = 'ลบ'; }, 2600);
             return;
         }
+        tombs.users[name.toLowerCase()] = Date.now();
+        saveTombs();
         saveUsers(loadUsers().filter(u => u.name.toLowerCase() !== name.toLowerCase()));
         renderAdminUsers();
         renderRegisteredUsers();
-        showStatus('ลบบัญชี ' + name + ' แล้ว');
+        scheduleCloudPush();
+        showStatus('ลบบัญชี ' + name + ' แล้ว (จะหายจากทุกเครื่องเมื่อซิงค์คลาวด์)');
     }
 
-    async function changeAdminPin() {
-        if (!isAdmin()) { showStatus('เฉพาะ admin เท่านั้น', true); return; }
-        const p1 = el('adminNewPin') ? el('adminNewPin').value : '';
-        const p2 = el('adminNewPin2') ? el('adminNewPin2').value : '';
-        if (!/^\d{4,6}$/.test(p1)) { setAdminMsg('รหัสใหม่ต้องเป็นตัวเลข 4-6 หลัก', 'err'); return; }
-        if (p1 !== p2) { setAdminMsg('รหัสสองช่องไม่ตรงกัน', 'err'); return; }
+    /* เปลี่ยนรหัสผ่านของฉัน (ทุกบัญชี: admin และพนักงาน) */
+    async function changeMyPin() {
+        if (!currentUser) return;
+        const p1 = el('setNewPin') ? el('setNewPin').value : '';
+        const p2 = el('setNewPin2') ? el('setNewPin2').value : '';
+        if (!/^\d{4,6}$/.test(p1)) { setSettingsMsg('รหัสใหม่ต้องเป็นตัวเลข 4-6 หลัก', 'err'); return; }
+        if (p1 !== p2) { setSettingsMsg('รหัสสองช่องไม่ตรงกัน', 'err'); return; }
         const users = loadUsers();
-        const me = users.find(u => u.name.toLowerCase() === ADMIN_NAME && u.role === 'admin');
-        if (!me) { setAdminMsg('ไม่พบบัญชี admin', 'err'); return; }
+        const me = users.find(u => u.name.toLowerCase() === currentUser.name.toLowerCase());
+        if (!me) { setSettingsMsg('ไม่พบบัญชีของคุณ', 'err'); return; }
         me.hash = await hashPin(p1);
         me.updatedAt = Date.now();
         saveUsers(users);
-        if (el('adminNewPin')) el('adminNewPin').value = '';
-        if (el('adminNewPin2')) el('adminNewPin2').value = '';
-        setAdminMsg('เปลี่ยนรหัสผ่าน admin สำเร็จ (ใช้รหัสใหม่ตั้งแต่ครั้งถัดไป)', 'ok');
+        scheduleCloudPush();
+        if (el('setNewPin')) el('setNewPin').value = '';
+        if (el('setNewPin2')) el('setNewPin2').value = '';
+        setSettingsMsg('เปลี่ยนรหัสผ่านสำเร็จ (ครั้งถัดไปใช้รหัสใหม่)', 'ok');
         renderRegisteredUsers();
     }
 
@@ -1425,6 +1646,7 @@
 
     /* เสียงเตือน 2 จังหวะเสียงต่ำ + สั่น แยกจากเสียงสแกนปกติ */
     function triggerFeedbackDup() {
+        if (!soundEnabled()) return;
         if (navigator.vibrate) navigator.vibrate([120, 80, 120]);
         try {
             if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -1640,9 +1862,13 @@
             clearTimeout(logConfirmTimer);
             isConfirmingLogClear = false;
             if (btn) btn.textContent = 'ล้างประวัติ';
+            const tnow2 = Date.now();
+            scanLog.forEach(e => { if (e && e.ms) tombs.logs[e.ms] = tnow2; });
+            saveTombs();
             scanLog = [];
             saveLogToStorage();
             renderLog();
+            scheduleCloudPush();
             showStatus('ล้างประวัติการสแกนเรียบร้อย');
         }
     }
@@ -1690,6 +1916,7 @@
     }
 
     function triggerFeedback() {
+        if (!soundEnabled()) return;
         if (navigator.vibrate) navigator.vibrate(150);
         try {
             if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -1861,7 +2088,7 @@
     // ถ้าไม่มี BD (iPhone/Safari) หรือ BD พลาด 4 ครั้งติดกัน สลับลอง ZXing 1 รอบ
     async function runDecodeAttempt() {
         scanTimer = null;
-        if (!isScanning || modalCtx || dupCtx) return; // หน้าต่างกรอกจำนวน/เตือนโค้ดซ้ำเปิดอยู่ -> พักชั่วคราว
+        if (!isScanning || modalCtx || dupCtx || settingsCtx) return; // หน้าต่างกรอกจำนวน/เตือนโค้ดซ้ำ/ตั้งค่าเปิดอยู่ -> พักชั่วคราว
         const t0 = performance.now();
         let handled = false;
         try {
@@ -2365,6 +2592,7 @@
         const searchInput = el('searchInput');
         if (searchInput) searchInput.value = '';
         renderTable();
+        scheduleCloudPush();
     }
 
     function manualAdd() {
@@ -2400,14 +2628,20 @@
         pushScanLog({ code: item.code, type: item.type, qty: 1, mode: mode, user: who, fmt: 'ปุ่มในตาราง' });
         saveToStorage();
         renderTable();
+        scheduleCloudPush();
     }
 
-    /* ลบรายการ - เฉพาะ admin */
+    /* ลบรายการ - เฉพาะ admin (ลบแล้วหายจากทุกเครื่องที่ซิงค์คลาวด์ด้วย) */
     function deleteItem(id) {
         if (!isAdmin()) { showStatus('ลบรายการได้เฉพาะ admin', true); return; }
-        inventory = inventory.filter(item => item.id !== id);
+        const item = inventory.find(i => i.id === id);
+        if (!item) return;
+        tombs.items[itemKeyOf(item)] = Date.now();
+        saveTombs();
+        inventory = inventory.filter(i => i.id !== id);
         saveToStorage();
         renderTable();
+        scheduleCloudPush();
     }
 
     function handleClearButton() {
@@ -2428,9 +2662,13 @@
             clearTimeout(clearConfirmTimer);
             isConfirmingClear = false;
             if (btn) btn.textContent = 'ล้างสต๊อก';
+            const tnow = Date.now();
+            inventory.forEach(i => { tombs.items[itemKeyOf(i)] = tnow; });
+            saveTombs();
             inventory = [];
             saveToStorage();
             renderTable();
+            scheduleCloudPush();
             showStatus('ล้างข้อมูลสต๊อกทั้งหมดเรียบร้อย');
         }
     }
@@ -2479,6 +2717,339 @@
     }
 
     /* ==================================================================
+       ปุ่มตั้งค่า: ธีมพื้นหลัง / เสียง / ซิงค์ข้อมูล / รหัสซิงค์
+       ================================================================== */
+    const THEMES = [
+        { id: 'light', name: 'สว่าง', dot: '#2563eb' },
+        { id: 'dark', name: 'มืด', dot: '#3b82f6' },
+        { id: 'ocean', name: 'น้ำเงิน', dot: '#0284c7' },
+        { id: 'green', name: 'เขียว', dot: '#16a34a' },
+        { id: 'purple', name: 'ม่วง', dot: '#7c3aed' },
+        { id: 'sunset', name: 'อาทิตย์', dot: '#ea580c' }
+    ];
+
+    function currentThemeId() {
+        return document.documentElement.getAttribute('data-theme') || 'light';
+    }
+
+    function applyTheme(id) {
+        if (!THEMES.some(t => t.id === id)) id = 'light';
+        document.documentElement.setAttribute('data-theme', id);
+        try { localStorage.setItem(STORAGE_KEYS.theme, id); } catch (e) {}
+        renderThemeGrid();
+    }
+
+    function renderThemeGrid() {
+        const grid = el('themeGrid');
+        if (!grid) return;
+        const cur = currentThemeId();
+        grid.innerHTML = THEMES.map(t =>
+            '<div class="theme-opt' + (t.id === cur ? ' active' : '') + '" data-theme-id="' + t.id + '">' +
+            '<span class="theme-swatch" style="background:' + t.dot + '"></span>' +
+            '<span>' + escapeHtml(t.name) + '</span></div>').join('');
+    }
+
+    function soundEnabled() {
+        try { return localStorage.getItem(STORAGE_KEYS.sound) !== '0'; } catch (e) { return true; }
+    }
+
+    function openSettings() {
+        settingsCtx = true;
+        renderThemeGrid();
+        const snd = el('optSound');
+        if (snd) snd.checked = soundEnabled();
+        if (isAdmin()) renderAdminUsers();
+        const out = el('syncCodeOut'), inp = el('syncCodeIn');
+        if (out) out.value = '';
+        if (inp) inp.value = '';
+        setSettingsMsg('', '');
+        const overlay = el('settingsModal');
+        if (overlay) overlay.classList.add('open');
+    }
+
+    function closeSettings() {
+        const overlay = el('settingsModal');
+        if (overlay) overlay.classList.remove('open');
+        settingsCtx = false;
+        if (isScanning) scheduleDecode(200);
+    }
+
+    function setSettingsMsg(text, cls) {
+        const box = el('settingsMsg');
+        if (!box) return;
+        box.textContent = text;
+        box.className = 'login-msg ' + (cls || '');
+    }
+
+    /* รหัสซิงค์: ข้อความรวมข้อมูลทั้งหมด (บัญชี+สต๊อก+ประวัติ) คัดลอก/วางข้ามเครื่องได้ */
+    function buildSyncPayload() {
+        return {
+            app: 'stock-scanner',
+            ver: 3,
+            exportedAt: Date.now(),
+            exportedBy: currentUser ? currentUser.name : '-',
+            users: loadUsers(),
+            inventory: inventory,
+            scanLog: scanLog,
+            tombstones: tombs
+        };
+    }
+
+    function makeSyncCode() {
+        const json = JSON.stringify(buildSyncPayload());
+        const bytes = new TextEncoder().encode(json);
+        let bin = '';
+        for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+        return 'STOCK1:' + btoa(bin);
+    }
+
+    function parseSyncCode(codeStr) {
+        const s = String(codeStr || '').replace(/\s+/g, '');
+        if (s.indexOf('STOCK1:') !== 0) throw new Error('bad prefix');
+        const bin = atob(s.slice(7));
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        const data = JSON.parse(new TextDecoder().decode(bytes));
+        if (!data || data.app !== 'stock-scanner' || !Array.isArray(data.inventory)) throw new Error('bad data');
+        return data;
+    }
+
+    function generateSyncCode() {
+        const out = el('syncCodeOut');
+        try {
+            if (out) out.value = makeSyncCode();
+            showStatus('สร้างรหัสซิงค์แล้ว กด "คัดลอกรหัสซิงค์" แล้วส่งเป็นข้อความไปอีกเครื่องได้เลย');
+        } catch (e) {
+            showStatus('สร้างรหัสซิงค์ไม่สำเร็จ', true);
+        }
+    }
+
+    function fallbackCopy(text) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        let ok = false;
+        try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+        document.body.removeChild(ta);
+        return ok;
+    }
+
+    async function copySyncCode() {
+        const out = el('syncCodeOut');
+        const text = out ? out.value.trim() : '';
+        if (!text) { showStatus('ยังไม่มีรหัสซิงค์ กด "สร้างรหัสซิงค์" ก่อน', true); return; }
+        let ok = false;
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(text);
+                ok = true;
+            } else {
+                ok = fallbackCopy(text);
+            }
+        } catch (e) {
+            ok = fallbackCopy(text);
+        }
+        showStatus(ok ? 'คัดลอกรหัสซิงค์แล้ว ส่งเป็นข้อความ (เช่น LINE) ไปอีกเครื่องได้เลย'
+                      : 'คัดลอกอัตโนมัติไม่ได้ ให้กดช่องรหัส เลือกทั้งหมดแล้วคัดลอกเอง', !ok);
+    }
+
+    function importFromSyncBox() {
+        const inp = el('syncCodeIn');
+        const raw = inp ? inp.value : '';
+        if (!raw.trim()) { showStatus('วางรหัสซิงค์ที่ได้รับลงช่องก่อน', true); return; }
+        try {
+            applyImportedData(parseSyncCode(raw), false);
+            if (inp) inp.value = '';
+        } catch (e) {
+            showStatus('รหัสซิงค์ไม่ถูกต้อง ต้องขึ้นต้นด้วย STOCK1: และครบทั้งข้อความ', true);
+        }
+    }
+
+    function importLoginSyncCode() {
+        const inp = el('loginSyncIn');
+        const raw = inp ? inp.value : '';
+        if (!raw.trim()) { setLoginMsg('วางรหัสซิงค์ที่คัดลอกจากเครื่องเดิมลงช่องก่อน', 'err'); return; }
+        try {
+            applyImportedData(parseSyncCode(raw), true);
+            if (inp) inp.value = '';
+        } catch (e) {
+            setLoginMsg('รหัสซิงค์ไม่ถูกต้อง ต้องขึ้นต้นด้วย STOCK1: และครบทั้งข้อความ', 'err');
+        }
+    }
+
+    /* ==================================================================
+       คลาวด์ร้าน - ซิงค์อัตโนมัติข้ามเครื่องด้วย "รหัสห้อง"
+       - สร้างห้อง = อัปโหลดข้อมูลร้านขึ้นคลาวด์ (textdb.dev ฟรี ไม่ต้องสมัคร)
+       - เชื่อมต่อห้อง = ดึงข้อมูลร้านลงเครื่อง แล้วซิงค์กันอัตโนมัติตลอด
+       - สมัครบัญชี/เปลี่ยนรหัสผ่าน/สแกน ที่เครื่องใด เครื่องอื่นได้รับใน ~15 วิ
+       - ออฟไลน์: ใช้งานจากข้อมูลในเครื่องได้ปกติ กลับออนไลน์ค่อยซิงค์
+       ================================================================== */
+    const CLOUD_API = 'https://textdb.dev/api/data/';
+    let cloudBusy = false;
+    let cloudDirty = false;
+    let cloudTimer = null;
+
+    function cloudRoomKey() { try { return localStorage.getItem(STORAGE_KEYS.cloud) || ''; } catch (e) { return ''; } }
+
+    function setCloudRoomKey(key) {
+        try { if (key) localStorage.setItem(STORAGE_KEYS.cloud, key); else localStorage.removeItem(STORAGE_KEYS.cloud); } catch (e) {}
+    }
+
+    function sanitizeRoomKey(s) {
+        const k = String(s || '').trim().replace(/\s+/g, '');
+        return /^[A-Za-z0-9_-]{6,40}$/.test(k) ? k : '';
+    }
+
+    function makeRoomKey() {
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        let out = '';
+        for (let i = 0; i < 8; i++) out += chars[Math.floor(Math.random() * chars.length)];
+        return 'STK-' + out.slice(0, 4) + '-' + out.slice(4);
+    }
+
+    function cloudGet(key) {
+        // ห้ามใส่ custom header (เช่น Accept) - ทำให้เซิร์ฟเวอร์ตอบกลับโดน CORS บล็อก
+        return fetch(CLOUD_API + encodeURIComponent(key))
+            .then(r => { if (!r.ok) throw new Error('cloud ' + r.status); return r.text(); });
+    }
+
+    function cloudPut(key, text) {
+        // ต้องมี Content-Type: text/plain เป๊ะ ๆ (ไม่มี charset) - ไม่งั้นเซิร์ฟเวอร์ปฏิเสธแบบเงียบ ๆ
+        return fetch(CLOUD_API + encodeURIComponent(key),
+            { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: text })
+            .then(r => { if (!r.ok) throw new Error('cloud ' + r.status); });
+    }
+
+    function setCloudStatus(cls, text) {
+        ['cloudStatusLogin', 'cloudStatus'].forEach(id => {
+            const box = el(id);
+            if (!box) return;
+            if (!text) { box.style.display = 'none'; box.textContent = ''; return; }
+            box.textContent = text;
+            box.className = 'cloud-status' + (cls ? ' ' + cls : '');
+            box.style.display = 'block';
+        });
+    }
+
+    function renderCloudUI() {
+        const key = cloudRoomKey();
+        const leave = el('btnCloudLeave');
+        if (leave) leave.style.display = key ? '' : 'none';
+        ['cloudRoomLogin', 'cloudRoomInput'].forEach(id => {
+            const n = el(id);
+            if (n) n.placeholder = key ? ('ห้องปัจจุบัน: ' + key) : 'รหัสห้องคลาวด์ เช่น STK-XXXX-XXXX';
+        });
+        if (!key) setCloudStatus('', 'ยังไม่เชื่อมต่อคลาวด์ - ข้อมูลเก็บในเครื่องนี้เท่านั้น');
+        else setCloudStatus('', 'ห้องปัจจุบัน: ' + key + ' - รอการซิงค์...');
+    }
+
+    function scheduleCloudPush() {
+        if (!cloudRoomKey()) return;
+        cloudDirty = true;
+        if (cloudTimer) clearTimeout(cloudTimer);
+        cloudTimer = setTimeout(() => { cloudTimer = null; cloudSync('push'); }, 1200);
+    }
+
+    async function cloudSync(reason) {
+        const key = cloudRoomKey();
+        if (!key || cloudBusy) return;
+        cloudBusy = true;
+        try {
+            const text = await cloudGet(key);
+            let data = null;
+            try { data = JSON.parse(text); } catch (e) { data = null; }
+            let res = null;
+            if (data && data.app === 'stock-scanner') {
+                res = mergeAll(data);
+                if (res.removedCurrentUser) {
+                    currentUser = null;
+                    try { localStorage.removeItem(STORAGE_KEYS.session); } catch (e) {}
+                    showLoginView();
+                    setLoginMsg('บัญชีที่ใช้อยู่ถูกลบจากเครื่องอื่น จึงออกจากระบบอัตโนมัติ', 'err');
+                } else if (res.changed) {
+                    if (currentUser) { applyRoleUI(); renderTable(); renderLog(); }
+                    else renderRegisteredUsers();
+                }
+            }
+            const shouldPush = (reason !== 'auto') || cloudDirty || (res && res.changed);
+            cloudDirty = false;
+            if (shouldPush) await cloudPut(key, JSON.stringify(buildSyncPayload()));
+            setCloudStatus('ok', 'ซิงค์คลาวด์ล่าสุด: ' + new Date().toLocaleTimeString('th-TH'));
+        } catch (e) {
+            setCloudStatus('err', 'เชื่อมต่อคลาวด์ไม่สำเร็จ (ตรวจอินเทอร์เน็ต) - ข้อมูลในเครื่องยังอยู่ครบ');
+        } finally {
+            cloudBusy = false;
+        }
+    }
+
+    async function cloudJoin(keyInput) {
+        const key = sanitizeRoomKey(keyInput);
+        if (!key) { setCloudStatus('err', 'รหัสห้องต้องเป็นตัวอักษร/ตัวเลข/ขีด 6-40 ตัว ไม่มีเว้นวรรค'); return; }
+        setCloudStatus('', 'กำลังเชื่อมต่อห้อง ' + key + ' ...');
+        try {
+            const text = await cloudGet(key);
+            if (!text || !text.trim()) throw new Error('empty room');
+            const data = JSON.parse(text);
+            if (!data || data.app !== 'stock-scanner') throw new Error('not app data');
+            setCloudRoomKey(key);
+            renderCloudUI();
+            const res = mergeAll(data);
+            if (currentUser) { applyRoleUI(); renderTable(); renderLog(); }
+            else renderRegisteredUsers();
+            setCloudStatus('ok', 'เชื่อมต่อห้อง ' + key + ' สำเร็จ');
+            showStatus('เชื่อมต่อคลาวด์สำเร็จ: บัญชีและข้อมูลร้านจะซิงค์อัตโนมัติทุกเครื่องที่ใช้รหัสห้องนี้');
+            cloudDirty = true;
+            cloudSync('join');
+        } catch (e) {
+            setCloudStatus('err', 'รหัสห้อง "' + key + '" ยังไม่มีข้อมูลของระบบ หรือเน็ตออฟไลน์ (ถ้ายังไม่มีห้อง ให้กด "สร้างห้องใหม่")');
+        }
+    }
+
+    async function cloudCreateRoom(keyInput) {
+        const key = keyInput ? sanitizeRoomKey(keyInput) : makeRoomKey();
+        if (!key) { setCloudStatus('err', 'รหัสห้องต้องเป็นตัวอักษร/ตัวเลข/ขีด 6-40 ตัว ไม่มีเว้นวรรค'); return; }
+        setCloudStatus('', 'กำลังสร้างห้อง ' + key + ' ...');
+        try {
+            const text = await cloudGet(key);
+            if (text && text.trim()) {
+                let data = null;
+                try { data = JSON.parse(text); } catch (e) { data = null; }
+                if (data && data.app === 'stock-scanner') {
+                    setCloudStatus('err', 'รหัส "' + key + '" มีข้อมูลร้านอยู่แล้ว ให้กด "เชื่อมต่อ" แทนการสร้างใหม่');
+                    return;
+                }
+            }
+        } catch (e) {}
+        setCloudRoomKey(key);
+        renderCloudUI();
+        cloudDirty = true;
+        await cloudSync('join');
+        showStatus('สร้างห้องคลาวด์แล้ว! กด "คัดลอกรหัสห้อง" แล้วส่งให้พนักงาน/เครื่องอื่นใส่ได้เลย');
+    }
+
+    function cloudLeave() {
+        setCloudRoomKey('');
+        cloudDirty = false;
+        if (cloudTimer) { clearTimeout(cloudTimer); cloudTimer = null; }
+        renderCloudUI();
+        showStatus('ออกจากห้องคลาวด์แล้ว (ข้อมูลที่เคยซิงค์ยังเก็บในเครื่องครบ)');
+    }
+
+    async function cloudCopyRoom() {
+        const key = cloudRoomKey();
+        if (!key) { showStatus('ยังไม่ได้เชื่อมต่อห้องคลาวด์', true); return; }
+        let ok = false;
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(key); ok = true; }
+            else ok = fallbackCopy(key);
+        } catch (e) { ok = fallbackCopy(key); }
+        showStatus(ok ? 'คัดลอกรหัสห้อง "' + key + '" แล้ว ส่งให้พนักงานผ่าน LINE ได้เลย' : 'คัดลอกอัตโนมัติไม่ได้ รหัสห้องคือ: ' + key, !ok);
+    }
+
+    /* ==================================================================
        ไฟล์ CSV / ไฟล์ข้อมูล (ซิงค์ข้ามเครื่อง)
        ================================================================== */
     function downloadBlob(blob, filename) {
@@ -2518,19 +3089,9 @@
     function pad2(n) { return String(n).padStart(2, '0'); }
 
     function exportDataFile() {
-        if (!isAdmin()) { showStatus('เฉพาะ admin เท่านั้น', true); return; }
         const d = new Date();
         const stamp = d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate()) + '-' + pad2(d.getHours()) + pad2(d.getMinutes());
-        const payload = {
-            app: 'stock-scanner',
-            ver: 2,
-            exportedAt: Date.now(),
-            exportedBy: currentUser ? currentUser.name : '-',
-            users: loadUsers(),
-            inventory: inventory,
-            scanLog: scanLog
-        };
-        const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+        const blob = new Blob([JSON.stringify(buildSyncPayload())], { type: 'application/json' });
         downloadBlob(blob, 'stock-backup-' + stamp + '.json');
         showStatus('ส่งออกไฟล์ข้อมูลแล้ว นำไปกด "นำเข้าไฟล์ข้อมูล" ที่เครื่องอื่นได้เลย');
     }
@@ -2583,34 +3144,94 @@
         return [...map.values()].sort((a, b) => (b.ms || 0) - (a.ms || 0)).slice(0, 300);
     }
 
+    /* ==================================================================
+       การรวมข้อมูล (ไฟล์ / รหัสซิงค์ / คลาวด์) - ยึดรายการที่แก้ล่าสุดเสมอ
+       การลบส่งผ่านด้วย tombstone: รายการที่ลบไปแล้วจะไม่กลับมาจากเครื่องอื่น
+       ================================================================== */
+    function itemKeyOf(i) { return String(i.code || '') + '\u0001' + (i.type || ''); }
+
+    function saveTombs() { try { localStorage.setItem(STORAGE_KEYS.tombs, JSON.stringify(tombs)); } catch (e) {} }
+
+    function pruneTombstones(box, field) {
+        const keys = Object.keys(box[field]);
+        if (keys.length <= 300) return;
+        keys.sort((a, b) => box[field][b] - box[field][a]);
+        const keep = {};
+        keys.slice(0, 300).forEach(k => { keep[k] = box[field][k]; });
+        box[field] = keep;
+    }
+
+    function mergeTombstones(a, b) {
+        const out = {
+            items: Object.assign({}, (a && a.items) || {}),
+            users: Object.assign({}, (a && a.users) || {}),
+            logs: Object.assign({}, (a && a.logs) || {})
+        };
+        const inc = b || {};
+        ['items', 'users', 'logs'].forEach(f => {
+            Object.keys(inc[f] || {}).forEach(k => {
+                if ((out[f][k] || 0) < (inc[f][k] || 0)) out[f][k] = inc[f][k];
+            });
+            pruneTombstones(out, f);
+        });
+        return out;
+    }
+
+    /* รวมข้อมูลที่ได้รับเข้ากับเครื่องนี้ คืนผลสรุปว่ามีอะไรเปลี่ยนไป */
+    function mergeAll(data) {
+        const beforeUsers = JSON.stringify(loadUsers());
+        const beforeInv = JSON.stringify(inventory);
+        const beforeLog = JSON.stringify(scanLog);
+        const beforeTombs = JSON.stringify(tombs);
+        tombs = mergeTombstones(tombs, data && data.tombstones);
+        saveTombs();
+        const users = mergeUsers(loadUsers(), Array.isArray(data && data.users) ? data.users : [])
+            .filter(u => (tombs.users[String(u.name).toLowerCase()] || 0) <= (u.updatedAt || 0));
+        saveUsers(users);
+        inventory = mergeInventory(inventory, Array.isArray(data && data.inventory) ? data.inventory : [])
+            .filter(i => (tombs.items[itemKeyOf(i)] || 0) <= (i.lastUpdateMs || i.id || 0));
+        saveToStorage();
+        scanLog = mergeLog(scanLog, Array.isArray(data && data.scanLog) ? data.scanLog : [])
+            .filter(e => !((tombs.logs && tombs.logs[e.ms] || 0) > (e.ms || 0)));
+        saveLogToStorage();
+        const removedCurrentUser = !!currentUser && !users.some(u => u.name === currentUser.name);
+        const changed = JSON.stringify(users) !== beforeUsers ||
+            JSON.stringify(inventory) !== beforeInv ||
+            JSON.stringify(scanLog) !== beforeLog ||
+            JSON.stringify(tombs) !== beforeTombs;
+        return { users: users, inventory: inventory, scanLog: scanLog, changed: changed, removedCurrentUser: removedCurrentUser };
+    }
+
+    /* นำข้อมูลที่ได้รับ (จากไฟล์หรือรหัสซิงค์) มารวมกับเครื่องนี้ */
+    function applyImportedData(data, fromLogin) {
+        const res = mergeAll(data);
+        const hasAdmin = res.users.some(u => u.role === 'admin');
+        const msg = 'นำเข้าสำเร็จ: สต๊อก ' + res.inventory.length + ' รายการ | ประวัติ ' + res.scanLog.length + ' รายการ | บัญชี ' + res.users.length + ' บัญชี' +
+            (hasAdmin ? ' | แตะชื่อ admin แล้วใส่รหัสเดิมจากเครื่องเดิมได้เลย' : '');
+        if (res.removedCurrentUser) {
+            currentUser = null;
+            try { localStorage.removeItem(STORAGE_KEYS.session); } catch (e) {}
+        }
+        if (fromLogin || !currentUser) {
+            showLoginView();
+            setLoginMsg(msg, 'ok');
+        } else {
+            applyRoleUI();
+            renderTable();
+            renderLog();
+            closeSettings();
+            showStatus(msg);
+        }
+        scheduleCloudPush();
+    }
+
     async function importDataFile(file, fromLogin) {
         try {
-            const text = await file.text();
-            const data = JSON.parse(text);
+            const data = JSON.parse(await file.text());
             if (!data || data.app !== 'stock-scanner' || !Array.isArray(data.inventory)) {
                 throw new Error('bad file');
             }
-            const users = mergeUsers(loadUsers(), Array.isArray(data.users) ? data.users : []);
-            saveUsers(users);
-            inventory = mergeInventory(inventory, data.inventory);
-            scanLog = mergeLog(scanLog, Array.isArray(data.scanLog) ? data.scanLog : []);
-            saveToStorage();
-            saveLogToStorage();
-            // ถ้าเซสชันที่จำไว้หายไปหลังรวมบัญชี ให้ออกจากระบบ
-            if (currentUser && !loadUsers().some(u => u.name === currentUser.name)) {
-                currentUser = null;
-                try { localStorage.removeItem(STORAGE_KEYS.session); } catch (e) {}
-            }
-            const msg = 'นำเข้าสำเร็จ: สต๊อก ' + inventory.length + ' รายการ | ประวัติ ' + scanLog.length + ' รายการ | บัญชี ' + users.length + ' บัญชี';
-            if (fromLogin || !currentUser) {
-                showLoginView();
-                setLoginMsg(msg, 'ok');
-            } else {
-                applyRoleUI();
-                renderTable();
-                renderLog();
-                showStatus(msg);
-            }
+            applyImportedData(data, fromLogin);
         } catch (err) {
             const msg = 'ไฟล์นี้ไม่ใช่ไฟล์ข้อมูลของระบบ หรือเสียหาย ลองใช้ไฟล์ที่ได้จากปุ่ม "ส่งออกไฟล์ข้อมูล"';
             if (fromLogin || !currentUser) setLoginMsg(msg, 'err');
