@@ -1,892 +1,803 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ระบบเช็คสต๊อกสินค้า (Data Matrix & QR Stock)</title>
-    <!--
-    ===== สาเหตุที่สแกนไม่ติด (โค้ดเดิม) =====
-    1) ใช้ ZXing.BrowserQRCodeReader ซึ่งอ่านได้ "เฉพาะ QR Code" เท่านั้น
-       -> Data Matrix ไม่มีทางอ่านได้เลย ต้องเปลี่ยนเป็น BrowserMultiFormatReader
-    2) เปิดกล้องด้วย decodeFromVideoDevice ค่าเริ่มต้น (~640x480)
-       -> โค้ดขนาดเล็กอย่าง Data Matrix อ่านไม่ออก ต้องขอกล้องความละเอียดสูง
-    3) ไม่ได้ตั้ง hints (TRY_HARDER / POSSIBLE_FORMATS)
-    4) อ้าง @zxing/library@latest -> เสี่ยง API เปลี่ยน ควร pin เวอร์ชัน (0.21.3)
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1d4ed8">
+<title>ระบบสแกนสต๊อกสินค้า (Data Matrix / QR)</title>
+<!--
+=====================================================================
+ระบบสแกนสต๊อกสินค้า - เวอร์ชันรวมทุกระบบ (ไฟล์เดียว ไม่ต้องติดตั้ง)
+=====================================================================
+- สแกน Data Matrix / QR / บาร์โค้ด ด้วยเอนจิน 3 ชั้น
+  (BarcodeDetector ของเบราว์เซอร์ -> ZXing JS -> ZXing-C++ WASM)
+- ข้อความที่อ่านได้ตรงกับฉลาก (ตัดตัวอักษรซ่อน FNC1/GS + แก้ encoding ไทย TIS-620)
+- โหมดรับเข้า/เบิกออก + หน้าต่างกรอกจำนวน + เลือก PLATE/CHANEL + บันทึกผู้สแกน
+- กันสแกนซ้ำ: โค้ดที่เคยบันทึกตามโหมดเดิม ระบบเตือนและไม่บันทึกซ้ำ
+- บัญชีผู้ใช้: ลงทะเบียนครั้งเดียว เครื่องจำไว้ตลอด
+  * admin มีได้คนเดียว: พิมพ์ชื่อ "admin" ที่หน้าเข้าสู่ระบบ
+    (ครั้งแรกให้ตั้งรหัสผ่านเอง ครั้งถัดไปใช้รหัสเดิมได้ตลอด)
+  * admin จัดการได้ครบ: แก้/ลบรายการ, CSV, จัดการบัญชี, ซิงค์ข้อมูล, เปลี่ยนรหัส
+  * พนักงาน: สแกนรับเข้า/เบิกออกเท่านั้น
+- ซิงค์ข้อมูลมือถือ-คอมพิวเตอร์: กด "ส่งออกไฟล์ข้อมูล" จากเครื่องหนึ่ง
+  แล้วกด "นำเข้าไฟล์ข้อมูล" ที่อีกเครื่อง ระบบรวมข้อมูลให้เอง (รายการที่แก้ล่าสุดชนะ)
+  รวมทั้งบัญชีผู้ใช้ สต๊อก และประวัติ ใช้ชื่อ/รหัสผ่านเดิมข้ามเครื่องได้
+- ไม่มีระบบคลาวด์: ข้อมูลเก็บในเครื่อง และซิงค์ด้วยไฟล์ข้อมูลทั้งหมด
+-->
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
+<script>window.ZXing || document.write('<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"><\/script>');</script>
+<script src="https://cdn.jsdelivr.net/npm/zxing-wasm@3.1.7/dist/iife/reader/index.js"></script>
+<style>
+    :root {
+        --bg: #eef1f6;
+        --card: #ffffff;
+        --ink: #0f172a;
+        --muted: #64748b;
+        --line: #e2e8f0;
+        --primary: #2563eb;
+        --in: #16a34a;
+        --in-soft: #dcfce7;
+        --in-ink: #166534;
+        --out: #dc2626;
+        --out-soft: #fee2e2;
+        --out-ink: #991b1b;
+        --radius: 14px;
+        --shadow: 0 1px 2px rgba(15,23,42,.06), 0 10px 28px rgba(15,23,42,.07);
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; padding: 0; }
+    body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: 'Noto Sans Thai', 'Leelawadee UI', 'Sukhumvit Set', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        font-size: 15px;
+        line-height: 1.55;
+    }
+    input, button, select { font-family: inherit; }
+    input[type=text], input[type=password], input[type=number] {
+        width: 100%;
+        min-height: 48px;
+        padding: 10px 14px;
+        font-size: 16px;
+        color: var(--ink);
+        background: #f8fafc;
+        border: 1.5px solid var(--line);
+        border-radius: 12px;
+        outline: none;
+        transition: border-color .15s;
+    }
+    input:focus { border-color: var(--primary); background: #fff; }
 
-    ===== รอบที่ 2: แก้อาการ "อ่านข้อมูล Data Matrix ไม่ตรงกับฉลาก" =====
-    5) โค้ด GS1 มีตัวคั่น FNC1/GS (ASCII 29) มองไม่เห็นฝังอยู่ ทำให้ข้อความไม่ตรงฉลาก
-       -> normalizeCodeText แปลงตัวคั่นเป็น | และตัดตัวอักษรซ่อน/ช่องว่างหัว-ท้ายออก
-    6) ฉลากไทยบางรุ่นเข้ารหัส TIS-620 ถอดเป็น UTF-8 จะเพี้ยน
-       -> fixEncoding ถอดซ้ำจากไบต์ดิบด้วย TIS-620 อัตโนมัติเมื่อเจอตัวอักษรเสีย
-    7) เพิ่มโหมดสแกน: ทุกรูปแบบ / เฉพาะ Data Matrix (จำค่าไว้) กันอ่านหลงไปโค้ดอื่น
-    8) เพิ่มกล่อง "อ่านได้ล่าสุด" + ไบต์ดิบ ไว้เทียบข้อความกับฉลากจริง
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        min-height: 46px;
+        padding: 10px 16px;
+        border: 0;
+        border-radius: 12px;
+        font-size: .95rem;
+        font-weight: 700;
+        cursor: pointer;
+        user-select: none;
+        transition: transform .05s, filter .15s;
+        text-decoration: none;
+    }
+    .btn:active { transform: scale(.98); }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-danger { background: var(--out); color: #fff; }
+    .btn-ghost { background: #fff; color: #334155; border: 1.5px solid var(--line); }
+    .btn-in { background: var(--in); color: #fff; }
+    .btn-out2 { background: var(--out); color: #fff; }
+    .btn-del { background: var(--out-soft); color: var(--out-ink); }
+    .btn-mini { min-height: 34px; padding: 5px 12px; font-size: .82rem; border-radius: 9px; }
+    .btn-sm { min-height: 38px; padding: 7px 12px; font-size: .85rem; }
+    .full { width: 100%; }
 
-    ===== รอบที่ 3: ระบบผู้ใช้ + ข้อมูลหลังสแกน =====
-    9)  เพิ่มระบบล็อกอิน (ชื่อ + PIN เก็บเป็นค่าแฮชใน localStorage)
-        -> ทุกรายการจะบันทึกเสมอว่า "ใครเป็นคนสแกน"
-    10) เปลี่ยนป้ายฟิลด์: "รหัสสินค้า" -> "Model" และ "ชื่อสินค้า" -> เลือกประเภท PLATE / CHANEL
-    11) หลังสแกนสำเร็จ ขึ้นหน้าต่างให้ "กรอกจำนวนกี่ชิ้น" + เลือก "plate หรือ chanel" ก่อนบันทึกเสมอ
-    12) เพิ่มประวัติการสแกน (ใคร/อะไร/กี่ชิ้น/เข้า-ออก/เมื่อไหร่) + ปุ่มโหลด CSV
+    /* ===== หน้าเข้าสู่ระบบ ===== */
+    #loginOverlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        background: linear-gradient(165deg, #10275e 0%, #1d4ed8 60%, #2563eb 100%);
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+        overflow: auto;
+    }
+    .login-card {
+        background: #fff;
+        border-radius: 20px;
+        box-shadow: 0 24px 70px rgba(2,8,30,.45);
+        width: 100%;
+        max-width: 410px;
+        padding: 26px 22px;
+    }
+    .login-brand { text-align: center; margin-bottom: 16px; }
+    .login-brand h1 { margin: 0; font-size: 1.25rem; }
+    .login-brand p { margin: 4px 0 0; color: var(--muted); font-size: .82rem; }
+    .seg-tabs {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        background: #eef2f7;
+        border-radius: 12px;
+        padding: 4px;
+        gap: 4px;
+        margin-bottom: 14px;
+    }
+    .seg-tabs .tab {
+        padding: 10px;
+        text-align: center;
+        border-radius: 9px;
+        font-weight: 700;
+        font-size: .9rem;
+        color: #475569;
+        cursor: pointer;
+        user-select: none;
+    }
+    .seg-tabs .tab.active { background: var(--primary); color: #fff; }
+    .form-group { margin: 10px 0; }
+    .login-msg {
+        display: none;
+        margin-top: 10px;
+        padding: 10px;
+        border-radius: 10px;
+        font-size: .85rem;
+        text-align: center;
+    }
+    .login-msg.err { display: block; background: var(--out-soft); color: var(--out-ink); }
+    .login-msg.ok { display: block; background: var(--in-soft); color: var(--in-ink); }
+    .alert-box {
+        display: none;
+        margin: 10px 0 0;
+        background: var(--out-soft);
+        border: 1px solid #fca5a5;
+        color: var(--out-ink);
+        border-radius: 10px;
+        padding: 9px 11px;
+        font-size: .8rem;
+        line-height: 1.6;
+    }
+    .saved-users-wrap { display: none; margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
+    .saved-title { font-size: .76rem; font-weight: 700; color: #475569; margin-bottom: 8px; }
+    .saved-list { display: flex; flex-wrap: wrap; gap: 6px; }
+    .saved-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        background: #f1f5f9;
+        border: 1px solid #cbd5e1;
+        border-radius: 999px;
+        padding: 8px 8px 8px 14px;
+        font-size: .9rem;
+        font-weight: 600;
+        color: #1e293b;
+        cursor: pointer;
+        user-select: none;
+        max-width: 100%;
+    }
+    .saved-chip:active { transform: scale(.97); }
+    .saved-chip.confirming { background: var(--out-soft); border-color: #ef4444; color: var(--out-ink); }
+    .chip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+    .chip-x {
+        flex: 0 0 auto;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #e2e8f0;
+        color: #64748b;
+        font-size: 11px;
+        line-height: 18px;
+        text-align: center;
+    }
+    .saved-chip.confirming .chip-x { background: #fecaca; color: var(--out-ink); }
+    .login-note { font-size: .75rem; color: var(--muted); text-align: center; margin: 14px 0 0; }
+    .admin-hint {
+        margin-top: 12px;
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        color: #92400e;
+        border-radius: 10px;
+        padding: 9px 11px;
+        font-size: .78rem;
+        line-height: 1.6;
+    }
+    .link-btn {
+        background: none;
+        border: none;
+        color: var(--primary);
+        font-weight: 700;
+        font-size: .85rem;
+        cursor: pointer;
+        padding: 6px 0;
+        text-decoration: underline;
+        display: block;
+        margin: 10px auto 0;
+    }
+    .role-badge {
+        display: inline-block;
+        padding: 2px 9px;
+        border-radius: 999px;
+        font-size: .68rem;
+        font-weight: 800;
+        letter-spacing: .3px;
+        flex: none;
+    }
+    .role-admin-badge { background: #fbbf24; color: #78350f; }
+    .role-user-badge { background: #e2e8f0; color: #334155; }
 
-    ===== รอบที่ 4: แก้อาการ "สแกน QR / Data Matrix ช้ามาก" =====
-    13) เดิมใช้ลูปถอดรหัสต่อเนื่องของไลบรารี: ถอดรหัสเฟรม 1920x1080 รัวต่อเนื่องไม่เว้นช่วง
-        + เปิด TRY_HARDER ทุกเฟรม + ลอง 13 รูปแบบโค้ดต่อเฟรม -> CPU เต็ม 100% หน้าจอค้าง เครื่องร้อน
-        -> เขียนลูปใหม่เป็น "สลับกลยุทธ์": เฟรมย่อ 1024px (เร็ว จับ QR ใหญ่)
-           -> เฟรมเต็มแบบเร็ว -> เฟรมเต็มแบบละเอียด (TRY_HARDER + ลองกลับสี จับ DM จิ๋ว)
-           และเว้นช่วงระหว่างเฟรมเล็กน้อย ให้หน้าจอลื่น ไม่บล็อก UI นาน ๆ
-    14) จับ "เฟรมล่าสุดเสมอ" ไม่ต่อคิวเฟรมเก่า - ถอดรหัสเสร็จเมื่อไหร่ คว้าเฟรมใหม่ทันที
-    15) โหมดทุกรูปแบบเหลือเฉพาะรูปแบบที่ใช้จริง (Data Matrix / QR / CODE 128 / EAN-13)
-        ลดเวลาถอดรหัสต่อเฟรมลงหลายเท่า (โหมดเฉพาะ Data Matrix เดิมไม่เปลี่ยน)
-    16) สลับโหมดรูปแบบโค้ดแล้วใช้ได้ทันที ไม่ต้องปิด-เปิดกล้องใหม่
-    17) หน้าต่างกรอกจำนวนเปิดอยู่ จะหยุดถอดรหัสชั่วคราว ประหยัดแบตเตอรี่ ปิดแล้วสแกนต่อทันที
-    18) หลังบันทึก ถ้าหน้ากล้องเจอ "โค้ดใหม่ต่างจากเดิม" รับทันทีไม่ต้องรอ cooldown
-    19) สแกนจากรูปภาพ: ถอดรหัสบน canvas โดยตรงแบบซิงก์ (หมดปัญหา decodeFromImage ค้าง 8 วินาที)
-        ลองแบบเร็วก่อนทุกเวอร์ชันภาพ แล้วค่อยลองแบบละเอียด เร็วขึ้นหลายเท่า
+    /* ===== แถบหัวแอป ===== */
+    .app-header {
+        position: sticky;
+        top: 0;
+        z-index: 900;
+        background: linear-gradient(120deg, #0f2a6b, #1d4ed8);
+        color: #fff;
+        padding: 10px 14px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        box-shadow: 0 2px 10px rgba(2,8,30,.25);
+    }
+    .app-title {
+        font-weight: 800;
+        font-size: 1rem;
+        margin: 0;
+        flex: 1;
+        min-width: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .user-chip-wrap {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: rgba(255,255,255,.14);
+        border-radius: 999px;
+        padding: 5px 6px 5px 12px;
+        font-size: .85rem;
+        flex: none;
+    }
+    .btn-logout {
+        min-height: 34px;
+        padding: 5px 12px;
+        font-size: .8rem;
+        background: rgba(255,255,255,.16);
+        color: #fff;
+        flex: none;
+    }
 
-    ===== รอบที่ 5: แก้อาการ "บนโทรศัพท์สแกน Data Matrix ไม่ติด / ช้า" =====
-    20) ใช้ BarcodeDetector ที่ฝังใน Chrome ของ Android เป็นตัวหลัก (เร่งด้วยฮาร์ดแวร์ อ่านโค้ดจิ๋ว
-        ได้ดีและเร็วกว่า JS หลายเท่า) ถ้าไม่มี (iPhone/Safari) ใช้ ZXing ตามเดิมอัตโนมัติ
-        และถ้า BD หาไม่เจอซ้ำ ๆ จะสลับลอง ZXing ทุก 4 เฟรม ไม่ปล่อยให้พลาดเงียบ ๆ
-    21) โหมดเฉพาะ Data Matrix: เฟรมเต็ม + TRY_HARDER + ลองกลับสี ทุกครั้ง (ไม่สลับไปเฟรมย่อ
-        เพราะ DM เป็นโค้ดจิ๋ว เฟรมย่อมักอ่านไม่ออก)
-    22) เพิ่มแถบซูมกล้อง (ขึ้นเฉพาะอุปกรณ์ที่ซูมได้): โค้ดจิ๋วให้ซูมเข้าให้โค้ดใหญ่ขึ้น
-        ไม่ต้องเอาเครื่องใกล้จนโฟกัสไม่ติด
-    23) เพิ่มปุ่ม "จับภาพนิ่ง สแกนละเอียด": แชเฟรมเต็มความละเอียด -> ครอปกลาง 70% -> เติมขอบขาว
-        -> ขยาย 2 เท่า แล้วลองถอดรหัสทุกเวอร์ชัน ใช้เมื่อถือนิ่งแล้วยังไม่ติด (แสงสะท้อน/โฟกัสเพี้ยน)
-    24) เครื่องที่ยังไม่เคยตั้งค่า เริ่มที่โหมด "เฉพาะ Data Matrix" เอง (คีย์ใหม่ v2)
-    25) สั่งโฟกัสต่อเนื่อง (continuous focus) ตอนเปิดกล้อง ถ้าอุปกรณ์รองรับ ช่วยโค้ดเล็กมาก
-    26) เพิ่มเอนจินที่สาม: ZXing-C++ (WebAssembly) ชุดเดียวกับเครื่องอ่านบาร์โค้ดจริง — ทดสอบกับฉลาก
-        จริงบนโลหะพบว่า ZXing JS อ่านไม่ออกทุกวิธี แต่เอนจิน C++ อ่านออกทันที (ทนเงา/นอยส์/เกนเลอร์)
-        ทำงานเป็นตัวช่วยรอบสองของทุกเส้นทาง (กล้อง / รูปภาพ / ภาพนิ่ง) ถ้าโหลด WASM ไม่ได้ (ออฟไลน์)
-        ระบบยังใช้ ZXing JS ได้ตามปกติอัตโนมัติ
-    27) สแกนจากรูปภาพ / ภาพนิ่ง: ลองทุกเวอร์ชันภาพกับ ZXing JS ก่อน ถ้าไม่ออกสลับไป WASM ทีละเวอร์ชัน
+    /* ===== โครงหน้า (มือถือ: คอลัมน์เดียว / จอใหญ่: 2 คอลัมน์) ===== */
+    .container { max-width: 1120px; margin: 0 auto; padding: 14px 12px 46px; }
+    .card {
+        background: var(--card);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        padding: 16px;
+        margin-top: 14px;
+    }
+    .card-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0 0 12px;
+        font-size: 1rem;
+        font-weight: 800;
+        flex-wrap: wrap;
+    }
+    .card-title::before { content: ""; width: 4px; height: 18px; border-radius: 4px; background: var(--primary); }
+    .card-tools { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+    .count-chip { background: #eef2f7; color: #475569; border-radius: 999px; padding: 3px 10px; font-size: .78rem; font-weight: 700; }
 
-    ===== รอบที่ 6: จดจำการลงทะเบียน - ลงทะเบียนครั้งเดียว ใช้รหัสเดิมได้ตลอด =====
-    28) หน้าล็อกอินแสดง "ผู้ใช้ที่ลงทะเบียนไว้แล้วในเครื่องนี้" เป็นปุ่มกดเร็ว
-        แตะชื่อ -> ช่องชื่อกรอกให้เอง -> ใส่ PIN เดิม -> เข้าใช้ได้ทันที ไม่ต้องลงทะเบียนซ้ำอีกเลย
-    29) ลงทะเบียนไว้ชื่อเดียว หรือเป็นชื่อที่เคยล็อกอินล่าสุด -> ระบบกรอกชื่อไว้ให้เอง เหลือแค่ใส่ PIN
-    30) เปิดหน้ามาใหม่ระบบจำการล็อกอินไว้ให้เอง (ใช้ได้ทันที ไม่ต้องกรอกอะไร)
-        จนกว่าจะกด "ออกจากระบบ" เอง - ชื่อ + รหัส PIN ที่ลงทะเบียนถูกจดจำไว้ในเครื่องนี้ตลอดไป
-    31) ปุ่ม ✕ หน้าชื่อ = ลบผู้ใช้ออกจากเครื่องนี้ (กด 2 ครั้งเพื่อยืนยัน กันกดพลาด)
-        ประวัติการสแกนเก่าของผู้ใช้นั้นยังอยู่ครบ ไม่หายไป
+    /* ===== การ์ดสแกน ===== */
+    .mode-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+    .seg-btn {
+        min-height: 52px;
+        border-radius: 12px;
+        border: 1.5px solid var(--line);
+        background: #f8fafc;
+        font-weight: 800;
+        font-size: .95rem;
+        color: #475569;
+        cursor: pointer;
+        user-select: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .seg-btn.active-in { background: var(--in); border-color: var(--in); color: #fff; }
+    .seg-btn.active-out { background: var(--out); border-color: var(--out); color: #fff; }
+    .seg-btn.active-fmt { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .cam-frame { position: relative; background: #0b1220; border-radius: 14px; overflow: hidden; aspect-ratio: 4 / 3; }
+    #video { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .cam-placeholder {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #94a3b8;
+        font-size: .9rem;
+        text-align: center;
+        padding: 16px;
+    }
+    #scanPulse {
+        display: none;
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        background: rgba(15,23,42,.65);
+        color: #fff;
+        font-size: .75rem;
+        padding: 5px 10px;
+        border-radius: 999px;
+        align-items: center;
+        gap: 6px;
+        z-index: 5;
+    }
+    .pulse-dot { width: 8px; height: 8px; border-radius: 50%; background: #4ade80; animation: pulseDot 1s infinite; }
+    @keyframes pulseDot { 0%, 100% { opacity: .3; } 50% { opacity: 1; } }
+    .cam-tools { position: absolute; top: 10px; right: 10px; display: flex; gap: 6px; z-index: 5; }
+    .btn-torch { min-height: 36px; padding: 5px 12px; font-size: .8rem; background: rgba(255,255,255,.92); color: #0f172a; }
+    .btn-torch.on { background: #fbbf24; }
+    .zoom-bar {
+        position: absolute;
+        left: 10px;
+        right: 10px;
+        bottom: 10px;
+        display: none;
+        align-items: center;
+        gap: 8px;
+        background: rgba(15,23,42,.55);
+        border-radius: 12px;
+        padding: 8px 10px;
+        z-index: 5;
+    }
+    .zoom-bar input[type=range] { flex: 1; accent-color: #fbbf24; min-width: 0; }
+    .zoom-label { color: #fff; font-size: .75rem; font-weight: 700; min-width: 52px; text-align: center; flex: none; }
+    .cam-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+    .input-row { display: flex; gap: 8px; }
+    .input-row input { flex: 1; min-width: 0; }
+    .last-read {
+        display: none;
+        margin-top: 10px;
+        background: #f8fafc;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 8px 11px;
+        font-size: .82rem;
+        word-break: break-all;
+    }
+    .read-code { font-family: ui-monospace, Menlo, Consolas, monospace; }
+    .read-hex { color: var(--muted); font-size: .72rem; margin-top: 3px; font-family: ui-monospace, monospace; }
+    .read-warn { color: var(--out-ink); font-size: .75rem; margin-top: 3px; }
+    .cam-hint { color: var(--muted); font-size: .75rem; margin: 10px 0 0; }
 
-    ===== รอบที่ 7: กันสแกนซ้ำ - โค้ดที่เคยบันทึกแล้ว จะไม่บันทึกข้อมูลซ้ำ =====
-    32) สแกนโค้ดที่ "เนื้อหาข้างใน" เคยบันทึกไปแล้ว ระบบจะขึ้นหน้าต่างเตือน "โค้ดซ้ำ"
-        แสดงว่าเคยบันทึกเมื่อไหร่ โดยใคร ประเภทอะไร สต๊อกคงเหลือเท่าไร
-        และไม่บันทึกลงสต๊อกซ้ำ (กันสต๊อกถูกนับเพิ่มสองเท่า เมื่อสแกนฉลากเดิมซ้ำโดยไม่ตั้งใจ)
-    33) ตรวจทั้งสองโหมด: รับเข้าซ้ำโค้ดเดิม = ไม่บันทึก | เบิกออกซ้ำโค้ดเดิม = ไม่บันทึก
-        แต่ลำดับปกติ "รับเข้า -> เบิกออก" ใช้ได้เต็มที่ ไม่ถูกตัดสินเป็นโค้ดซ้ำ
-        (เทียบที่เนื้อหาโค้ดทั้งหมด ไม่แยกว่าเคยบันทึกไว้เป็น plate หรือ chanel)
-    34) กันพลาด 3 ชั้น: ตอนเปิดหน้าต่างกรอกจำนวน / ตอนกดปุ่มบันทึก / ตอนเขียนลงสต๊อกจริง
-    35) เสียงเตือน 2 จังหวะ + สั่นเตือน แยกจากเสียงสแกนปกติ ให้รู้ทันทีโดยไม่ต้องอ่านจอ
+    /* ===== ตาราง ===== */
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; -webkit-overflow-scrolling: touch; }
+    table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: .86rem; }
+    th, td { padding: 9px 10px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+    th { background: #f8fafc; font-size: .76rem; color: #475569; text-transform: uppercase; letter-spacing: .3px; }
+    tbody tr:last-child td { border-bottom: 0; }
+    .badge {
+        display: inline-block;
+        background: #eff6ff;
+        color: #1d4ed8;
+        border-radius: 7px;
+        padding: 3px 8px;
+        font-size: .8rem;
+        font-weight: 700;
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+        max-width: 260px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        vertical-align: middle;
+    }
+    .stock-num { font-weight: 800; }
+    .stock-in { color: var(--in-ink); font-weight: 700; }
+    .stock-out { color: var(--out-ink); font-weight: 700; }
+    .empty-state { text-align: center; color: var(--muted); padding: 18px; }
+    .row-actions { display: flex; gap: 4px; }
+    .action-col { width: 1%; }
+    body.role-user .admin-only { display: none !important; }
+    body.role-user .action-col { display: none; }
 
-    ===== รอบที่ 8: คลาวด์จัดเก็บเบื้องหลัง + แก้ "มือถือต้องลงทะเบียนใหม่ทุกครั้ง" =====
-    36) ตรวจสุขภาพการจำข้อมูล: ถ้าเบราว์เซอร์เก็บข้อมูลไม่ถาวร (โหมดไม่ระบุตัวตน/ห้ามเก็บข้อมูล)
-        จะเตือนบนหน้าล็อกอินทันทีพร้อมวิธีแก้ และขอสิทธิ์เก็บข้อมูลถาวร (storage.persist) ให้เครื่อง
-    37) ระบบคลาวด์สำรองอัตโนมัติ (telegra.ph API ฟรี ไม่ต้องสมัครสมาชิก):
-        ลงทะเบียน/เปิดใช้ครั้งแรก -> สร้าง "ร้านบนคลาวด์" ให้เอง พร้อม "รหัสร้าน" สำหรับกู้คืน
-    38) ทุกครั้งที่ผู้ใช้/สต๊อก/ประวัติเปลี่ยน จะ push ขึ้นคลาวด์เบื้องหลังเอง (รวบของ 2.5 วินาที)
-        แถบสถานะคลาวด์บอกทุกขั้น: กำลังบันทึก / บันทึกแล้วเมื่อไหร่ / บันทึกไม่สำเร็จ (ออฟไลน์)
-    39) เครื่องใหม่หรือเครื่องที่ข้อมูลถูกล้าง: วาง "รหัสร้าน" ที่หน้าล็อกอิน (หรือเปิด "ลิงก์กู้คืน"
-        ที่พ่วง #c=รหัสร้าน) ระบบกู้ผู้ใช้+สต๊อก+ประวัติให้อัตโนมัติ แล้วล็อกอินด้วย PIN เดิมได้เลย
-        ไม่ต้องลงทะเบียนใหม่อีกเลย - นี่คือสาเหตุ+วิธีแก้ของอาการ "ต้องสมัครใหม่ทุกครั้ง"
-    40) ใช้หลายเครื่องพร้อมกันได้: ดึงข้อมูลเครื่องอื่นมารวมแบบ "รายการที่แก้ล่าสุดชนะ"
-        ลบรายการแล้วไม่ฟื้นคืนจากเครื่องอื่น (tombstone) และถ้าออฟไลน์ใช้งานจากเครื่องได้ปกติทุกอย่าง
-        ค่อยซิงค์ทีหลังเองเมื่อเน็ตกลับมา
-    41) กันข้อมูลโดนเขียนทับ: ก่อน push ทุกครั้ง ระบบจะดึงข้อมูลล่าสุดจากคลาวด์มารวมเข้าเครื่องก่อน
-        แล้วจึง push สถานะที่รวมแล้วขึ้นไป (ถ้าดึงไม่สำเร็จจะไม่ push ใบ ๆ - รอลองใหม่
-        กันเครื่องอื่นที่เพิ่งบันทึกถูกทับด้วยข้อมูลเก่า)
-    42) ทุกครั้งที่อ่านข้อมูลจากคลาวด์จะแถมพารามิเตอร์กันแคช (cache-bust) เพราะเบราว์เซอร์/
-        เครือข่ายมือถือบางที่ให้ข้อมูลเก่าที่แคชไว้ ทำให้กู้คืนได้ข้อมูลไม่ครบ
-    43) หน้าเก็บข้อมูลบนคลาวด์เป็น "ชุดกลาง" เดียวกันทั้งร้าน: ทุกเครื่องยึด path จากคลาวด์เสมอ
-        กันสร้างหน้าซ้ำชื่อเดียวกันหลังกู้คืน (เครื่องละชุด อ่าน/เขียนไม่ตรงกัน)
-    44) ลบรายการที่เครื่องหนึ่ง เครื่องอื่นจะลบตามเมื่อดึงข้อมูล (tombstone) | ถ้า pull ไม่สำเร็จ
-        (เน็ตอ่อน) จะลองใหม่เองด้วยระยะห่างที่เพิ่มขึ้น ไม่ปล่อยพลาดเงียบ ๆ
-    -->
-    <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
-    <script>window.ZXing || document.write('<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"><\/script>');</script>
-    <!-- รอบที่ 5: เอนจิน ZXing-C++ (WASM, ~0.8MB) - ตัวช่วยรอบสองที่แม่นพิเศษ โหลดไม่ได้ก็ใช้งานได้ตามปกติ -->
-    <script src="https://cdn.jsdelivr.net/npm/zxing-wasm@3.1.7/dist/iife/reader/index.js"></script>
-    <style>
-        :root {
-            --primary: #2563eb;
-            --success: #16a34a;
-            --danger: #dc2626;
-            --warning: #d97706;
-            --bg: #f1f5f9;
-            --card: #ffffff;
-            --text: #0f172a;
-        }
-        * {
-            box-sizing: border-box;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            -webkit-tap-highlight-color: transparent;
-        }
-        body {
-            background-color: var(--bg);
-            color: var(--text);
-            margin: 0;
-            padding: 12px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
+    /* ===== Toast แจ้งสถานะ ===== */
+    #statusToast {
+        display: none;
+        position: fixed;
+        left: 50%;
+        bottom: 18px;
+        transform: translateX(-50%);
+        z-index: 1800;
+        max-width: 92vw;
+        background: #0f172a;
+        color: #fff;
+        border-radius: 12px;
+        padding: 11px 16px;
+        font-size: .86rem;
+        font-weight: 600;
+        box-shadow: 0 10px 30px rgba(2,8,30,.4);
+        word-break: break-word;
+    }
+    #statusToast.err { background: var(--out); }
+
+    /* ===== หน้าต่างเด้ง (โมดัล) ===== */
+    .modal-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(15,23,42,.55);
+        z-index: 1500;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-card {
+        background: #fff;
+        border-radius: 18px;
+        padding: 20px;
+        width: 100%;
+        max-width: 410px;
+        box-shadow: 0 20px 50px rgba(0,0,0,.3);
+    }
+    .modal-title { margin: 0 0 12px; font-size: 1.05rem; text-align: center; }
+    .modal-model { text-align: center; margin-bottom: 6px; font-size: 1.02rem; }
+    .fmt-tag { color: var(--muted); font-size: .8rem; }
+    .modal-label { font-size: .85rem; font-weight: 700; color: #334155; margin: 12px 0 6px; }
+    .info-line { font-size: .88rem; color: #334155; background: #f8fafc; border-radius: 9px; padding: 8px 10px; margin-top: 8px; }
+    .dup-alert { background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px; padding: 8px 10px; margin-top: 10px; }
+    .dup-alert .info-line { background: transparent; padding: 4px 2px; margin-top: 0; }
+    .dup-head { font-weight: 800; color: var(--out-ink); font-size: .92rem; padding: 2px; }
+    .modal-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+    #modalQty { font-size: 20px; text-align: center; font-weight: 800; }
+    .type-plate.active { border-color: var(--primary); background: #dbeafe; color: #1e40af; }
+    .type-chanel.active { border-color: #0d9488; background: #ccfbf1; color: #0f766e; }
+
+    /* ===== แผง admin ===== */
+    .admin-card { border: 1.5px solid #bfdbfe; background: #f8fbff; }
+    .user-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 4px;
+        border-bottom: 1px dashed var(--line);
+        font-size: .9rem;
+    }
+    .user-row:last-child { border-bottom: 0; }
+    .user-row-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+    .muted-small { color: var(--muted); font-size: .75rem; }
+    .sync-hint { color: var(--muted); font-size: .78rem; margin: 8px 0 0; line-height: 1.65; }
+
+    /* ===== จอใหญ่: 2 คอลัมน์ ===== */
+    @media (min-width: 940px) {
         .container {
-            width: 100%;
-            max-width: 700px;
-            background: var(--card);
-            padding: 16px;
-            border-radius: 16px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-        }
-        h1 { font-size: 1.2rem; text-align: center; margin: 0 0 12px 0; color: var(--primary); }
-
-        .alert-box {
-            display: none;
-            background: #fee2e2;
-            border: 1px solid #ef4444;
-            color: #991b1b;
-            padding: 12px;
-            border-radius: 10px;
-            margin-bottom: 12px;
-            font-size: 0.9rem;
-            line-height: 1.4;
-        }
-
-        .camera-wrapper {
-            position: relative;
-            width: 100%;
-            background: #0f172a;
-            border-radius: 12px;
-            overflow: hidden;
-            min-height: 260px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 12px;
-        }
-        #video {
-            width: 100% !important;
-            height: auto !important;
-            max-height: 350px;
-            object-fit: cover !important;
-        }
-        .camera-placeholder {
-            color: #94a3b8;
-            text-align: center;
-            padding: 20px;
-            font-size: 0.9rem;
-            position: absolute;
-        }
-
-        .tips {
-            font-size: 0.75rem;
-            color: #64748b;
-            text-align: center;
-            margin: 0 0 12px 0;
-            line-height: 1.5;
-        }
-
-        .cam-controls {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-            margin-bottom: 12px;
+            grid-template-columns: 410px minmax(0, 1fr);
+            gap: 16px;
+            align-items: start;
+            padding-top: 16px;
         }
-        .full-width { grid-column: span 2; }
-
-        .mode-selector {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-            margin-bottom: 12px;
-        }
-        .mode-btn {
-            padding: 12px;
-            border: 2px solid #cbd5e1;
-            background: #f8fafc;
-            border-radius: 10px;
-            font-weight: 600;
-            font-size: 0.95rem;
-            cursor: pointer;
-            text-align: center;
-            color: #64748b;
-        }
-        .mode-btn.active-in {
-            border-color: var(--success);
-            background: #dcfce7;
-            color: #166534;
-        }
-        .mode-btn.active-out {
-            border-color: var(--danger);
-            background: #fee2e2;
-            color: #991b1b;
-        }
-        .mode-btn.active-fmt {
-            border-color: var(--primary);
-            background: #dbeafe;
-            color: #1e40af;
-        }
-
-        .last-read {
-            display: none;
-            background: #eff6ff;
-            border: 1px solid #bfdbfe;
-            color: #1e3a8a;
-            padding: 10px 12px;
-            border-radius: 10px;
-            margin-bottom: 12px;
-            font-size: 0.85rem;
-        }
-        .read-code { font-family: monospace; word-break: break-all; font-size: 1rem; }
-        .read-hex { font-size: 0.7rem; color: #64748b; font-family: monospace; word-break: break-all; margin-top: 4px; }
-        .read-warn { color: #991b1b; margin-top: 4px; font-weight: 600; }
-
-        .form-group {
-            margin-bottom: 10px;
-        }
-        .input-row {
-            display: flex;
-            gap: 8px;
-        }
-        input[type="text"], input[type="number"], input[type="password"] {
-            width: 100%;
-            padding: 12px 14px;
-            border: 1px solid #cbd5e1;
-            border-radius: 10px;
-            font-size: 16px;
-            background: #f8fafc;
-        }
-        input:focus {
-            outline: none;
-            border-color: var(--primary);
-            background: #fff;
-        }
-
-        button, .file-label {
-            padding: 12px;
-            border: none;
-            border-radius: 10px;
-            font-size: 0.95rem;
-            font-weight: 600;
-            cursor: pointer;
-            text-align: center;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            touch-action: manipulation;
-            user-select: none;
-        }
-        button:active, .file-label:active { opacity: 0.8; transform: scale(0.98); }
-        .btn-primary { background: var(--primary); color: white; }
-        .btn-secondary { background: #e2e8f0; color: #1e293b; }
-        .btn-success { background: var(--success); color: white; }
-        .btn-danger { background: var(--danger); color: white; }
-        .btn-warning { background: var(--warning); color: white; }
-        .btn-torch-active { background: var(--warning); color: white; }
-        .btn-sm { padding: 6px 10px; font-size: 0.8rem; border-radius: 6px; }
-
-        #statusBanner {
-            display: none;
-            padding: 10px;
-            border-radius: 8px;
-            margin-bottom: 12px;
-            font-size: 0.9rem;
-            font-weight: 600;
-            text-align: center;
-        }
-        .status-ok { background: #dcfce7; color: #166534; display: block !important; }
-        .status-err { background: #fee2e2; color: #991b1b; display: block !important; }
-
-        .action-bar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin: 14px 0 10px 0;
-            flex-wrap: wrap;
-            gap: 8px;
-        }
-        .export-group { display: flex; gap: 6px; }
-
-        .table-wrapper {
-            width: 100%;
-            overflow-x: auto;
-            border: 1px solid #e2e8f0;
-            border-radius: 10px;
-            max-height: 400px;
-        }
-        table { width: 100%; border-collapse: collapse; white-space: nowrap; }
-        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #e2e8f0; font-size: 0.85rem; }
-        th { background-color: #f8fafc; font-weight: 600; position: sticky; top: 0; z-index: 10; }
-        .badge {
-            background: #dbeafe;
-            color: #1e40af;
-            padding: 3px 6px;
-            border-radius: 6px;
-            font-family: monospace;
-            font-weight: bold;
-        }
-        .stock-num { font-weight: bold; font-size: 0.95rem; }
-        .stock-in { color: var(--success); }
-        .stock-out { color: var(--danger); }
-        .date-col { font-size: 0.75rem; color: #64748b; }
-        .empty-state { text-align: center; padding: 25px; color: #64748b; }
-
-        /* ===== รอบที่ 3: แถบผู้ใช้ / หน้าล็อกอิน / หน้าต่างบันทึกหลังสแกน ===== */
-        .user-bar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: #eff6ff;
-            border: 1px solid #bfdbfe;
-            border-radius: 10px;
-            padding: 8px 12px;
-            margin-bottom: 12px;
-            font-size: 0.9rem;
-        }
-        #loginOverlay {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: linear-gradient(135deg, #1e293b 0%, #2563eb 100%);
-            z-index: 2000;
-            align-items: center;
-            justify-content: center;
-            padding: 16px;
-        }
-        .login-card {
-            background: #ffffff;
-            border-radius: 16px;
-            padding: 22px;
-            width: 100%;
-            max-width: 380px;
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
-        }
-        .login-card h2 {
-            margin: 0 0 14px 0;
-            font-size: 1.1rem;
-            color: var(--primary);
-            text-align: center;
-        }
-        .login-tabs {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-            margin-bottom: 14px;
-        }
-        .tab-btn {
-            padding: 10px;
-            text-align: center;
-            border-radius: 10px;
-            background: #f1f5f9;
-            color: #64748b;
-            font-weight: 600;
-            font-size: 0.9rem;
-            cursor: pointer;
-            user-select: none;
-        }
-        .tab-btn.active { background: var(--primary); color: #ffffff; }
-        .login-msg {
-            display: none;
-            margin-top: 10px;
-            padding: 9px;
-            border-radius: 8px;
-            font-size: 0.85rem;
-            text-align: center;
-        }
-        .login-msg.err { display: block; background: #fee2e2; color: #991b1b; }
-        .login-msg.ok { display: block; background: #dcfce7; color: #166534; }
-        .login-note {
-            font-size: 0.72rem;
-            color: #64748b;
-            text-align: center;
-            margin: 12px 0 0 0;
-            line-height: 1.5;
-        }
-
-        /* ===== รอบที่ 6: รายชื่อผู้ใช้ที่ลงทะเบียนไว้ (ลงครั้งเดียว ใช้ตลอด) ===== */
-        .saved-users-wrap {
-            display: none;
-            margin-top: 14px;
-            padding-top: 12px;
-            border-top: 1px dashed #cbd5e1;
-        }
-        .saved-title {
-            font-size: 0.75rem;
-            font-weight: 700;
-            color: #475569;
-            margin-bottom: 8px;
-            line-height: 1.5;
-        }
-        .saved-list { display: flex; flex-wrap: wrap; gap: 6px; }
-        .saved-chip {
-            display: inline-flex;
-            align-items: center;
-            gap: 7px;
-            background: #f1f5f9;
-            border: 1px solid #cbd5e1;
-            border-radius: 999px;
-            padding: 8px 8px 8px 14px;
-            font-size: 0.9rem;
-            font-weight: 600;
-            color: #1e293b;
-            cursor: pointer;
-            user-select: none;
-            max-width: 100%;
-        }
-        .saved-chip:active { transform: scale(0.97); }
-        .saved-chip.confirming { background: #fee2e2; border-color: #ef4444; color: #991b1b; }
-        .chip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .chip-x {
-            flex: 0 0 auto;
-            width: 18px;
-            height: 18px;
-            border-radius: 50%;
-            background: #e2e8f0;
-            color: #64748b;
-            font-size: 11px;
-            line-height: 18px;
-            text-align: center;
-        }
-        .saved-chip.confirming .chip-x { background: #fecaca; color: #991b1b; }
-        .modal-overlay {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(15, 23, 42, 0.55);
-            z-index: 1500;
-            align-items: center;
-            justify-content: center;
-            padding: 16px;
-        }
-        .modal-overlay.open { display: flex; }
-        .modal-card {
-            background: #ffffff;
-            border-radius: 16px;
-            padding: 20px;
-            width: 100%;
-            max-width: 400px;
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
-        }
-        .modal-title {
-            margin: 0 0 12px 0;
-            font-size: 1.05rem;
-            text-align: center;
-        }
-        .modal-model { text-align: center; margin-bottom: 6px; font-size: 1.05rem; }
-        .fmt-tag { color: #64748b; font-size: 0.8rem; }
-        .modal-label {
-            font-size: 0.85rem;
-            font-weight: 700;
-            color: #334155;
-            margin: 12px 0 6px 0;
-        }
-        .info-line {
-            font-size: 0.9rem;
-            color: #334155;
-            background: #f8fafc;
-            border-radius: 8px;
-            padding: 8px 10px;
-            margin-top: 8px;
-        }
-        /* รอบที่ 7: หน้าต่างเตือนโค้ดซ้ำ */
-        .dup-alert {
-            background: #fef2f2;
-            border: 1px solid #fecaca;
-            border-radius: 10px;
-            padding: 8px 10px;
-            margin-top: 10px;
-        }
-        .dup-alert .info-line { background: transparent; padding: 4px 2px; margin-top: 0; }
-        .dup-alert .dup-head {
-            font-weight: 800;
-            color: #991b1b;
-            font-size: 0.95rem;
-            padding: 2px;
-        }
-        .modal-actions {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-            margin-top: 14px;
-        }
-        .type-plate.active { border-color: var(--primary); background: #dbeafe; color: #1e40af; }
-        .type-chanel.active { border-color: #0d9488; background: #ccfbf1; color: #0f766e; }
-        #modalQty { font-size: 20px; text-align: center; font-weight: 700; }
-
-        /* ===== รอบที่ 4: ไฟกระพริบแสดงว่าลูปสแกนทำงานอยู่ ===== */
-        #scanPulse {
-            display: none;
-            position: absolute;
-            right: 10px;
-            bottom: 10px;
-            background: rgba(15, 23, 42, 0.65);
-            color: #ffffff;
-            font-size: 0.75rem;
-            padding: 5px 10px;
-            border-radius: 999px;
-            align-items: center;
-            gap: 6px;
-            z-index: 5;
-        }
-        .pulse-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #4ade80;
-            animation: pulseDot 1s infinite;
-        }
-        @keyframes pulseDot { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
-
-        /* ===== รอบที่ 8: คลาวด์จัดเก็บเบื้องหลัง + กู้คืนข้ามเครื่อง ===== */
-        .cloud-bar {
-            background: #f0f9ff;
-            border: 1px solid #bae6fd;
-            border-radius: 12px;
-            padding: 10px 12px;
-            margin-top: 10px;
-            font-size: 0.85rem;
-            color: #0f172a;
-        }
-        .cloud-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-        .cloud-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
-        .dot-ok { background: #22c55e; }
-        .dot-pending { background: #f59e0b; }
-        .dot-error { background: #ef4444; }
-        .dot-off { background: #94a3b8; }
-        .cloud-coderow { margin-top: 6px; word-break: break-all; color: #334155; }
-        .cloud-code {
-            background: #ffffff;
-            border: 1px solid #cbd5e1;
-            border-radius: 6px;
-            padding: 2px 6px;
-            font-size: 0.72rem;
-            font-family: monospace;
-        }
-        .cloud-btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-        .cloud-hint { color: #64748b; font-size: 0.74rem; margin-top: 7px; }
-        .cloud-restore {
-            background: #f0f9ff;
-            border: 1px solid #bae6fd;
-            border-radius: 10px;
-            padding: 10px 12px;
-            margin-top: 14px;
-            text-align: left;
-        }
-        .cloud-restore-title { font-size: 0.8rem; font-weight: 700; color: #0c4a6e; }
-    </style>
+        .col-scan { position: sticky; top: 68px; }
+        .col-main { min-width: 0; }
+    }
+    @media (max-width: 600px) {
+        .card { padding: 13px; }
+        .btn { min-height: 48px; }
+        th, td { padding: 8px 8px; }
+        .app-title { font-size: .92rem; }
+    }
+</style>
 </head>
 <body>
 
-<!-- หน้าล็อกอิน: ต้องเข้าสู่ระบบก่อนใช้งาน เพื่อบันทึกว่า "ใครเป็นคนสแกน" -->
+<!-- ================= หน้าเข้าสู่ระบบ ================= -->
 <div id="loginOverlay">
     <div class="login-card">
-        <h2>🔐 เข้าสู่ระบบเช็คสต๊อก</h2>
-        <div class="login-tabs">
-            <div id="tabLogin" class="tab-btn active" onclick="showLoginTab('login')">เข้าสู่ระบบ</div>
-            <div id="tabRegister" class="tab-btn" onclick="showLoginTab('register')">ลงทะเบียนใหม่</div>
+        <div class="login-brand">
+            <h1>ระบบสแกนสต๊อกสินค้า</h1>
+            <p>Data Matrix / QR - ใช้ได้ทั้งมือถือและคอมพิวเตอร์</p>
         </div>
+        <div id="envWarning" class="alert-box"></div>
+        <div class="seg-tabs">
+            <div id="tabLogin" class="tab active">เข้าสู่ระบบ</div>
+            <div id="tabRegister" class="tab">ลงทะเบียนใหม่</div>
+        </div>
+
         <div id="loginForm">
-            <div class="form-group">
-                <input type="text" id="loginName" placeholder="ชื่อผู้ใช้ (เช่น ชื่อพนักงาน)" autocomplete="off">
-            </div>
-            <div class="form-group">
-                <input type="password" id="loginPin" inputmode="numeric" placeholder="รหัส PIN (ตัวเลข 4-6 หลัก)">
-            </div>
-            <button type="button" id="btnLogin" class="btn-primary" style="width: 100%;">เข้าสู่ระบบ</button>
-            <!-- รอบที่ 6: คนที่ลงทะเบียนไว้แล้ว แตะชื่อ + ใส่ PIN เดิมเข้าได้เลย ไม่ต้องลงทะเบียนซ้ำ -->
+            <div class="form-group"><input type="text" id="loginName" placeholder="ชื่อผู้ใช้ (ผู้ดูแลระบบพิมพ์ admin)" autocomplete="off"></div>
+            <div class="form-group"><input type="password" id="loginPin" inputmode="numeric" placeholder="รหัสผ่าน (ตัวเลข 4-6 หลัก)"></div>
+            <button type="button" id="btnLogin" class="btn btn-primary full">เข้าสู่ระบบ</button>
             <div id="savedUsersWrap" class="saved-users-wrap">
-                <div class="saved-title">👥 ลงทะเบียนไว้แล้วในเครื่องนี้ - แตะชื่อแล้วใส่ PIN เดิม (กด ✕ 2 ครั้งเพื่อลบชื่อ)</div>
+                <div class="saved-title">บัญชีที่ลงทะเบียนไว้ในเครื่องนี้ - แตะชื่อแล้วใส่รหัสเดิม (กด x 2 ครั้งเพื่อลบชื่อ)</div>
                 <div id="savedUsersList" class="saved-list"></div>
             </div>
-        </div>
-        <div id="registerForm" style="display: none;">
-            <div class="form-group">
-                <input type="text" id="regName" placeholder="ตั้งชื่อผู้ใช้ (เช่น ชื่อพนักงาน)" autocomplete="off">
-            </div>
-            <div class="form-group">
-                <input type="password" id="regPin" inputmode="numeric" placeholder="ตั้งรหัส PIN (ตัวเลข 4-6 หลัก)">
-            </div>
-            <div class="form-group">
-                <input type="password" id="regPin2" inputmode="numeric" placeholder="ยืนยันรหัส PIN อีกครั้ง">
-            </div>
-            <button type="button" id="btnRegister" class="btn-success" style="width: 100%;">ลงทะเบียนผู้ใช้ใหม่</button>
+            <button type="button" id="loginImportBtn" class="link-btn">นำเข้าไฟล์ข้อมูลสำรอง (ย้ายเครื่อง / กู้คืนข้อมูล)</button>
+            <input type="file" id="loginImportInput" accept=".json,application/json" style="display:none">
         </div>
 
-        <!-- รอบที่ 8: กู้คืนข้อมูลจากคลาวด์ - ใช้เมื่อเครื่องลืมข้อมูล/เครื่องใหม่ ไม่ต้องลงทะเบียนซ้ำ -->
-        <div id="cloudRestoreBox" class="cloud-restore">
-            <div class="cloud-restore-title">☁️ เคยลงทะเบียนไว้แต่เครื่องจำไม่ได้? กู้คืนด้วย "รหัสร้าน"</div>
-            <div class="form-group" style="margin: 8px 0 6px 0;">
-                <input type="text" id="restoreCode" placeholder="วางรหัสร้านที่คัดลอกมาจากเครื่องเดิม" autocomplete="off">
-            </div>
-            <button type="button" id="btnRestoreCloud" class="btn-primary" style="width: 100%;">☁️ กู้คืนผู้ใช้ + สต๊อกจากคลาวด์</button>
-            <div id="restoreMsg" class="login-msg"></div>
+        <div id="registerForm" style="display:none">
+            <div class="form-group"><input type="text" id="regName" placeholder="ตั้งชื่อผู้ใช้ (เช่น ชื่อพนักงาน)" autocomplete="off"></div>
+            <div class="form-group"><input type="password" id="regPin" inputmode="numeric" placeholder="ตั้งรหัสผ่าน (ตัวเลข 4-6 หลัก)"></div>
+            <div class="form-group"><input type="password" id="regPin2" inputmode="numeric" placeholder="ยืนยันรหัสผ่านอีกครั้ง"></div>
+            <button type="button" id="btnRegister" class="btn btn-primary full">ลงทะเบียนบัญชีพนักงาน</button>
+            <p class="login-note">บัญชีพนักงานสแกนรับเข้า/เบิกออกได้เท่านั้น - ชื่อ admin สงวนไว้สำหรับผู้ดูแลระบบ</p>
         </div>
-        <div id="loginWarn" class="alert-box" style="display:none;"></div>
+
+        <div id="adminSetupForm" style="display:none">
+            <div class="admin-hint" style="margin:0 0 10px">ตั้งรหัสผ่านของบัญชี admin (ทำครั้งแรกครั้งเดียว) บัญชี admin มีได้คนเดียวและจัดการระบบได้ทุกอย่าง</div>
+            <div class="form-group"><input type="password" id="asPin" inputmode="numeric" placeholder="ตั้งรหัสผ่าน admin (ตัวเลข 4-6 หลัก)"></div>
+            <div class="form-group"><input type="password" id="asPin2" inputmode="numeric" placeholder="ยืนยันรหัสผ่านอีกครั้ง"></div>
+            <button type="button" id="btnAdminSetup" class="btn btn-primary full">สร้างบัญชี admin</button>
+        </div>
+
+        <div id="loginWarn" class="alert-box"></div>
         <div id="loginMsg" class="login-msg"></div>
-        <p class="login-note">
-            ลงทะเบียนครั้งเดียว ระบบจดจำชื่อ + รหัส PIN ไว้ในเครื่องนี้ตลอดไป
-            - เปิดหน้ามาใหม่เข้าใช้ได้เลย ไม่ต้องกรอกอะไร จนกว่าจะกดออกจากระบบเอง
-            - ครั้งถัดไปแค่แตะชื่อที่ลงทะเบียนไว้ ใส่ PIN เดิม ก็เข้าได้ทันที ไม่ต้องลงทะเบียนใหม่
-            (ชื่อที่ล็อกอินจะถูกบันทึกเป็น "ผู้สแกน" ให้ทุกรายการที่สแกน)
-        </p>
+        <p class="login-note">ลงทะเบียนครั้งเดียว เครื่องจะจำชื่อและรหัสผ่านไว้ให้เอง เปิดใช้ครั้งถัดไปเข้าได้ทันทีจนกว่าจะกดออกจากระบบ</p>
     </div>
 </div>
 
-<div class="container">
-    <h1>📦 ระบบเช็คสต๊อกสินค้า (รองรับ Data Matrix)</h1>
-
-    <div class="user-bar">
-        <span>👤 ผู้สแกน: <b id="userChip">-</b></span>
-        <button type="button" id="btnLogout" class="btn-secondary btn-sm">ออกจากระบบ</button>
+<!-- ================= แถบหัวแอป ================= -->
+<header class="app-header" id="appHeader" style="display:none">
+    <h1 class="app-title">ระบบสแกนสต๊อกสินค้า</h1>
+    <div class="user-chip-wrap">
+        <span id="userChip">-</span>
+        <span id="userRoleBadge" class="role-badge role-user-badge">-</span>
     </div>
+    <button type="button" id="btnLogout" class="btn btn-logout">ออกจากระบบ</button>
+</header>
 
-    <!-- รอบที่ 8: แถบคลาวด์จัดเก็บเบื้องหลัง -->
-    <div id="cloudBar" class="cloud-bar">
-        <div class="cloud-line">
-            <span id="cloudDot" class="cloud-dot dot-off"></span><b>☁️ คลาวด์</b>
-            <span id="cloudState">กำลังตรวจ...</span>
-        </div>
-        <div id="cloudCodeRow" class="cloud-coderow" style="display:none;">
-            รหัสร้าน: <span id="cloudCodeTxt" class="cloud-code">-</span>
-        </div>
-        <div class="cloud-btns" id="cloudOnRow" style="display:none;">
-            <button type="button" id="btnCloudOn" class="btn-success btn-sm">☁️ เปิดคลาวด์สำรอง</button>
-        </div>
-        <div class="cloud-btns" id="cloudCtlRow" style="display:none;">
-            <button type="button" id="btnCloudCopy" class="btn-secondary btn-sm">📋 คัดลอกรหัสร้าน</button>
-            <button type="button" id="btnCloudLink" class="btn-secondary btn-sm">🔗 คัดลอกลิงก์กู้คืน</button>
-            <button type="button" id="btnCloudPull" class="btn-secondary btn-sm">🔄 ดึงข้อมูล</button>
-            <button type="button" id="btnCloudOff" class="btn-danger btn-sm">ปิดคลาวด์</button>
-        </div>
-        <div id="cloudHint" class="cloud-hint"></div>
-    </div>
-
-    <div id="envWarning" class="alert-box"></div>
-    <div id="statusBanner"></div>
-
-    <!-- กรอบแสดงกล้อง -->
-    <div class="camera-wrapper">
-        <video id="video" autoplay playsinline muted></video>
-        <div id="camPlaceholder" class="camera-placeholder">
-            แตะปุ่ม <b>"📷 เปิดกล้องสแกน"</b> ด้านล่าง
-        </div>
-        <div id="scanPulse"><span class="pulse-dot"></span><span>กำลังสแกน...</span></div>
-    </div>
-
-    <div id="lastRead" class="last-read"></div>
-
-    <p class="tips">
-        เคล็ดลับสำหรับ Data Matrix เล็ก ๆ: เล็งให้โค้ดอยู่กลางกรอบ แล้ว<b>ซูมเข้า</b> (แถบซูมใต้กล้อง)
-        ให้โค้ดใหญ่ประมาณ 1 ใน 3 ของจอ ระยะห่าง 8-12 ซม. ถือนิ่ง 1-2 วินาที ไม่ต้องขยับไปมา
-        - ถ้าถือนิ่งแล้วยังไม่ติด กดปุ่ม <b>"📸 จับภาพนิ่ง สแกนละเอียด"</b> ระบบจะแชภาพเต็มความละเอียดมาวิเคราะห์ใหม่
-        - ฉลากโลหะสะท้อนแสง: ลองเอียงเครื่องเล็กน้อย หรือเปิดแฟลชช่วย (ปุ่มแฟลชขึ้นเฉพาะเมื่ออุปกรณ์รองรับ)
-        - โหมด "เฉพาะ Data Matrix" ไวและแม่นที่สุดสำหรับงานนี้ (สลับเป็น "ทุกรูปแบบ" เมื่อต้องสแกน QR)
-        - หลังสแกนติด จะมีหน้าต่างให้ "กรอกจำนวนชิ้น" และเลือก "plate หรือ chanel" ก่อนบันทึกเสมอ
-        - กล่อง "อ่านได้ล่าสุด" ใช้เทียบข้อความกับฉลากจริงได้เลย
-        - ระบบมีเอนจินสแกน 3 ชั้น: BarcodeDetector (Android) → ZXing JS → ZXing-C++ (WASM)
-          ชั้นสุดท้ายเป็นชุดเดียวกับเครื่องอ่านจริง แม่นพิเศษกับฉลากโลหะ/โค้ดจิ๋ว
-    </p>
-
-    <!-- ปุ่มควบคุมกล้อง -->
-    <div class="cam-controls">
-        <button type="button" id="btnToggleCam" class="btn-primary full-width">
-            📷 เปิดกล้องสแกน
-        </button>
-        <button type="button" id="btnStillScan" class="btn-warning full-width" style="display:none;">
-            📸 จับภาพนิ่ง สแกนละเอียด
-        </button>
-        <label class="file-label btn-secondary full-width" for="qrFileInput">
-            🖼️ สแกนจากรูปภาพ / ถ่ายรูป
-        </label>
-        <input type="file" id="qrFileInput" accept="image/*" style="display:none;">
-        <button type="button" id="btnTorch" class="btn-secondary full-width" style="display:none;">
-            เปิดแฟลช
-        </button>
-        <!-- รอบที่ 5: แถบซูม (โชว์เฉพาะอุปกรณ์ที่ซูมได้) - โค้ดจิ๋วให้ซูมเข้า แทนการเอาเครื่องใกล้เกิน -->
-        <div id="zoomControls" class="full-width" style="display:none; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:8px 10px;">
-            <div style="display:flex; gap:8px; align-items:center;">
-                <button type="button" id="btnZoomOut" class="btn-secondary" style="flex:0 0 46px; padding:8px 0; justify-content:center;">−</button>
-                <input type="range" id="zoomSlider" min="1" max="8" step="0.1" value="1" style="flex:1; accent-color:#2563eb;">
-                <button type="button" id="btnZoomIn" class="btn-secondary" style="flex:0 0 46px; padding:8px 0; justify-content:center;">+</button>
+<!-- ================= เนื้อหาแอป ================= -->
+<div class="container" id="appBody" style="display:none">
+    <!-- คอลัมน์สแกน -->
+    <div class="col-scan">
+        <div class="card">
+            <h2 class="card-title">สแกนสินค้า</h2>
+            <div id="appWarning" class="alert-box" style="margin:0 0 10px"></div>
+            <div class="mode-seg">
+                <div id="modeIn" class="seg-btn active-in" onclick="setMode('IN')">รับเข้า (+)</div>
+                <div id="modeOut" class="seg-btn" onclick="setMode('OUT')">เบิกออก (-)</div>
             </div>
-            <div id="zoomLabel" style="font-size:0.72rem; color:#64748b; text-align:center; margin-top:4px;">ซูม 1.0x</div>
+            <div class="mode-seg">
+                <div id="fmtDM" class="seg-btn active-fmt" onclick="setFormatMode('DM')">เฉพาะ Data Matrix</div>
+                <div id="fmtAll" class="seg-btn" onclick="setFormatMode('ALL')">ทุกรูปแบบ</div>
+            </div>
+            <div class="cam-frame">
+                <video id="video" autoplay playsinline muted></video>
+                <div id="camPlaceholder" class="cam-placeholder">กดปุ่ม "เปิดกล้องสแกน" เพื่อเริ่มสแกน</div>
+                <div id="scanPulse"><span class="pulse-dot"></span><span>กำลังสแกน</span></div>
+                <div class="cam-tools">
+                    <button type="button" id="btnTorch" class="btn btn-torch" style="display:none">แฟลช</button>
+                </div>
+                <div id="zoomControls" class="zoom-bar">
+                    <button type="button" id="btnZoomOut" class="btn btn-mini btn-torch">-</button>
+                    <input type="range" id="zoomSlider" min="1" max="8" step="0.1" value="1">
+                    <button type="button" id="btnZoomIn" class="btn btn-mini btn-torch">+</button>
+                    <span id="zoomLabel" class="zoom-label">1.0x</span>
+                </div>
+            </div>
+            <div class="cam-controls">
+                <button type="button" id="btnToggleCam" class="btn btn-primary">เปิดกล้องสแกน</button>
+                <button type="button" id="btnStillScan" class="btn btn-ghost" style="display:none">จับภาพนิ่ง</button>
+                <label class="btn btn-ghost" for="qrFileInput" style="grid-column:1/-1">สแกนจากรูปภาพ / ถ่ายรูป</label>
+                <input type="file" id="qrFileInput" accept="image/*" style="display:none">
+            </div>
+            <div class="form-group" style="margin-top:10px">
+                <div class="input-row">
+                    <input type="text" id="manualCodeInput" placeholder="พิมพ์หรือป้อน Model ด้วยมือ...">
+                    <button type="button" id="btnManualAdd" class="btn btn-primary">ถัดไป</button>
+                </div>
+            </div>
+            <div id="lastRead" class="last-read"></div>
+            <p class="cam-hint">โค้ดเล็ก: ซูมเข้าให้โค้ดใหญ่ประมาณ 1 ใน 3 ของจอ ถือนิ่ง 1-2 วินาที ถ้ายังไม่ติดกด "จับภาพนิ่ง"</p>
         </div>
     </div>
 
-    <!-- เลือกโหมดโค้ดที่จะสแกน: ทุกรูปแบบ หรือ เฉพาะ Data Matrix -->
-    <div class="mode-selector">
-        <div id="fmtAll" class="mode-btn active-fmt" onclick="setFormatMode('ALL')">ทุกรูปแบบ (DM / QR / บาร์โค้ด)</div>
-        <div id="fmtDM" class="mode-btn" onclick="setFormatMode('DM')">เฉพาะ Data Matrix</div>
-    </div>
-
-    <!-- เลือกโหมดการทำงาน: รับเข้า หรือ เบิกออก -->
-    <div class="mode-selector">
-        <div id="modeIn" class="mode-btn active-in" onclick="setMode('IN')">📥 รับเข้าสินค้า (+)</div>
-        <div id="modeOut" class="mode-btn" onclick="setMode('OUT')">📤 เบิกออกสินค้า (-)</div>
-    </div>
-
-    <!-- ช่องพิมพ์ Model เอง: กดถัดไปแล้วจะเด้งไปกรอกจำนวน + เลือก plate/chanel ก่อนบันทึก -->
-    <div class="form-group">
-        <div class="input-row">
-            <input type="text" id="manualCodeInput" placeholder="พิมพ์หรือสแกน Model (เช่น MODEL-0001)..." style="flex: 1;">
-            <button type="button" id="btnManualAdd" class="btn-primary" style="white-space: nowrap;">ถัดไป ➜</button>
+    <!-- คอลัมน์ข้อมูล -->
+    <div class="col-main">
+        <div class="card">
+            <h2 class="card-title">สต๊อกสินค้า <span id="totalCount" class="count-chip">0</span>
+                <span class="card-tools admin-only">
+                    <button type="button" id="btnExport" class="btn btn-sm btn-ghost">โหลดสต๊อก (CSV)</button>
+                    <button type="button" id="btnClear" class="btn btn-sm btn-danger">ล้างสต๊อก</button>
+                </span>
+            </h2>
+            <div class="form-group"><input type="text" id="searchInput" placeholder="ค้นหา Model หรือประเภท (plate/chanel)..."></div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Model</th>
+                            <th>ประเภท</th>
+                            <th>คงเหลือ</th>
+                            <th>รับเข้า</th>
+                            <th>เบิกออก</th>
+                            <th>ผู้สแกน</th>
+                            <th>เมื่อ</th>
+                            <th class="action-col admin-only">จัดการ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dataTableBody"></tbody>
+                </table>
+            </div>
         </div>
-    </div>
 
-    <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 15px 0;">
-
-    <!-- ช่องค้นหาสต๊อก -->
-    <div class="form-group">
-        <input type="text" id="searchInput" placeholder="🔍 ค้นหา Model หรือ ประเภท (plate/chanel)...">
-    </div>
-
-    <!-- จัดการข้อมูล -->
-    <div class="action-bar">
-        <div style="font-size: 0.9rem;">รายการสินค้า: <strong id="totalCount">0</strong> รายการ</div>
-        <div class="export-group">
-            <button type="button" id="btnExport" class="btn-success btn-sm">📥 โหลดสต๊อก (CSV)</button>
-            <button type="button" id="btnClear" class="btn-danger btn-sm">🗑️ ล้างสต๊อก</button>
+        <div class="card">
+            <h2 class="card-title">ประวัติการสแกน <span id="logCount" class="count-chip">0</span>
+                <span class="card-tools admin-only">
+                    <button type="button" id="btnExportLog" class="btn btn-sm btn-ghost">โหลดประวัติ (CSV)</button>
+                    <button type="button" id="btnClearLog" class="btn btn-sm btn-danger">ล้างประวัติ</button>
+                </span>
+            </h2>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>เวลา</th>
+                            <th>ผู้สแกน</th>
+                            <th>Model</th>
+                            <th>ประเภท</th>
+                            <th>จำนวน</th>
+                            <th>โหมด</th>
+                            <th>รูปแบบ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logTableBody"></tbody>
+                </table>
+            </div>
         </div>
-    </div>
 
-    <!-- ตารางสต๊อกสินค้า -->
-    <div class="table-wrapper">
-        <table>
-            <thead>
-                <tr>
-                    <th>Model</th>
-                    <th>ประเภท</th>
-                    <th>คงเหลือ</th>
-                    <th>รับเข้า</th>
-                    <th>เบิกออก</th>
-                    <th>ผู้สแกน</th>
-                    <th>วันที่ทำรายการ</th>
-                    <th>จัดการ</th>
-                </tr>
-            </thead>
-            <tbody id="dataTableBody"></tbody>
-        </table>
-    </div>
+        <!-- แผง admin: มีไว้สำหรับบัญชี admin เท่านั้น -->
+        <div class="card admin-card admin-only" id="adminPanel">
+            <h2 class="card-title">สำหรับ admin</h2>
 
-    <!-- ประวัติการสแกน: ใคร สแกนอะไร กี่ชิ้น เข้าหรือออก -->
-    <div class="action-bar" style="margin-top: 18px;">
-        <div style="font-size: 0.9rem; font-weight: 700;">📜 ประวัติการสแกน (ล่าสุด 20 รายการ)</div>
-        <div class="export-group">
-            <button type="button" id="btnExportLog" class="btn-success btn-sm">📥 โหลดประวัติ (CSV)</button>
-            <button type="button" id="btnClearLog" class="btn-danger btn-sm">🗑️ ล้างประวัติ</button>
+            <div class="modal-label" style="margin-top:2px">บัญชีผู้ใช้ทั้งหมด</div>
+            <div id="adminUserList"></div>
+
+            <div class="modal-label">ซิงค์ข้อมูลระหว่างมือถือกับคอมพิวเตอร์</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                <button type="button" id="btnExportData" class="btn btn-primary">ส่งออกไฟล์ข้อมูล</button>
+                <button type="button" id="btnImportData" class="btn btn-ghost">นำเข้าไฟล์ข้อมูล</button>
+            </div>
+            <input type="file" id="importFileInput" accept=".json,application/json" style="display:none">
+            <p class="sync-hint">เครื่องใดก็ได้กด "ส่งออกไฟล์ข้อมูล" แล้วนำไฟล์ไปกด "นำเข้าไฟล์ข้อมูล" ที่อีกเครื่อง ระบบจะรวมบัญชี สต๊อก และประวัติให้เป็นชุดเดียวกันโดยยึดรายการที่แก้ล่าสุดเสมอ ใช้ชื่อและรหัสผ่านเดิมข้ามเครื่องได้ทันที (เครื่องใหม่ที่ยังไม่มีบัญชี ให้กด "นำเข้าไฟล์ข้อมูลสำรอง" ที่หน้าเข้าสู่ระบบแทน)</p>
+
+            <div class="modal-label">เปลี่ยนรหัสผ่าน admin</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                <input type="password" id="adminNewPin" inputmode="numeric" placeholder="รหัสใหม่ (4-6 หลัก)">
+                <input type="password" id="adminNewPin2" inputmode="numeric" placeholder="ยืนยันรหัสใหม่">
+            </div>
+            <button type="button" id="btnChangePin" class="btn btn-ghost full" style="margin-top:8px">บันทึกรหัสผ่านใหม่</button>
+            <div id="adminMsg" class="login-msg"></div>
         </div>
-    </div>
-    <div class="table-wrapper" style="max-height: 260px;">
-        <table>
-            <thead>
-                <tr>
-                    <th>เวลา</th>
-                    <th>ผู้สแกน</th>
-                    <th>Model</th>
-                    <th>ประเภท</th>
-                    <th>จำนวน</th>
-                    <th>โหมด</th>
-                    <th>รูปแบบโค้ด</th>
-                </tr>
-            </thead>
-            <tbody id="logTableBody"></tbody>
-        </table>
     </div>
 </div>
 
-<!-- หน้าต่างหลังสแกน: กรอกจำนวนชิ้น + เลือก plate หรือ chanel + แสดงผู้สแกน -->
+<div id="statusToast"></div>
+
+<!-- หน้าต่างหลังสแกน: กรอกจำนวน + เลือก plate/chanel + ผู้สแกน -->
 <div id="scanModal" class="modal-overlay">
     <div class="modal-card">
-        <h2 class="modal-title">📋 บันทึกผลการสแกน</h2>
+        <h2 class="modal-title">บันทึกผลการสแกน</h2>
         <div class="modal-model"><span class="badge" id="modalCode">-</span> <span id="modalFmt" class="fmt-tag"></span></div>
-        <div class="modal-label">จำนวน (สแกนได้กี่ชิ้น)</div>
+        <div class="modal-label">จำนวน (กี่ชิ้น)</div>
         <div class="form-group">
             <input type="number" id="modalQty" min="1" max="9999" value="1">
         </div>
         <div class="modal-label">เป็น plate หรือ chanel (เลือกหนึ่งอย่าง)</div>
-        <div class="mode-selector">
-            <div id="typePlate" class="mode-btn type-plate" onclick="setModalType('plate')">PLATE</div>
-            <div id="typeChanel" class="mode-btn type-chanel" onclick="setModalType('chanel')">CHANEL</div>
+        <div class="mode-seg">
+            <div id="typePlate" class="seg-btn type-plate active" onclick="setModalType('plate')">PLATE</div>
+            <div id="typeChanel" class="seg-btn type-chanel" onclick="setModalType('chanel')">CHANEL</div>
         </div>
-        <div class="info-line">👤 ผู้สแกน: <b id="modalUser">-</b></div>
+        <div class="info-line">ผู้สแกน: <b id="modalUser">-</b></div>
         <div class="info-line">โหมด: <b id="modalMode">-</b></div>
         <div id="modalMsg" class="login-msg"></div>
         <div class="modal-actions">
-            <button type="button" id="btnModalSave" class="btn-success">✅ บันทึก</button>
-            <button type="button" id="btnModalCancel" class="btn-secondary">✖ ยกเลิก</button>
+            <button type="button" id="btnModalSave" class="btn btn-in">บันทึก</button>
+            <button type="button" id="btnModalCancel" class="btn btn-ghost">ยกเลิก</button>
         </div>
     </div>
 </div>
 
-<!-- รอบที่ 7: หน้าต่างเตือน "โค้ดซ้ำ" - โค้ดที่เคยบันทึกแล้ว จะไม่บันทึกลงสต๊อกซ้ำ -->
+<!-- หน้าต่างเตือนโค้ดซ้ำ: โค้ดที่เคยบันทึกแล้วจะไม่บันทึกลงสต๊อกซ้ำ -->
 <div id="dupModal" class="modal-overlay">
     <div class="modal-card">
-        <h2 class="modal-title">⛔ โค้ดซ้ำ - ไม่บันทึกข้อมูล</h2>
+        <h2 class="modal-title">โค้ดซ้ำ - ไม่บันทึกข้อมูล</h2>
         <div class="modal-model"><span class="badge" id="dupCode">-</span> <span id="dupFmt" class="fmt-tag"></span></div>
         <div id="dupDetail" class="dup-alert"></div>
         <div class="modal-actions">
-            <button type="button" id="btnDupOk" class="btn-secondary" style="grid-column: 1 / -1;">รับทราบ</button>
+            <button type="button" id="btnDupOk" class="btn btn-ghost" style="grid-column:1/-1">รับทราบ</button>
         </div>
     </div>
 </div>
-
 <script>
+    /* ==================================================================
+       สถานะรวมของระบบ
+       ================================================================== */
+    const ADMIN_NAME = 'admin';
+    const STORAGE_KEYS = {
+        inventory: 'barcode_stock_inventory',
+        log: 'stock_scan_log',
+        users: 'stock_users',
+        session: 'stock_session',
+        lastUser: 'stock_last_user',
+        lastType: 'stock_last_type',
+        lastQty: 'stock_last_qty',
+        fmtMode: 'barcode_scan_fmt_mode_v2'
+    };
+
     let isScanning = false;
     let isCooldown = false;
     let audioCtx = null;
-    let clearConfirmTimer = null;
-    let isConfirmingClear = false;
     let torchOn = false;
-
     let currentMode = 'IN';
-    let scanFormatMode = 'ALL';
+    let scanFormatMode = 'DM';
     let inventory = [];
+    let scanLog = [];
+    let clearConfirmTimer = null, isConfirmingClear = false;
+    let logConfirmTimer = null, isConfirmingLogClear = false;
 
-    /* ===== รอบที่ 4: เอนจินสแกนใหม่ (ลูปสลับกลยุทธ์) ===== */
-    let camStream = null;        // MediaStream ที่เราจัดการเอง
-    let scanTimer = null;        // ตัวตั้งเวลาของลูปถอดรหัส
-    let decodeBusy = false;      // กันถอดรหัสซ้อนกัน (จับเฟรมล่าสุดเสมอ ไม่ต่อคิวเฟรมเก่า)
-    let attemptNo = 0;           // นับรอบที่ลองอ่านโค้ด
-    let engineMode = '';         // โหมดรูปแบบโค้ดที่เอนจินถูกสร้างไว้
-    let fastReader = null;       // อ่านแบบ "เร็ว" (ไม่ใช้ TRY_HARDER)
-    let hardReader = null;       // อ่านแบบ "ละเอียด" (TRY_HARDER)
+    /* เอนจินสแกนกล้อง (ลูปสลับกลยุทธ์) */
+    let camStream = null;
+    let scanTimer = null;
+    let decodeBusy = false;
+    let attemptNo = 0;
+    let engineMode = '';
+    let fastReader = null;
+    let hardReader = null;
     let videoEl = null;
     let fullCanvas = null, fullCtx = null;
     let fastCanvas = null, fastCtx = null;
-    let lastHandledCode = '';    // โค้ดล่าสุดที่จับได้ (ยับยั้งโค้ดเดิมตอน cooldown แต่โค้ดใหม่รับทันที)
-    const FAST_FRAME_W = 1024;   // ความกว้างเฟรมย่อของกลยุทธ์ "เร็ว" (QR ใหญ่ติดไว)
-    const ATTEMPT_GAP_MS = 55;   // เว้นจังหวะระหว่างเฟรม ให้หน้าจอลื่น ไม่บล็อก UI
-    const SAVE_COOLDOWN_MS = 2500; // หลังบันทึก ยับยั้งโค้ดเดิมที่ยังอยู่หน้ากล้องช่วงสั้น ๆ
-    // สถิติความเร็ว (ดูได้ใน console: __scanPerf) ใช้ตรวจสอบว่าลูปสแกนทำงานปกติ
+    let lastHandledCode = '';
+    const FAST_FRAME_W = 1024;
+    const ATTEMPT_GAP_MS = 55;
+    const SAVE_COOLDOWN_MS = 2500;
     window.__scanPerf = { startedAt: 0, attempts: 0, lastAttemptMs: 0, firstResultMs: 0, lastAttemptAt: 0 };
 
-    /* ===== รอบที่ 5: เอนจินเร็วของเบราว์เซอร์ + ซูม + จับภาพนิ่ง ===== */
-    let bdDetector = null;   // BarcodeDetector ของ Chrome (Android) - เร็วและอ่านโค้ดจิ๋วได้ดี ถ้ามี
-    let bdMisses = 0;        // นับครั้งที่ BD หาไม่เจอติดกัน (พลาดซ้ำ ๆ จะสลับไปลอง ZXing เป็นระยะ)
-    let zoomCaps = null;     // capability ซูมของกล้องที่เปิดอยู่
-    let zoomValue = 1;       // ค่าซูมปัจจุบัน
-    let stillBusy = false;   // กดปุ่มจับภาพนิ่งซ้อนกันไม่ได้
+    /* เอนจินเสริม: BarcodeDetector / ซูม / ภาพนิ่ง / WASM */
+    let bdDetector = null;
+    let bdMisses = 0;
+    let zoomCaps = null;
+    let zoomValue = 1;
+    let stillBusy = false;
+    let wasmState = 'unknown';
+    let wasmWarmed = false;
+    const WASM_FMT_MAP = {
+        'DataMatrix': 'DATA_MATRIX', 'QRCode': 'QR_CODE', 'Code128': 'CODE_128',
+        'Code39': 'CODE_39', 'Code93': 'CODE_93', 'EAN13': 'EAN_13', 'EAN8': 'EAN_8',
+        'UPCA': 'UPC_A', 'UPCE': 'UPC_E', 'Aztec': 'AZTEC', 'PDF417': 'PDF_417',
+        'ITF': 'ITF', 'Codabar': 'CODABAR'
+    };
 
-    // ===== รอบที่ 3: ผู้ใช้ / หน้าต่างหลังสแกน / ประวัติการสแกน =====
-    let currentUser = null;      // { name } ของคนที่ล็อกอินอยู่
-    let modalCtx = null;         // { code, fmt } โค้ดที่รอกรอกจำนวน/ประเภทอยู่
-    let modalType = 'plate';     // ประเภทที่เลือกในหน้าต่างหลังสแกน
-    let lastUsedType = 'plate';  // ประเภทที่ใช้ล่าสุด (จำค่าไว้ให้กดเร็วขึ้น)
-    let lastUsedQty = 1;         // จำนวนที่ใช้ล่าสุด (จำค่าไว้ให้กดเร็วขึ้น)
-    let scanLog = [];            // ประวัติการสแกนทั้งหมด
-    let chipConfirmName = null;  // รอบที่ 6: ชื่อที่กด ✕ รอยืนยันการลบ (ต้องกดซ้ำถึงลบจริง)
-    let dupCtx = null;           // รอบที่ 7: หน้าต่างเตือน "โค้ดซ้ำ" เปิดอยู่ (พักลูปสแกนชั่วคราว)
+    /* ผู้ใช้ / โมดัล / ประวัติ */
+    let currentUser = null;
+    let modalCtx = null;
+    let modalType = 'plate';
+    let lastUsedType = 'plate';
+    let lastUsedQty = 1;
+    let chipConfirmName = null;
+    let dupCtx = null;
 
-    /* ===== รอบที่ 4: ZXing engine - QR + Data Matrix + บาร์โค้ดหลัก (เร็วขึ้นหลายเท่า) ===== */
+    /* โหลดข้อมูลเดิมจากเครื่องนี้ */
+    try { inventory = JSON.parse(localStorage.getItem(STORAGE_KEYS.inventory)) || []; } catch (e) { inventory = []; }
+    try { scanLog = JSON.parse(localStorage.getItem(STORAGE_KEYS.log)) || []; } catch (e) { scanLog = []; }
+
+    function el(id) { return document.getElementById(id); }
+    function setDisp(id, show) { const n = el(id); if (n) n.style.display = show ? '' : 'none'; }
+
+    /* ==================================================================
+       เอนจิน ZXing - QR + Data Matrix + บาร์โค้ดหลัก
+       ================================================================== */
     function getScanFormats() {
         // โหมดล็อก Data Matrix: หลบโค้ดอื่นทั้งหมด (QR / บาร์โค้ด 1D)
         if (scanFormatMode === 'DM') {
             return [ZXing.BarcodeFormat.DATA_MATRIX];
         }
         // โหมดทุกรูปแบบ: เหลือเฉพาะรูปแบบที่ใช้จริง เพื่อลดเวลาถอดรหัสต่อเฟรม
-        // (13 รูปแบบเดิมทำให้แต่ละเฟรมช้าลงหลายเท่า) DATA_MATRIX ลำดับแรกเพื่อเจอ DM ก่อนโค้ดอื่น
         return [
             ZXing.BarcodeFormat.DATA_MATRIX,
             ZXing.BarcodeFormat.QR_CODE,
@@ -904,8 +815,7 @@
     }
 
     function makeReader(tryHarder) {
-        // setHints ครั้งเดียวตอนสร้าง แล้ว decode() ต่อไปใช้ hints ที่จำไว้เอง
-        // (เร็วกว่าการส่ง hints ใหม่ทุกเฟรม ซึ่งจะสร้าง reader ชุดใหม่ทุกครั้ง)
+        // setHints ครั้งเดียวตอนสร้าง แล้ว decode ต่อไปใช้ hints ที่จำไว้เอง (เร็วกว่า)
         const reader = new ZXing.MultiFormatReader();
         reader.setHints(buildHints(tryHarder));
         return reader;
@@ -940,30 +850,21 @@
         }
     }
 
-    // ===== รอบที่ 2: ทำให้ข้อความที่อ่านได้ ตรงกับข้อมูลที่เข้ารหัสจริงในโค้ด =====
-
-    // ทำความสะอาดข้อความ: ตัด/แปลงตัวอักษรควบคุมที่มองไม่เห็นซึ่งทำให้จับคู่สต๊อกไม่ตรง
+    /* ทำความสะอาดข้อความโค้ด: ตัด/แปลงตัวอักษรซ่อนให้ตรงกับฉลากจริง */
     function normalizeCodeText(raw) {
         if (raw === null || raw === undefined) return '';
         let text = String(raw);
-        // ตัด AIM symbology identifier ที่เครื่องสแกนบางรุ่นแทรกหน้าข้อมูล เช่น ]d2 ]C1
-        text = text.replace(/^\][A-Za-z][0-9]/, '');
-        // ตัวคั่น FNC1/GS (ASCII 29) ซ่อนอยู่ในโค้ด GS1 -> แสดงเป็น | เพื่อให้เห็นชัด
-        text = text.replace(/\u001d/g, '|');
-        // การขึ้นบรรทัดใหม่ที่ฝังในโค้ด -> | เช่นกัน
-        text = text.replace(/[\u000B\u000C\r\n]+/g, '|');
-        // control characters อื่นๆ ที่เหลือ ตัดทิ้ง
+        text = text.replace(/^\][A-Za-z][0-9]/, '');            // AIM symbology เช่น ]d2 ]C1
+        text = text.replace(/\u001d/g, '|');                    // FNC1/GS -> |
+        text = text.replace(/[\u000B\u000C\r\n]+/g, '|');       // ขึ้นบรรทัดในโค้ด -> |
         text = text.replace(/[\u0000-\u0008\u000E-\u001F\u007F]/g, '');
-        // ตัดช่องว่าง/ขึ้นบรรทัดหัว-ท้าย (ฉลากมักพ่วง Enter ท้ายข้อมูล)
         text = text.replace(/^[\s\u00A0\u3000]+|[\s\u00A0\u3000]+$/g, '');
-        // | ที่ติดกันเป็นกลุ่ม เหลือตัวเดียว และตัด | หัว-ท้าย
         text = text.replace(/\|{2,}/g, '|');
         text = text.replace(/^\|+/, '').replace(/\|+$/, '');
         return text;
     }
 
-    // แก้ encoding ภาษาไทย: ถ้าถอดด้วย UTF-8 แล้วมีตัวอักษรเสีย (U+FFFD)
-    // ให้ถอดใหม่จากไบต์ดิบด้วย TIS-620 (Windows-874) ซึ่งเป็นมาตรฐานฉลากไทย
+    /* แก้ encoding ไทย: ถอดผิดเป็นตัวเสีย (U+FFFD) ให้ถอดใหม่ด้วย TIS-620 */
     function fixEncoding(result) {
         const text = getResultText(result);
         if (!text || text.indexOf('\uFFFD') === -1) return text;
@@ -979,9 +880,9 @@
         return text;
     }
 
-    // กล่อง "อ่านได้ล่าสุด": โชว์ข้อความที่ได้จริง + ไบต์ดิบ ไว้เทียบกับฉลาก
+    /* กล่อง "อ่านได้ล่าสุด": ไว้เทียบข้อความกับฉลากจริง */
     function showLastRead(code, fmtName, rawBytes) {
-        const box = document.getElementById('lastRead');
+        const box = el('lastRead');
         if (!box) return;
         const hasBadChar = code.indexOf('\uFFFD') !== -1;
         let hex = '';
@@ -997,7 +898,6 @@
             (hasBadChar ? '<div class="read-warn">มีตัวอักษรที่ถอดรหัสไม่ได้ ลองสแกนซ้ำให้ชัดกว่านี้</div>' : '');
     }
 
-    // แตกผลลัพธ์ ZXing เป็น { code, fmtName, rawBytes } - ใช้ร่วมทั้งกล้องและรูปภาพ
     function extractResult(result) {
         if (!result) return null;
         const fmtName = getFormatName(result);
@@ -1010,12 +910,11 @@
         return { code: code, fmtName: fmtName, rawBytes: rawBytes };
     }
 
-    // จุดรวมข้อความโค้ดจากทุกเอนจิน (ZXing / BarcodeDetector / ภาพนิ่ง) -> แสดง + เปิดหน้าต่างบันทึก
+    /* จุดรวมโค้ดจากทุกเอนจิน -> แสดง + เปิดหน้าต่างบันทึก */
     function handleDecodedText(code, fmtName, rawBytes) {
         code = normalizeCodeText(code);
         if (!code) return false;
         showLastRead(code, fmtName, rawBytes);
-        // รอบที่ 3: ไม่บันทึกทันที ให้เด้งหน้าต่างกรอกจำนวน + เลือก plate/chanel ก่อน
         openScanModal(code, fmtName);
         return true;
     }
@@ -1026,62 +925,68 @@
         return handleDecodedText(ex.code, ex.fmtName, ex.rawBytes);
     }
 
-    try {
-        inventory = JSON.parse(localStorage.getItem('barcode_stock_inventory')) || [];
-    } catch (e) {
-        inventory = [];
-    }
-    try {
-        scanLog = JSON.parse(localStorage.getItem('stock_scan_log')) || [];
-    } catch (e) {
-        scanLog = [];
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
+    function escAttr(s) {
+        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function safeBind(id, event, fn) {
+        const node = el(id);
+        if (node) node.addEventListener(event, fn);
+    }
+
+    /* ==================================================================
+       เริ่มระบบเมื่อหน้าเปิด
+       ================================================================== */
     window.addEventListener('DOMContentLoaded', () => {
-        const warningBox = document.getElementById('envWarning');
+        // ตรวจสภาพแวดล้อม (กล้องใช้ไม่ได้กรณีใด บอกทันที)
         const ua = navigator.userAgent || "";
-
         if (typeof ZXing === 'undefined') {
-            warningBox.style.display = 'block';
-            warningBox.innerHTML = '⚠️ <b>โหลดไลบรารี ZXing ไม่สำเร็จ:</b> ตรวจสอบอินเทอร์เน็ตแล้วรีเฟรชหน้าใหม่';
+            showEnvWarn('โหลดไลบรารีสแกนไม่สำเร็จ ตรวจอินเทอร์เน็ตแล้วรีเฟรชหน้าใหม่');
         } else if (window.location.protocol === 'file:') {
-            warningBox.style.display = 'block';
-            warningBox.innerHTML = '⚠️ <b>เปิดจากไฟล์ในเครื่อง:</b> กรุณานำไฟล์ไปวางบนเว็บ แล้วเปิดผ่านลิงก์ <b>https://</b> (บางอุปกรณ์จะไม่ให้เปิดกล้องจากไฟล์ในเครื่อง)';
+            showEnvWarn('เปิดจากไฟล์ในเครื่อง: ควรนำไปวางบนเว็บแล้วเปิดผ่านลิงก์ https เพราะบางอุปกรณ์ไม่ให้เปิดกล้อง');
         } else if (!window.isSecureContext) {
-            warningBox.style.display = 'block';
-            warningBox.innerHTML = '⚠️ <b>หน้านี้ไม่ใช่ HTTPS:</b> เบราว์เซอร์จะไม่อนุญาตให้เปิดกล้อง กรุณาเปิดผ่านลิงก์ <b>https://</b>';
+            showEnvWarn('หน้านี้ไม่ใช่ HTTPS: เบราว์เซอร์จะไม่อนุญาตให้เปิดกล้อง กรุณาเปิดผ่านลิงก์ https');
         } else if (/Line|FBAN|FBAV|Instagram/i.test(ua)) {
-            warningBox.style.display = 'block';
-            warningBox.innerHTML = '⚠️ <b>กำลังเปิดผ่านแอปแชท:</b> กรุณากดจุด 3 จุดมุมจอ แล้วเลือก <b>"เปิดในเบราว์เซอร์ (Chrome / Safari)"</b>';
+            showEnvWarn('กำลังเปิดผ่านแอปแชท: ให้กดเมนูมุมจอแล้วเลือก "เปิดในเบราว์เซอร์ (Chrome / Safari)"');
         } else if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
-            warningBox.style.display = 'block';
-            warningBox.innerHTML = '⚠️ <b>เบราว์เซอร์นี้ไม่รองรับการเปิดกล้อง:</b> กรุณาใช้ Chrome หรือ Safari เวอร์ชันใหม่';
+            showEnvWarn('เบราว์เซอร์นี้ไม่รองรับการเปิดกล้อง กรุณาใช้ Chrome หรือ Safari เวอร์ชันใหม่');
         }
 
-        // รอบที่ 5: เครื่องที่ยังไม่เคยเลือกโหมด จะเริ่มที่ "เฉพาะ Data Matrix" เอง
-        // (งานหลักของระบบนี้คือ DM - สลับเป็น "ทุกรูปแบบ" ได้เมื่อต้องสแกน QR)
+        // โหมดรูปแบบโค้ดที่เคยตั้งไว้ (ค่าเริ่มต้น: เฉพาะ Data Matrix)
         let savedFmtMode = 'DM';
-        try { savedFmtMode = localStorage.getItem('barcode_scan_fmt_mode_v2') || 'DM'; } catch (e) {}
+        try { savedFmtMode = localStorage.getItem(STORAGE_KEYS.fmtMode) || 'DM'; } catch (e) {}
         setFormatMode(savedFmtMode);
 
+        // ปุ่มควบคุมกล้อง/สแกน
         safeBind('btnToggleCam', 'click', toggleCamera);
         safeBind('btnTorch', 'click', toggleTorch);
         safeBind('qrFileInput', 'change', scanFromFile);
         safeBind('btnManualAdd', 'click', manualAdd);
-        safeBind('btnExport', 'click', exportToCSV);
-        safeBind('btnClear', 'click', handleClearButton);
-        safeBind('searchInput', 'input', renderTable);
+        safeBind('manualCodeInput', 'keydown', (e) => { if (e.key === 'Enter') manualAdd(); });
+        safeBind('btnStillScan', 'click', stillScanFromVideo);
+        safeBind('zoomSlider', 'input', (e) => { applyZoom(parseFloat(e.target.value)); });
+        safeBind('btnZoomIn', 'click', () => { if (zoomCaps) applyZoom(zoomValue + (zoomCaps.step || 0.1) * 5); });
+        safeBind('btnZoomOut', 'click', () => { if (zoomCaps) applyZoom(zoomValue - (zoomCaps.step || 0.1) * 5); });
 
-        // ===== รอบที่ 3: ล็อกอิน / หน้าต่างหลังสแกน / ประวัติ =====
+        // บัญชีผู้ใช้
         safeBind('btnLogin', 'click', doLogin);
         safeBind('btnRegister', 'click', doRegister);
+        safeBind('btnAdminSetup', 'click', doAdminSetup);
         safeBind('btnLogout', 'click', doLogout);
-        safeBind('tabLogin', 'click', () => showLoginTab('login'));
-        safeBind('tabRegister', 'click', () => showLoginTab('register'));
+        safeBind('tabLogin', 'click', () => showLoginPanel('login'));
+        safeBind('tabRegister', 'click', () => showLoginPanel('register'));
         safeBind('loginName', 'keydown', (e) => { if (e.key === 'Enter') doLogin(); });
         safeBind('loginPin', 'keydown', (e) => { if (e.key === 'Enter') doLogin(); });
         safeBind('regPin2', 'keydown', (e) => { if (e.key === 'Enter') doRegister(); });
-        // รอบที่ 6: แตะชื่อที่ลงทะเบียนไว้ = กรอกชื่อให้เลย | กด ✕ ซ้ำภายใน 2.6 วินาที = ลบผู้ใช้นั้น
+        safeBind('asPin2', 'keydown', (e) => { if (e.key === 'Enter') doAdminSetup(); });
+        // แตะชื่อที่ลงทะเบียนไว้ = กรอกชื่อให้ | กด x ซ้ำภายใน 2.6 วิ = ลบชื่อออกจากเครื่อง
         safeBind('savedUsersList', 'click', (e) => {
             const chip = e.target.closest ? e.target.closest('.saved-chip') : null;
             if (!chip) return;
@@ -1095,128 +1000,106 @@
                     chipConfirmName = name;
                     chip.classList.add('confirming');
                     const cn = chip.querySelector('.chip-name');
-                    if (cn) cn.textContent = 'กด ✕ อีกครั้ง = ลบ ' + name;
-                    setTimeout(() => {
-                        if (chipConfirmName === name) renderRegisteredUsers();
-                    }, 2600);
+                    if (cn) cn.textContent = 'กด x อีกครั้ง = ลบ ' + name;
+                    setTimeout(() => { if (chipConfirmName === name) renderRegisteredUsers(); }, 2600);
                 }
                 return;
             }
             pickSavedUser(name);
         });
-        safeBind('manualCodeInput', 'keydown', (e) => { if (e.key === 'Enter') manualAdd(); });
+
+        // ซิงค์ด้วยไฟล์ข้อมูล
+        safeBind('loginImportBtn', 'click', () => { const n = el('loginImportInput'); if (n) n.click(); });
+        safeBind('loginImportInput', 'change', (e) => {
+            const f = e.target.files[0];
+            if (f) importDataFile(f, true);
+            e.target.value = '';
+        });
+        safeBind('btnImportData', 'click', () => { const n = el('importFileInput'); if (n) n.click(); });
+        safeBind('importFileInput', 'change', (e) => {
+            const f = e.target.files[0];
+            if (f) importDataFile(f, false);
+            e.target.value = '';
+        });
+
+        // โมดัล / ประวัติ / ตาราง
         safeBind('btnModalSave', 'click', confirmScanModal);
         safeBind('btnModalCancel', 'click', cancelScanModal);
         safeBind('modalQty', 'keydown', (e) => { if (e.key === 'Enter') confirmScanModal(); });
-        safeBind('btnDupOk', 'click', closeDupModal); // รอบที่ 7
-        // รอบที่ 8: คลาวด์ + กู้คืนข้ามเครื่อง
-        safeBind('btnRestoreCloud', 'click', doRestoreCloud);
-        safeBind('restoreCode', 'keydown', (e) => { if (e.key === 'Enter') doRestoreCloud(); });
-        safeBind('btnCloudCopy', 'click', copyCloudCode);
-        safeBind('btnCloudLink', 'click', copyCloudLink);
-        safeBind('btnCloudPull', 'click', manualCloudPull);
-        safeBind('btnCloudOff', 'click', handleCloudOffButton);
-        safeBind('btnCloudOn', 'click', enableCloud);
+        safeBind('btnDupOk', 'click', closeDupModal);
+        safeBind('btnExport', 'click', exportToCSV);
+        safeBind('btnClear', 'click', handleClearButton);
         safeBind('btnExportLog', 'click', exportLogCSV);
         safeBind('btnClearLog', 'click', handleClearLogButton);
-        // รอบที่ 5: ซูมกล้อง + ปุ่มจับภาพนิ่งสแกนละเอียด
-        safeBind('zoomSlider', 'input', (e) => { applyZoom(parseFloat(e.target.value)); });
-        safeBind('btnZoomIn', 'click', () => { if (zoomCaps) applyZoom(zoomValue + (zoomCaps.step || 0.1) * 5); });
-        safeBind('btnZoomOut', 'click', () => { if (zoomCaps) applyZoom(zoomValue - (zoomCaps.step || 0.1) * 5); });
-        safeBind('btnStillScan', 'click', stillScanFromVideo);
+        safeBind('searchInput', 'input', renderTable);
+        safeBind('btnExportData', 'click', exportDataFile);
+        safeBind('btnChangePin', 'click', changeAdminPin);
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && dupCtx) closeDupModal();       // รอบที่ 7
+            if (e.key === 'Escape' && dupCtx) closeDupModal();
             else if (e.key === 'Escape' && modalCtx) cancelScanModal();
         });
 
-        // จำค่าที่ใช้ล่าสุด (จำนวน/ประเภท) เพื่อกดข้ามได้เร็วขึ้น
-        try { lastUsedType = localStorage.getItem('stock_last_type') === 'chanel' ? 'chanel' : 'plate'; } catch (e) {}
-        try { lastUsedQty = Math.max(1, parseInt(localStorage.getItem('stock_last_qty'), 10) || 1); } catch (e) {}
+        // จำค่าที่ใช้ล่าสุด (จำนวน/ประเภท) ให้กดข้ามได้เร็วขึ้น
+        try { lastUsedType = localStorage.getItem(STORAGE_KEYS.lastType) === 'chanel' ? 'chanel' : 'plate'; } catch (e) {}
+        try { lastUsedQty = Math.max(1, parseInt(localStorage.getItem(STORAGE_KEYS.lastQty), 10) || 1); } catch (e) {}
 
-        // ตรวจว่าล็อกอินค้างไว้หรือไม่ ถ้าไม่ ให้ขึ้นหน้าล็อกอินก่อน
+        // เข้าสู่ระบบค้างไว้หรือไม่ ถ้าไม่ ขึ้นหน้าล็อกอินก่อน
         restoreSession();
         renderTable();
         renderLog();
-        // รอบที่ 8: ตรวจสุขภาพการจำข้อมูล + เริ่มระบบคลาวด์เบื้องหลัง
         probeAndWarnStorage();
-        initCloud();
     });
 
-    function safeBind(id, event, fn) {
-        const el = document.getElementById(id);
-        if (el) el.addEventListener(event, fn);
+    function showEnvWarn(msg) {
+        const a = el('envWarning');
+        const b = el('appWarning');
+        if (a) { a.style.display = 'block'; a.textContent = msg; }
+        if (b) { b.style.display = 'block'; b.textContent = msg; }
     }
 
-    /* ============================================================
-       รอบที่ 3: ระบบล็อกอิน เพื่อบันทึกว่า "ใครเป็นคนสแกน"
-       - ผู้ใช้ + PIN เก็บใน localStorage (เก็บแต่ค่าแฮช ไม่เก็บ PIN เปล่า)
-       - ล็อกอินครั้งเดียว ใช้ได้ต่อจนกด "ออกจากระบบ"
-       - รอบที่ 6: ลงทะเบียนครั้งเดียว จดจำไว้ตลอด ครั้งถัดไปแตะชื่อ + ใส่ PIN เดิมเข้าได้เลย
-       ============================================================ */
-    const USERS_KEY = 'stock_users';
-    const SESSION_KEY = 'stock_session';
+    /* ตรวจว่าเบราว์เซอร์เก็บข้อมูลถาวรได้จริงไหม (โหมดไม่ระบุตัวตน = เตือนทันที) */
+    function probeAndWarnStorage() {
+        let ok = false;
+        try {
+            const k = '__stock_probe_v1', v = 'p' + Date.now();
+            localStorage.setItem(k, v);
+            ok = localStorage.getItem(k) === v;
+            try { localStorage.removeItem(k); } catch (e) {}
+        } catch (e) { ok = false; }
+        if (ok) return;
+        const msg = 'เบราว์เซอร์นี้เก็บข้อมูลไม่ถาวร (โหมดไม่ระบุตัวตน หรือห้ามเก็บข้อมูล) ข้อมูลจะหายหมดเมื่อปิดหน้า ให้ออกจากโหมดไม่ระบุตัวตนแล้วเปิดด้วย Chrome/Safari ปกติ';
+        const lw = el('loginWarn');
+        if (lw) { lw.style.display = 'block'; lw.textContent = msg; }
+        const aw = el('appWarning');
+        if (aw) { aw.style.display = 'block'; aw.textContent = msg; }
+    }
+
+    function requestPersistentStorage() {
+        try {
+            if (navigator.storage && typeof navigator.storage.persist === 'function') {
+                navigator.storage.persist().catch(() => {});
+            }
+        } catch (e) {}
+    }
+
+    /* ==================================================================
+       ระบบบัญชีผู้ใช้ + ยศ admin (มีได้คนเดียว)
+       - พนักงาน: ลงทะเบียนเองที่แท็บ "ลงทะเบียนใหม่" สแกนเข้า-ออกได้อย่างเดียว
+       - admin: พิมพ์ชื่อ "admin" ที่หน้าเข้าสู่ระบบ ครั้งแรกให้ตั้งรหัสผ่านเอง
+       - รหัสผ่านเก็บเป็นค่าแฮช ไม่เก็นรหัสเปล่า
+       ================================================================== */
+    function isAdmin() { return !!(currentUser && currentUser.role === 'admin'); }
 
     function loadUsers() {
-        try { return JSON.parse(localStorage.getItem(USERS_KEY)) || []; } catch (e) { return []; }
+        try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.users)) || []; } catch (e) { return []; }
     }
 
     function saveUsers(users) {
-        try { localStorage.setItem(USERS_KEY, JSON.stringify(users)); } catch (e) {}
-        scheduleCloudPush(); // รอบที่ 8: ผู้ใช้เปลี่ยน -> สำรองคลาวด์เบื้องหลัง
+        try { localStorage.setItem(STORAGE_KEYS.users, JSON.stringify(users)); } catch (e) {}
     }
 
-    /* ===== รอบที่ 6: จดจำการลงทะเบียน - ลงครั้งเดียว ใช้รหัสเดิมได้ตลอด =====
-       คนที่ลงทะเบียนแล้วแสดงเป็นปุ่มกดเร็วในหน้าล็อกอิน:
-       แตะชื่อ = กรอกชื่อให้เอง (เหลือแค่ใส่ PIN) | กด ✕ 2 ครั้ง = ลบผู้ใช้ออกจากเครื่องนี้ */
-    function escAttr(s) {
-        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-    }
-
-    function renderRegisteredUsers() {
-        const wrap = document.getElementById('savedUsersWrap');
-        const list = document.getElementById('savedUsersList');
-        if (!wrap || !list) return;
-        const users = loadUsers();
-        chipConfirmName = null;
-        if (!users.length) {
-            wrap.style.display = 'none';
-            list.innerHTML = '';
-            return;
-        }
-        wrap.style.display = 'block';
-        list.innerHTML = users.map(u =>
-            '<div class="saved-chip" data-name="' + escAttr(u.name) + '">' +
-            '<span class="chip-name">' + escapeHtml(u.name) + '</span>' +
-            '<span class="chip-x" data-x="1">✕</span>' +
-            '</div>'
-        ).join('');
-        // ลงทะเบียนไว้ชื่อเดียว -> กรอกชื่อให้เลย เหลือแค่ใส่ PIN
-        if (users.length === 1) {
-            const nameEl = document.getElementById('loginName');
-            if (nameEl && !nameEl.value.trim()) nameEl.value = users[0].name;
-        }
-    }
-
-    function pickSavedUser(name) {
-        showLoginTab('login');
-        const nameEl = document.getElementById('loginName');
-        const pinEl = document.getElementById('loginPin');
-        if (nameEl) nameEl.value = name;
-        setLoginMsg('', '');
-        if (pinEl) { try { pinEl.focus(); } catch (e) {} }
-    }
-
-    function forgetUser(name) {
-        const users = loadUsers().filter(u => u.name !== name);
-        saveUsers(users);
-        // ถ้าชื่อที่ลบเป็นเซสชันที่จำไว้ ลบเซสชันทิ้งด้วย กัน restore ชื่อที่ไม่มีแล้ว
-        try {
-            if (localStorage.getItem(SESSION_KEY) === name) localStorage.removeItem(SESSION_KEY);
-        } catch (e) {}
-        chipConfirmName = null;
-        renderRegisteredUsers();
-        setLoginMsg('ลบผู้ใช้ "' + name + '" ออกจากเครื่องนี้แล้ว (ประวัติการสแกนเดิมยังอยู่ครบ)', 'ok');
+    function hasAdminAccount() {
+        return loadUsers().some(u => u.role === 'admin');
     }
 
     async function hashPin(pin) {
@@ -1238,42 +1121,99 @@
     }
 
     function setLoginMsg(text, cls) {
-        const box = document.getElementById('loginMsg');
+        const box = el('loginMsg');
         if (!box) return;
         box.textContent = text;
         box.className = 'login-msg ' + (cls || '');
     }
 
-    function showLoginTab(which) {
-        const tabL = document.getElementById('tabLogin');
-        const tabR = document.getElementById('tabRegister');
-        const formL = document.getElementById('loginForm');
-        const formR = document.getElementById('registerForm');
-        const reg = which === 'register';
-        if (tabL) tabL.className = 'tab-btn' + (reg ? '' : ' active');
-        if (tabR) tabR.className = 'tab-btn' + (reg ? ' active' : '');
-        if (formL) formL.style.display = reg ? 'none' : 'block';
-        if (formR) formR.style.display = reg ? 'block' : 'none';
+    function setAdminMsg(text, cls) {
+        const box = el('adminMsg');
+        if (!box) return;
+        box.textContent = text;
+        box.className = 'login-msg ' + (cls || '');
+    }
+
+    function showLoginPanel(which) {
+        const tL = el('tabLogin'), tR = el('tabRegister');
+        if (tL) tL.classList.toggle('active', which === 'login');
+        if (tR) tR.classList.toggle('active', which === 'register');
+        setDisp('loginForm', which === 'login');
+        setDisp('registerForm', which === 'register');
+        setDisp('adminSetupForm', which === 'adminSetup');
         setLoginMsg('', '');
     }
 
+    /* รายชื่อบัญชีที่ลงทะเบียนไว้ในเครื่องนี้ (แตะเพื่อกรอกชื่อ) */
+    function renderRegisteredUsers() {
+        const wrap = el('savedUsersWrap');
+        const list = el('savedUsersList');
+        if (!wrap || !list) return;
+        const users = loadUsers();
+        chipConfirmName = null;
+        if (!users.length) {
+            wrap.style.display = 'none';
+            list.innerHTML = '';
+            return;
+        }
+        wrap.style.display = 'block';
+        list.innerHTML = users.map(u => {
+            const adm = u.role === 'admin';
+            return '<div class="saved-chip" data-name="' + escAttr(u.name) + '">' +
+                '<span class="chip-name">' + escapeHtml(u.name) +
+                (adm ? ' <span class="role-badge role-admin-badge">ADMIN</span>' : '') + '</span>' +
+                '<span class="chip-x" data-x="1">x</span>' +
+                '</div>';
+        }).join('');
+        // ลงทะเบียนไว้ชื่อเดียว -> กรอกชื่อให้เลย เหลือแค่ใส่รหัสผ่าน
+        if (users.length === 1) {
+            const nameEl = el('loginName');
+            if (nameEl && !nameEl.value.trim()) nameEl.value = users[0].name;
+        }
+    }
+
+    function pickSavedUser(name) {
+        showLoginPanel('login');
+        const nameEl = el('loginName');
+        const pinEl = el('loginPin');
+        if (nameEl) nameEl.value = name;
+        setLoginMsg('', '');
+        if (pinEl) { try { pinEl.focus(); } catch (e) {} }
+    }
+
+    function forgetUser(name) {
+        if (String(name).toLowerCase() === ADMIN_NAME) {
+            setLoginMsg('บัญชี admin ลบออกจากเครื่องไม่ได้ (ใช้รหัสเดิมเข้าได้ตลอด)', 'err');
+            chipConfirmName = null;
+            renderRegisteredUsers();
+            return;
+        }
+        const users = loadUsers().filter(u => u.name !== name);
+        saveUsers(users);
+        try {
+            if (localStorage.getItem(STORAGE_KEYS.session) === name) localStorage.removeItem(STORAGE_KEYS.session);
+        } catch (e) {}
+        chipConfirmName = null;
+        renderRegisteredUsers();
+        setLoginMsg('ลบบัญชี "' + name + '" ออกจากเครื่องนี้แล้ว (ประวัติการสแกนเดิมยังอยู่ครบ)', 'ok');
+    }
+
     function showLoginView() {
-        const overlay = document.getElementById('loginOverlay');
-        const app = document.querySelector('.container');
+        const overlay = el('loginOverlay');
+        const header = el('appHeader');
+        const app = el('appBody');
         if (overlay) overlay.style.display = 'flex';
+        if (header) header.style.display = 'none';
         if (app) app.style.display = 'none';
-        showLoginTab('login');
-        // รอบที่ 6: เคลียร์ช่องกรอกทุกครั้งที่กลับมาหน้าล็อกอิน (กันชื่อ/รหัสเก่าค้าง)
-        // แล้วค่อยเติมชื่อที่จำไว้ให้ใหม่ - เหลือแค่ใส่ PIN
-        const nameEl = document.getElementById('loginName');
-        const pinEl = document.getElementById('loginPin');
+        showLoginPanel('login');
+        // เคลียร์ช่องกรอกทุกครั้ง แล้วเติมชื่อที่จำไว้ใหม่ เหลือแค่ใส่รหัสผ่าน
+        const nameEl = el('loginName');
+        const pinEl = el('loginPin');
         if (nameEl) nameEl.value = '';
         if (pinEl) pinEl.value = '';
         renderRegisteredUsers();
-        // เติม "ชื่อล่าสุดที่ล็อกอิน" ถ้ายังลงทะเบียนอยู่
-        // (ถ้าไม่มี และลงทะเบียนไว้ชื่อเดียว renderRegisteredUsers จะเติมชื่อนั้นให้เอง)
         try {
-            const last = localStorage.getItem('stock_last_user');
+            const last = localStorage.getItem(STORAGE_KEYS.lastUser);
             if (last && nameEl && loadUsers().some(u => u.name === last)) {
                 nameEl.value = last;
             }
@@ -1282,21 +1222,39 @@
     }
 
     function showAppView() {
-        const overlay = document.getElementById('loginOverlay');
-        const app = document.querySelector('.container');
+        const overlay = el('loginOverlay');
+        const header = el('appHeader');
+        const app = el('appBody');
         if (overlay) overlay.style.display = 'none';
-        if (app) app.style.display = 'block';
-        const chip = document.getElementById('userChip');
-        if (chip) chip.textContent = currentUser ? currentUser.name : '-';
+        if (header) header.style.display = 'flex';
+        // ใช้ค่า display จาก CSS (มือถือ = block, จอใหญ่ = grid 2 คอลัมน์) ห้ามล็อกเป็น block
+        if (app) app.style.display = '';
+        applyRoleUI();
         renderTable();
         renderLog();
     }
 
+    /* ปรับ UI ตามยศ: พนักงานเห็นแค่สแกนเข้า-ออก / admin เห็นทุกอย่าง */
+    function applyRoleUI() {
+        const admin = isAdmin();
+        document.body.classList.toggle('role-admin', admin);
+        document.body.classList.toggle('role-user', !admin);
+        const chip = el('userChip');
+        if (chip) chip.textContent = currentUser ? currentUser.name : '-';
+        const badge = el('userRoleBadge');
+        if (badge) {
+            badge.textContent = admin ? 'ADMIN' : 'พนักงาน';
+            badge.className = 'role-badge ' + (admin ? 'role-admin-badge' : 'role-user-badge');
+        }
+        if (admin) renderAdminUsers();
+    }
+
     function restoreSession() {
         let name = null;
-        try { name = localStorage.getItem(SESSION_KEY); } catch (e) {}
-        if (name && loadUsers().some(u => u.name === name)) {
-            currentUser = { name: name };
+        try { name = localStorage.getItem(STORAGE_KEYS.session); } catch (e) {}
+        const u = name && loadUsers().find(x => x.name === name);
+        if (u) {
+            currentUser = { name: u.name, role: u.role || 'user' };
             showAppView();
         } else {
             currentUser = null;
@@ -1304,76 +1262,159 @@
         }
     }
 
-    async function doLogin() {
-        const nameEl = document.getElementById('loginName');
-        const pinEl = document.getElementById('loginPin');
-        const name = nameEl ? nameEl.value.trim() : '';
-        const pin = pinEl ? pinEl.value : '';
-        if (!name || !pin) { setLoginMsg('กรุณากรอกชื่อผู้ใช้และรหัส PIN', 'err'); return; }
-        const user = loadUsers().find(u => u.name.toLowerCase() === name.toLowerCase());
-        if (!user) { setLoginMsg('ไม่พบชื่อผู้ใช้นี้ ลองไปแท็บ "ลงทะเบียนใหม่"', 'err'); return; }
-        const h = await hashPin(pin);
-        if (h !== user.hash) { setLoginMsg('รหัส PIN ไม่ถูกต้อง ลองอีกครั้ง', 'err'); return; }
-        currentUser = { name: user.name };
+    function finishLogin(user) {
+        currentUser = { name: user.name, role: user.role || 'user' };
         try {
-            localStorage.setItem(SESSION_KEY, user.name);
-            localStorage.setItem('stock_last_user', user.name);
+            localStorage.setItem(STORAGE_KEYS.session, user.name);
+            localStorage.setItem(STORAGE_KEYS.lastUser, user.name);
         } catch (e) {}
+        const nameEl = el('loginName'), pinEl = el('loginPin');
         if (nameEl) nameEl.value = '';
         if (pinEl) pinEl.value = '';
         setLoginMsg('', '');
-        requestPersistentStorage(); // รอบที่ 8: ขอสิทธิ์เก็บข้อมูลถาวรให้เบราว์เซอร์
+        requestPersistentStorage();
         showAppView();
-        showStatus('👋 ยินดีต้อนรับ ' + user.name);
+        showStatus('เข้าสู่ระบบ: ' + user.name);
+    }
+
+    async function doLogin() {
+        const nameEl = el('loginName');
+        const pinEl = el('loginPin');
+        const name = nameEl ? nameEl.value.trim() : '';
+        const pin = pinEl ? pinEl.value : '';
+        if (!name || !pin) { setLoginMsg('กรุณากรอกชื่อผู้ใช้และรหัสผ่าน', 'err'); return; }
+
+        // บัญชี admin ยังไม่มีในระบบ -> เข้าสู่ขั้นตอนตั้งรหัสผ่านครั้งแรก
+        if (name.toLowerCase() === ADMIN_NAME && !hasAdminAccount()) {
+            showLoginPanel('adminSetup');
+            setLoginMsg('ตั้งรหัสผ่านของ admin (ทำครั้งแรกครั้งเดียว)', 'ok');
+            const ap = el('asPin');
+            if (ap) { try { ap.focus(); } catch (e) {} }
+            return;
+        }
+
+        const user = loadUsers().find(u => u.name.toLowerCase() === name.toLowerCase());
+        if (!user) { setLoginMsg('ไม่พบบัญชีนี้ ลองไปที่แท็บ "ลงทะเบียนใหม่"', 'err'); return; }
+        const h = await hashPin(pin);
+        if (h !== user.hash) { setLoginMsg('รหัสผ่านไม่ถูกต้อง ลองอีกครั้ง', 'err'); return; }
+        finishLogin(user);
+    }
+
+    async function doAdminSetup() {
+        if (hasAdminAccount()) {
+            showLoginPanel('login');
+            setLoginMsg('มีบัญชี admin ในระบบแล้ว ใช้หน้าเข้าสู่ระบบปกติได้เลย', 'err');
+            return;
+        }
+        const p1 = el('asPin') ? el('asPin').value : '';
+        const p2 = el('asPin2') ? el('asPin2').value : '';
+        if (!/^\d{4,6}$/.test(p1)) { setLoginMsg('รหัสผ่านต้องเป็นตัวเลข 4-6 หลัก', 'err'); return; }
+        if (p1 !== p2) { setLoginMsg('รหัสผ่านสองช่องไม่ตรงกัน', 'err'); return; }
+        const hash = await hashPin(p1);
+        // ทดแทนบัญชีชื่อ admin เดิม (ถ้ามีข้อมูลเก่าตกค้าง) ด้วยบัญชี admin ตัวจริง
+        const users = loadUsers().filter(u => u.name.toLowerCase() !== ADMIN_NAME);
+        users.push({ name: ADMIN_NAME, role: 'admin', hash: hash, updatedAt: Date.now() });
+        saveUsers(users);
+        if (el('asPin')) el('asPin').value = '';
+        if (el('asPin2')) el('asPin2').value = '';
+        finishLogin({ name: ADMIN_NAME, role: 'admin' });
     }
 
     async function doRegister() {
-        const nameEl = document.getElementById('regName');
-        const pinEl = document.getElementById('regPin');
-        const pin2El = document.getElementById('regPin2');
+        const nameEl = el('regName');
+        const pinEl = el('regPin');
+        const pin2El = el('regPin2');
         const name = nameEl ? nameEl.value.trim() : '';
         const pin = pinEl ? pinEl.value : '';
         const pin2 = pin2El ? pin2El.value : '';
+        if (name.toLowerCase() === ADMIN_NAME) { setLoginMsg('ชื่อ admin สงวนไว้สำหรับผู้ดูแลระบบ ใช้ชื่ออื่น', 'err'); return; }
         if (name.length < 2) { setLoginMsg('ชื่อผู้ใช้ต้องมีอย่างน้อย 2 ตัวอักษร', 'err'); return; }
-        if (!/^\d{4,6}$/.test(pin)) { setLoginMsg('PIN ต้องเป็นตัวเลข 4-6 หลัก', 'err'); return; }
-        if (pin !== pin2) { setLoginMsg('PIN สองช่องไม่ตรงกัน', 'err'); return; }
+        if (!/^\d{4,6}$/.test(pin)) { setLoginMsg('รหัสผ่านต้องเป็นตัวเลข 4-6 หลัก', 'err'); return; }
+        if (pin !== pin2) { setLoginMsg('รหัสผ่านสองช่องไม่ตรงกัน', 'err'); return; }
         const users = loadUsers();
         if (users.some(u => u.name.toLowerCase() === name.toLowerCase())) {
             setLoginMsg('มีชื่อนี้ในระบบแล้ว ให้ไปที่แท็บ "เข้าสู่ระบบ"', 'err');
             return;
         }
         const hash = await hashPin(pin);
-        users.push({ name: name, hash: hash });
+        users.push({ name: name, role: 'user', hash: hash, updatedAt: Date.now() });
         saveUsers(users);
-        currentUser = { name: name };
-        try {
-            localStorage.setItem(SESSION_KEY, name);
-            localStorage.setItem('stock_last_user', name);
-        } catch (e) {}
         if (nameEl) nameEl.value = '';
         if (pinEl) pinEl.value = '';
         if (pin2El) pin2El.value = '';
-        showAppView();
-        showStatus('✅ ลงทะเบียนผู้ใช้ใหม่สำเร็จ: ' + name);
-        requestPersistentStorage(); // รอบที่ 8
-        ensureCloudWorkspace();    // รอบที่ 8: สร้าง "ร้านบนคลาวด์" ให้อัตโนมัติ (ครั้งแรกของร้าน)
+        finishLogin({ name: name, role: 'user' });
     }
 
     function doLogout() {
         stopCamera();
         currentUser = null;
-        try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
+        try { localStorage.removeItem(STORAGE_KEYS.session); } catch (e) {}
         showLoginView();
     }
 
-    /* ============================================================
-       รอบที่ 7: กันสแกนซ้ำ - โค้ดที่เคยบันทึกแล้ว จะไม่บันทึกลงสต๊อกซ้ำอีก
-       - เทียบกันที่ "เนื้อหาข้างในของโค้ด" (normalize แล้ว) ทุกประเภท plate/chanel
-         เพราะเนื้อหาโค้ดเดิมคือฉลากใบเดียวกัน
-       - โหมดรับเข้า: โค้ดที่เคย "รับเข้า" มาก่อน -> เตือน + ไม่บันทึก (กันสต๊อกนับเกิน)
-       - โหมดเบิกออก: โค้ดที่เคย "เบิกออก" ไปแล้ว -> เตือน + ไม่บันทึก (กันยอดเบิกเกินจริง)
+    /* แผง admin: รายชื่อบัญชี + ปุ่มลบ (ลบพนักงานเท่านั้น ห้ามลบ admin) */
+    function renderAdminUsers() {
+        const box = el('adminUserList');
+        if (!box) return;
+        const users = loadUsers();
+        if (!users.length) {
+            box.innerHTML = '<div class="muted-small">ยังไม่มีบัญชีผู้ใช้</div>';
+            return;
+        }
+        box.innerHTML = users.map(u => {
+            const adm = u.role === 'admin';
+            const me = currentUser && String(u.name).toLowerCase() === String(currentUser.name).toLowerCase();
+            const del = (!adm && !me)
+                ? '<button type="button" class="btn btn-mini btn-del" data-name="' + escAttr(u.name) + '" onclick="adminDeleteUser(this)">ลบ</button>'
+                : '';
+            return '<div class="user-row">' +
+                '<span class="user-row-name">' + escapeHtml(u.name) + (me ? ' <span class="muted-small">(คุณอยู่)</span>' : '') + '</span>' +
+                '<span class="role-badge ' + (adm ? 'role-admin-badge' : 'role-user-badge') + '">' + (adm ? 'ADMIN' : 'พนักงาน') + '</span>' +
+                del +
+                '</div>';
+        }).join('');
+    }
+
+    function adminDeleteUser(btn) {
+        if (!isAdmin()) { showStatus('เฉพาะ admin เท่านั้น', true); return; }
+        const name = btn.getAttribute('data-name') || '';
+        if (!name || name.toLowerCase() === ADMIN_NAME) return;
+        if (btn.dataset.confirm !== '1') {
+            btn.dataset.confirm = '1';
+            btn.textContent = 'ยืนยัน';
+            setTimeout(() => { btn.dataset.confirm = ''; btn.textContent = 'ลบ'; }, 2600);
+            return;
+        }
+        saveUsers(loadUsers().filter(u => u.name.toLowerCase() !== name.toLowerCase()));
+        renderAdminUsers();
+        renderRegisteredUsers();
+        showStatus('ลบบัญชี ' + name + ' แล้ว');
+    }
+
+    async function changeAdminPin() {
+        if (!isAdmin()) { showStatus('เฉพาะ admin เท่านั้น', true); return; }
+        const p1 = el('adminNewPin') ? el('adminNewPin').value : '';
+        const p2 = el('adminNewPin2') ? el('adminNewPin2').value : '';
+        if (!/^\d{4,6}$/.test(p1)) { setAdminMsg('รหัสใหม่ต้องเป็นตัวเลข 4-6 หลัก', 'err'); return; }
+        if (p1 !== p2) { setAdminMsg('รหัสสองช่องไม่ตรงกัน', 'err'); return; }
+        const users = loadUsers();
+        const me = users.find(u => u.name.toLowerCase() === ADMIN_NAME && u.role === 'admin');
+        if (!me) { setAdminMsg('ไม่พบบัญชี admin', 'err'); return; }
+        me.hash = await hashPin(p1);
+        me.updatedAt = Date.now();
+        saveUsers(users);
+        if (el('adminNewPin')) el('adminNewPin').value = '';
+        if (el('adminNewPin2')) el('adminNewPin2').value = '';
+        setAdminMsg('เปลี่ยนรหัสผ่าน admin สำเร็จ (ใช้รหัสใหม่ตั้งแต่ครั้งถัดไป)', 'ok');
+        renderRegisteredUsers();
+    }
+
+    /* ==================================================================
+       กันสแกนซ้ำ - โค้ดที่เคยบันทึกตามโหมดเดิมแล้ว จะไม่บันทึกซ้ำอีก
+       - เทียบที่เนื้อหาโค้ดทั้งหมด (normalize แล้ว) ไม่แยก plate/chanel
+       - รับเข้าซ้ำ = ไม่บันทึก | เบิกออกซ้ำ = ไม่บันทึก
        - ลำดับปกติ "รับเข้า -> เบิกออก" ใช้ได้เต็มที่ ไม่ถูกตัดสินเป็นโค้ดซ้ำ
-       ============================================================ */
+       ================================================================== */
     function findDuplicateEntry(code, mode) {
         const c = normalizeCodeText(code);
         if (!c) return null;
@@ -1382,7 +1423,7 @@
         return hit || null;
     }
 
-    // เสียงเตือน 2 จังหวะเสียงต่ำ + สั่นเตือน แยกจากเสียงสแกนปกติ ให้รู้ทันทีว่าเป็น "โค้ดซ้ำ"
+    /* เสียงเตือน 2 จังหวะเสียงต่ำ + สั่น แยกจากเสียงสแกนปกติ */
     function triggerFeedbackDup() {
         if (navigator.vibrate) navigator.vibrate([120, 80, 120]);
         try {
@@ -1405,33 +1446,27 @@
     function openDupModal(code, fmt, dup) {
         dupCtx = { code: code };
         triggerFeedbackDup();
-        const codeEl = document.getElementById('dupCode');
-        const fmtEl = document.getElementById('dupFmt');
-        const detail = document.getElementById('dupDetail');
+        const codeEl = el('dupCode');
+        const fmtEl = el('dupFmt');
+        const detail = el('dupDetail');
         if (codeEl) codeEl.textContent = code;
         if (fmtEl) fmtEl.textContent = fmt ? '(' + fmt + ')' : '';
         if (detail) {
             const isIn = currentMode !== 'OUT';
-            const head = isIn ? '📥 โค้ดนี้ถูกรับเข้ามาแล้ว - จึงไม่บันทึกข้อมูลซ้ำ'
-                              : '📤 โค้ดนี้ถูกเบิกออกไปแล้ว - จึงไม่บันทึกข้อมูลซ้ำ';
-            const why = isIn ? 'โค้ดที่เคยรับเข้าแล้ว ระบบจะไม่บันทึกรับเข้าซ้ำ เพื่อกันสต๊อกนับเกินจริง'
-                             : 'โค้ดที่เคยเบิกออกแล้ว ระบบจะไม่บันทึกเบิกออกซ้ำ เพื่อกันยอดเบิกเกินจริง';
+            const head = isIn ? 'โค้ดนี้ถูกรับเข้ามาแล้ว จึงไม่บันทึกข้อมูลซ้ำ'
+                              : 'โค้ดนี้ถูกเบิกออกไปแล้ว จึงไม่บันทึกข้อมูลซ้ำ';
             detail.innerHTML =
                 '<div class="dup-head">' + head + '</div>' +
-                '<div class="info-line">🕒 บันทึกล่าสุด: <b>' + escapeHtml(dup.lastUpdate || '-') + '</b></div>' +
-                '<div class="info-line">👤 ผู้สแกน: <b>' + escapeHtml(dup.lastBy || '-') + '</b>' +
-                ' | ประเภท: <b>' + escapeHtml(typeLabel(dup.type)) + '</b></div>' +
-                '<div class="info-line">📦 สต๊อกปัจจุบัน: <b>' + (dup.stock || 0) + '</b> ชิ้น' +
-                ' (รับเข้ารวม ' + (dup.inTotal || 0) + ' / เบิกออกรวม ' + (dup.outTotal || 0) + ')</div>' +
-                '<div class="info-line">' + why + '</div>' +
-                '<div class="info-line">🔧 หากบันทึกครั้งก่อนผิด ให้ลบรายการเดิมในตารางก่อน แล้วจึงสแกนใหม่</div>';
+                '<div class="info-line">บันทึกล่าสุด: <b>' + escapeHtml(dup.lastUpdate || '-') + '</b> โดย <b>' + escapeHtml(dup.lastBy || '-') + '</b></div>' +
+                '<div class="info-line">ประเภท: <b>' + escapeHtml(typeLabel(dup.type)) + '</b> | สต๊อกคงเหลือ: <b>' + (dup.stock || 0) + '</b> ชิ้น (รับเข้ารวม ' + (dup.inTotal || 0) + ' / เบิกออกรวม ' + (dup.outTotal || 0) + ')</div>' +
+                '<div class="info-line">ถ้าบันทึกครั้งก่อนผิด ให้ admin ลบรายการเดิมในตารางก่อน แล้วจึงสแกนใหม่</div>';
         }
-        const overlay = document.getElementById('dupModal');
+        const overlay = el('dupModal');
         if (overlay) overlay.classList.add('open');
     }
 
     function closeDupModal() {
-        const overlay = document.getElementById('dupModal');
+        const overlay = el('dupModal');
         if (overlay) overlay.classList.remove('open');
         dupCtx = null;
         // ฉลากเดิมมักยังชี้อยู่หน้ากล้อง -> ยับยั้งโค้ดเดิมช่วงสั้น ๆ แล้วค่อยสแกนต่อ
@@ -1440,624 +1475,10 @@
         if (isScanning) scheduleDecode(250);
     }
 
-    /* ============================================================
-       รอบที่ 8: คลาวด์จัดเก็บข้อมูลเบื้องหลัง + กู้คืนเครื่องใหม่
-       ปัญหาเดิม: มือถือบางเครื่อง/บางวิธีเปิดจะล้าง localStorage ทิ้ง
-       -> ต้องลงทะเบียนใหม่ทุกครั้ง
-       วิธีแก้: เก็บข้อมูลสำรองบนคลาวด์ (telegra.ph API ฟรี ไม่ต้องสมัครสมาชิก)
-       - ลงทะเบียนผู้ใช้แรก (หรือเครื่องที่มีข้อมูลอยู่แล้ว) -> สร้าง "ร้านบนคลาวด์"
-         อัตโนมัติ ได้ "รหัสร้าน" (access token) ไว้กู้คืนข้อมูลทุกอย่าง
-       - ทุกครั้งที่ข้อมูลเปลี่ยนจะ push ขึ้นคลาวด์เบื้องหลัง (รวบของ 2.5 วินาที)
-       - เครื่องไหนจำไม่ได้: วาง "รหัสร้าน" ที่หน้าล็อกอิน หรือเปิด "ลิงก์กู้คืน"
-         (พ่วง #c=รหัสร้าน) ระบบกู้ผู้ใช้+สต๊อก+ประวัติให้อัตโนมัติ
-       - ข้อมูลแบ่งเป็นชิ้นเล็ก (<=40KB) เก็บเป็นหน้าชื่อ STOCKWS:chunk:<i>
-         ชิ้น meta (ชิ้น 0) เขียนเป็นชิ้นสุดท้ายเหมือน "ตราประทับ" ถ้าชุดไม่ครบ
-         (ซิงค์ค้าง) จะไม่เอาข้อมูลครึ่ง ๆ กลาง ๆ มาเขียนทับเครื่อง
-       - ลบรายการ -> จด tombstone กันข้อมูลเก่าจากเครื่องอื่นกลับมาฟื้น
-       - ออฟไลน์/คลาวด์ล่ม: ใช้งานจากเครื่องได้ปกติ แล้วลอง push ใหม่เองเมื่อเน็ตกลับ
-       ============================================================ */
-    const CLOUD_TOKEN_KEY = 'stock_cloud_code';
-    const CLOUD_PAGES_KEY = 'stock_cloud_pages';
-    const CLOUD_TOMB_KEY = 'stock_tombstones';
-    const CLOUD_INFO_KEY = 'stock_cloud_info';
-    const CLOUD_API = 'https://api.telegra.ph/';
-    const CLOUD_TITLE_PREFIX = 'STOCKWS:chunk:';
-    const CLOUD_CHUNK_INNER_LIMIT = 33000;  // ไบต์ข้อมูลต่อชิ้น (โควตาหน้าละ ~50KB)
-    const CLOUD_PUSH_DELAY_MS = 2500;
-    const CLOUD_PULL_INTERVAL_MS = 90000;
-    let cloudPagePaths = {};     // { ชิ้นที่: path ของหน้าบนคลาวด์ }
-    let cloudTombstones = [];    // รายการที่ถูกลบ (กันฟื้นคืน)
-    let cloudBusy = false;
-    let cloudPushTimer = null;
-    let cloudRetryTimer = null;
-    let cloudPullTimer = null;
-    let cloudPullRetryTimer = null;
-    let cloudPullAttempts = 0;
-    let cloudStatus = 'off';     // off | ok | pending | error
-    let cloudInfo = { lastPushAt: 0, lastPullAt: 0, lastError: '' };
-    let cloudApplying = false;   // กำลังเขียนข้อมูลจากคลาวด์ลงเครื่อง (ไม่ push วนซ้ำ)
-    let cloudLastSig = {};       // ลายเซ็นชิ้นที่ push ล่าสุด (ข้ามชิ้นที่ไม่เปลี่ยน)
-
-    function cloudGetToken() { try { return localStorage.getItem(CLOUD_TOKEN_KEY) || ''; } catch (e) { return ''; } }
-    function cloudSetToken(t) { try { if (t) localStorage.setItem(CLOUD_TOKEN_KEY, t); else localStorage.removeItem(CLOUD_TOKEN_KEY); } catch (e) {} }
-    function cloudSaveInfo() { try { localStorage.setItem(CLOUD_INFO_KEY, JSON.stringify(cloudInfo)); } catch (e) {} }
-    function cloudSavePages() { try { localStorage.setItem(CLOUD_PAGES_KEY, JSON.stringify(cloudPagePaths)); } catch (e) {} }
-    function cloudSaveTombs() { try { localStorage.setItem(CLOUD_TOMB_KEY, JSON.stringify(cloudTombstones)); } catch (e) {} }
-    function cloudLoadTombs() { try { return JSON.parse(localStorage.getItem(CLOUD_TOMB_KEY)) || []; } catch (e) { return []; } }
-
-    function itemMs(i) { return i.lastUpdateMs || i.id || 0; }
-
-    function addTombstone(item) {
-        if (!item) return;
-        const key = (item.code || '') + '|' + (item.type || '');
-        const found = cloudTombstones.find(t => t.key === key);
-        if (found) found.ms = Date.now(); else cloudTombstones.push({ key: key, ms: Date.now() });
-        if (cloudTombstones.length > 300) cloudTombstones = cloudTombstones.slice(-300);
-        cloudSaveTombs();
-    }
-
-    function isTombstoned(item) {
-        const key = (item.code || '') + '|' + (item.type || '');
-        const t = cloudTombstones.find(x => x.key === key);
-        return !!(t && (t.ms || 0) > itemMs(item));
-    }
-
-    // ===== เครือข่าย: GET / POST แบบ form-encoded ง่าย ๆ + timeout 15 วินาที =====
-    // GET ต้องแถมพารามิเตอร์กันแคชทุกครั้ง (มิฉะนั้นเบราว์เซอร์/เครือข่ายมือถือ
-    // อาจให้ข้อมูลเก่าที่แคชไว้ ทำให้กู้คืนได้ข้อมูลไม่ครบ ราวกับเครื่องจำไม่ได้)
-    function cloudFetch(method, params, post) {
-        const opt = post ? {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams(params).toString()
-        } : { method: 'GET' };
-        let timer = null;
-        try {
-            if (typeof AbortController === 'function') {
-                const ctrl = new AbortController();
-                opt.signal = ctrl.signal;
-                timer = setTimeout(() => { try { ctrl.abort(); } catch (e) {} }, 15000);
-            }
-        } catch (e) {}
-        let qs = '';
-        if (!post) {
-            const p2 = Object.assign({}, params, { _cb: Date.now() + '.' + Math.floor(Math.random() * 9999) });
-            qs = '?' + new URLSearchParams(p2).toString();
-        }
-        const url = CLOUD_API + method + qs;
-        return fetch(url, opt).then(r => r.json()).finally(() => { if (timer) clearTimeout(timer); });
-    }
-
-    function cloudNode(inner) { return JSON.stringify([{ tag: 'pre', children: [inner] }]); }
-
-    function cloudParseNode(content) {
-        try {
-            const raw = content && content[0] && content[0].children && content[0].children[0];
-            return raw ? JSON.parse(raw) : null;
-        } catch (e) { return null; }
-    }
-
-    function utf8Len(s) { try { return new TextEncoder().encode(s).length; } catch (e) { return s.length; } }
-
-    // แบ่งรายการเป็นชิ้น ๆ ไม่ให้ชิ้นใหญ่เกินโควตาหน้าของคลาวด์
-    function splitChunks(items) {
-        const parts = [];
-        let cur = [], bytes = 0;
-        items.forEach(it => {
-            const b = utf8Len(JSON.stringify(it)) + 1;
-            if (cur.length && bytes + b > CLOUD_CHUNK_INNER_LIMIT) { parts.push(cur); cur = []; bytes = 0; }
-            cur.push(it); bytes += b;
-        });
-        if (cur.length || !parts.length) parts.push(cur);
-        return parts;
-    }
-
-    function setCloudStatus(st) { cloudStatus = st; refreshCloudBar(); }
-
-    function refreshCloudBar() {
-        const dot = document.getElementById('cloudDot');
-        const state = document.getElementById('cloudState');
-        const codeRow = document.getElementById('cloudCodeRow');
-        const ctlRow = document.getElementById('cloudCtlRow');
-        const onRow = document.getElementById('cloudOnRow');
-        const hint = document.getElementById('cloudHint');
-        const tok = cloudGetToken();
-        const on = !!tok;
-        if (codeRow) codeRow.style.display = on ? 'block' : 'none';
-        if (ctlRow) ctlRow.style.display = on ? 'flex' : 'none';
-        if (onRow) onRow.style.display = on ? 'none' : 'flex';
-        const codeTxt = document.getElementById('cloudCodeTxt');
-        if (codeTxt) codeTxt.textContent = tok ? tok.slice(0, 10) + '…' + tok.slice(-6) + ' (' + tok.length + ' ตัวอักษร)' : '-';
-        if (state) {
-            if (!on) state.textContent = 'ปิดอยู่ - ข้อมูลเก็บในเครื่องเท่านั้น';
-            else if (cloudStatus === 'ok') state.textContent = cloudInfo.lastPushAt
-                ? 'สำรองล่าสุด ' + new Date(cloudInfo.lastPushAt).toLocaleTimeString('th-TH')
-                : 'พร้อมใช้งาน';
-            else if (cloudStatus === 'pending') state.textContent = 'กำลังบันทึกขึ้นคลาวด์...';
-            else if (cloudStatus === 'error') state.textContent = 'บันทึกไม่สำเร็จ (เน็ต/คลาวด์) จะลองใหม่เอง - ข้อมูลในเครื่องปกติ';
-            else state.textContent = 'กำลังตรวจ...';
-        }
-        if (dot) dot.className = 'cloud-dot ' + (!on ? 'dot-off'
-            : cloudStatus === 'ok' ? 'dot-ok'
-            : cloudStatus === 'pending' ? 'dot-pending'
-            : cloudStatus === 'error' ? 'dot-error' : 'dot-off');
-        if (hint) hint.textContent = on
-            ? 'รหัสร้าน = กุญแจกู้ข้อมูลทั้งหมด เก็บไว้ให้ดี (ให้เฉพาะคนในร้าน) - เครื่องไหนจำลงทะเบียนไม่ได้ เอารหัสนี้ไปกู้ที่หน้าล็อกอิน หรือเปิด "ลิงก์กู้คืน" ที่ตัวเองส่งเก็บไว้'
-            : 'เปิดคลาวด์เพื่อสำรองข้อมูลอัตโนมัติ + กู้คืนข้ามเครื่อง (แนะนำ)';
-    }
-
-    async function cloudPushNow() {
-        if (cloudApplying) return;
-        const tok = cloudGetToken();
-        if (!tok) return;
-        if (cloudBusy) return;
-        cloudBusy = true;
-        setCloudStatus('pending');
-        try {
-            // กันข้อมูลเครื่องอื่นที่เพิ่งบันทึกถูกเขียนทับ: ดึงข้อมูลล่าสุดจากคลาวด์
-            // มารวมเข้าเครื่องนี้ก่อนเสมอ แล้วจึง push สถานะที่รวมแล้วขึ้นไป
-            // (ถ้าดึงไม่สำเร็จจะไม่ push ใบ ๆ - รอลองใหม่ ยกเว้นร้านใหม่ที่ยังไม่มีข้อมูล)
-            const pre = await cloudPullInner();
-            if (!pre.ok && pre.error !== 'no-data') {
-                // syncing = เครื่องอื่นกำลัง push อยู่ รอให้เขาเสร็จก่อน ไม่ push ทับใบ ๆ
-                throw new Error(pre.error || 'pull ก่อนบันทึกล้มเหลว');
-            }
-            if (pre.ok && (pre.stats.invAdded || pre.stats.invUpdated || pre.stats.usersAdded)) {
-                // มีข้อมูลจากเครื่องอื่นเพิ่มเข้ามา -> ข้อมูลเปลี่ยนแล้ว push ต้นฉบับใหม่ทั้งหมด
-                for (const k of Object.keys(cloudLastSig)) delete cloudLastSig[k];
-            }
-            const ts = Date.now();
-            const invParts = splitChunks(inventory);
-            const logParts = splitChunks(scanLog);
-            const total = 1 + invParts.length + logParts.length;
-            // สร้างหน้าที่ยังไม่มี (ครั้งแรกของแต่ละชิ้น)
-            for (let i = 0; i < total; i++) {
-                if (cloudPagePaths[i]) continue;
-                const r = await cloudFetch('createPage', {
-                    access_token: tok, title: CLOUD_TITLE_PREFIX + i,
-                    content: cloudNode(JSON.stringify({ tsMs: ts, i: i, kind: i === 0 ? 'meta' : 'inv', part: [] })),
-                    return_content: 'false'
-                }, true);
-                if (!r.ok) throw new Error(r.error || 'createPage ล้มเหลว');
-                cloudPagePaths[i] = r.result.path;
-            }
-            cloudSavePages();
-            // เขียนชิ้นข้อมูล (inv/log) ก่อน แล้วปิดท้ายด้วย meta = ตราประทับ
-            for (let i = 1; i < total; i++) {
-                const isInv = i <= invParts.length;
-                const part = isInv ? invParts[i - 1] : logParts[i - invParts.length - 1];
-                const inner = JSON.stringify({ tsMs: ts, i: i, kind: isInv ? 'inv' : 'log', part: part });
-                if (cloudLastSig[i] === inner) continue; // ชิ้นนี้ไม่เปลี่ยน ข้ามได้
-                const r = await cloudFetch('editPage', {
-                    access_token: tok, path: cloudPagePaths[i], title: CLOUD_TITLE_PREFIX + i,
-                    content: cloudNode(inner), return_content: 'false'
-                }, true);
-                if (!r.ok) throw new Error(r.error || 'editPage ล้มเหลว');
-                cloudLastSig[i] = inner;
-            }
-            const meta = {
-                tsMs: ts, i: 0, kind: 'meta',
-                part: {
-                    v: 3,
-                    users: loadUsers(),
-                    tombstones: cloudTombstones,
-                    invChunks: invParts.length,
-                    logChunks: logParts.length,
-                    savedAt: new Date().toLocaleString('th-TH')
-                }
-            };
-            const r0 = await cloudFetch('editPage', {
-                access_token: tok, path: cloudPagePaths[0], title: CLOUD_TITLE_PREFIX + '0',
-                content: cloudNode(JSON.stringify(meta)), return_content: 'false'
-            }, true);
-            if (!r0.ok) throw new Error(r0.error || 'editPage meta ล้มเหลว');
-            cloudLastSig[0] = JSON.stringify(meta);
-            cloudInfo.lastPushAt = Date.now();
-            cloudInfo.lastError = '';
-            cloudSaveInfo();
-            setCloudStatus('ok');
-        } catch (e) {
-            cloudInfo.lastError = String((e && e.message) || e);
-            cloudSaveInfo();
-            setCloudStatus('error');
-            if (cloudRetryTimer) clearTimeout(cloudRetryTimer);
-            cloudRetryTimer = setTimeout(() => { cloudRetryTimer = null; cloudPushNow(); }, 30000);
-        } finally {
-            cloudBusy = false;
-        }
-    }
-
-    function scheduleCloudPush(delay) {
-        if (!cloudGetToken() || cloudApplying) return;
-        setCloudStatus('pending');
-        if (cloudPushTimer) clearTimeout(cloudPushTimer);
-        cloudPushTimer = setTimeout(() => { cloudPushTimer = null; cloudPushNow(); }, delay || CLOUD_PUSH_DELAY_MS);
-    }
-
-    // ดึงข้อมูลไม่สำเร็จ (เน็ตอ่อน/คลาวด์ติดขัด) -> ลองใหม่เองด้วยระยะห่างที่เพิ่มขึ้น
-    // สำคัญมากบนมือถือ: ถ้า pull ครั้งแรกพลาดแล้วไม่ลองใหม่ ผู้ใช้จะเจอ "ลงทะเบียนไม่จำ" อีก
-    function scheduleCloudPullRetry() {
-        if (!cloudGetToken()) return;
-        if (cloudPullAttempts >= 6) return;
-        if (cloudPullRetryTimer) clearTimeout(cloudPullRetryTimer);
-        cloudPullAttempts++;
-        const delay = Math.min(5000 * cloudPullAttempts, 40000);
-        cloudPullRetryTimer = setTimeout(() => {
-            cloudPullRetryTimer = null;
-            cloudPull().then(res => {
-                if (res.ok) { cloudPullAttempts = 0; return; }
-                if (res.error !== 'busy' && res.error !== 'no-data' && res.error !== 'syncing') scheduleCloudPullRetry();
-            }).catch(() => scheduleCloudPullRetry());
-            refreshCloudBar();
-        }, delay);
-    }
-
-    async function cloudPull() {
-        const tok = cloudGetToken();
-        if (!tok) return { ok: false, error: 'no-token' };
-        if (cloudBusy) return { ok: false, error: 'busy' };
-        cloudBusy = true;
-        try {
-            return await cloudPullInner();
-        } finally {
-            cloudBusy = false;
-        }
-    }
-
-    // เนื้อความของการดึงข้อมูล (ผู้เรียกต้องจับ cloudBusy เองแล้ว)
-    async function cloudPullInner() {
-        const tok = cloudGetToken();
-        try {
-            const list = await cloudFetch('getPageList', { access_token: tok, limit: 200 });
-            if (!list.ok) throw new Error(list.error || 'getPageList ล้มเหลว');
-            const byIndex = {};
-            ((list.result && list.result.pages) || []).forEach(p => {
-                const m = new RegExp('^STOCKWS:chunk:(\\d+)$').exec(p.title || '');
-                if (m && !(m[1] in byIndex)) byIndex[m[1]] = p.path;
-            });
-            if (!('0' in byIndex)) return { ok: false, error: 'no-data' };
-            // ยึดหน้าชุดที่อยู่บนคลาวด์เป็นชุดกลางของทั้งร้าน: ถ้าเครื่องนี้จำ path ต่างออกไป
-            // (เช่น เพิ่งกู้คืนเครื่องใหม่) ให้เปลี่ยนไปใช้ path จากคลาวด์เสมอ
-            // กันสร้างหน้าซ้ำชื่อเดียวกัน ซึ่งทำให้แต่ละเครื่องอ่าน/เขียนคนละชุดข้อมูล
-            let pagesChanged = false;
-            for (const idx of Object.keys(byIndex)) {
-                const num = parseInt(idx, 10);
-                if (cloudPagePaths[num] !== byIndex[idx]) {
-                    cloudPagePaths[num] = byIndex[idx];
-                    pagesChanged = true;
-                }
-            }
-            if (pagesChanged) cloudSavePages();
-            const chunks = {};
-            for (const idx of Object.keys(byIndex)) {
-                const g = await cloudFetch('getPage', { path: byIndex[idx], return_content: 'true' });
-                if (!g.ok) throw new Error(g.error || 'getPage ล้มเหลว');
-                const c = cloudParseNode(g.result && g.result.content);
-                if (c && typeof c.tsMs === 'number') chunks[idx] = c;
-            }
-            const meta = chunks['0'];
-            if (!meta || !meta.part) return { ok: false, error: 'no-data' };
-            const ts = meta.tsMs;
-            const total = 1 + (meta.part.invChunks || 0) + (meta.part.logChunks || 0);
-            let complete = true;
-            for (let i = 1; i < total; i++) {
-                if (!chunks[String(i)] || chunks[String(i)].tsMs !== ts) { complete = false; break; }
-            }
-            if (!complete) return { ok: false, error: 'syncing' };
-            let inv = [];
-            for (let i = 1; i <= meta.part.invChunks; i++) inv = inv.concat(chunks[String(i)].part || []);
-            let log = [];
-            for (let i = meta.part.invChunks + 1; i < total; i++) log = log.concat(chunks[String(i)].part || []);
-            const stats = applyCloudData(meta.part.users || [], inv, log, meta.part.tombstones || []);
-            cloudInfo.lastPullAt = Date.now();
-            cloudInfo.lastError = '';
-            cloudSaveInfo();
-            setCloudStatus('ok');
-            return { ok: true, stats: stats };
-        } catch (e) {
-            cloudInfo.lastError = String((e && e.message) || e);
-            cloudSaveInfo();
-            setCloudStatus('error');
-            return { ok: false, error: cloudInfo.lastError };
-        }
-    }
-
-    // รวมข้อมูลจากคลาวด์เข้าเครื่องนี้: ผู้ใช้รวมชื่อ (ไม่ทับ PIN เดิมของเครื่อง)
-    // สต๊อก: แถวที่แก้ล่าสุดชนะ | ประวัติ: รวมไม่ให้ซ้ำ | ลบแล้วมี tombstone จะไม่ฟื้น
-    function applyCloudData(usersCloud, invCloud, logCloud, tombCloud) {
-        cloudApplying = true;
-        try {
-            const stats = { usersAdded: 0, invAdded: 0, invUpdated: 0, logAdded: 0 };
-            (tombCloud || []).forEach(t => {
-                if (!t || !t.key) return;
-                const ex = cloudTombstones.find(x => x.key === t.key);
-                if (ex) { if ((t.ms || 0) > ex.ms) ex.ms = t.ms; }
-                else cloudTombstones.push({ key: t.key, ms: t.ms || 0 });
-            });
-            if (cloudTombstones.length > 300) cloudTombstones = cloudTombstones.slice(-300);
-            cloudSaveTombs();
-
-            // ลบรายการที่เครื่องอื่นลบไปแล้ว (tombstone ที่ใหม่กว่าการแก้ล่าสุดของรายการ = ถูกลบ)
-            // เครื่องอื่นลบ -> เครื่องนี้ก็ลบตาม รายการจึงหายจริงทุกเครื่อง
-            inventory = inventory.filter(item => !isTombstoned(item));
-
-            const curUsers = loadUsers();
-            (usersCloud || []).forEach(u => {
-                if (!u || !u.name || !u.hash) return;
-                if (!curUsers.some(x => x.name.toLowerCase() === u.name.toLowerCase())) {
-                    curUsers.push({ name: u.name, hash: u.hash });
-                    stats.usersAdded++;
-                }
-            });
-            if (stats.usersAdded) saveUsers(curUsers);
-
-            (invCloud || []).forEach(c => {
-                if (!c || !c.code) return;
-                if (isTombstoned(c)) return;
-                const ex = inventory.find(i => i.code === c.code && (i.type || '') === (c.type || ''));
-                if (!ex) { inventory.push(c); stats.invAdded++; }
-                else if (itemMs(c) > itemMs(ex)) {
-                    const at = inventory.indexOf(ex);
-                    if (at >= 0) inventory[at] = c;
-                    stats.invUpdated++;
-                }
-            });
-            saveToStorage();
-
-            const sig = e => [e.t || '', e.user || '', e.code || '', e.type || '', e.qty || '', e.mode || ''].join('|');
-            const seen = {};
-            scanLog.forEach(e => { seen[sig(e)] = 1; });
-            (logCloud || []).forEach(e => {
-                if (e && !seen[sig(e)]) { scanLog.push(e); stats.logAdded++; }
-            });
-            scanLog.sort((a, b) => (b.ms || 0) - (a.ms || 0));
-            if (scanLog.length > 300) scanLog = scanLog.slice(0, 300);
-            try { localStorage.setItem('stock_scan_log', JSON.stringify(scanLog)); } catch (e) {}
-
-            renderTable();
-            renderLog();
-            renderRegisteredUsers();
-            return stats;
-        } finally { cloudApplying = false; }
-    }
-
-    function initCloud() {
-        try { cloudInfo = JSON.parse(localStorage.getItem(CLOUD_INFO_KEY)) || cloudInfo; } catch (e) {}
-        try { cloudPagePaths = JSON.parse(localStorage.getItem(CLOUD_PAGES_KEY)) || {}; } catch (e) { cloudPagePaths = {}; }
-        cloudTombstones = cloudLoadTombs();
-        requestPersistentStorage();
-        // ลิงก์กู้คืน: เปิดมาพร้อม #c=<รหัสร้าน> -> ตั้งรหัสแล้วกู้เองอัตโนมัติ
-        let hashTok = '';
-        try {
-            const m = /[#&]c=([A-Za-z0-9]+)/.exec(location.hash || '');
-            if (m) hashTok = m[1];
-        } catch (e) {}
-        if (hashTok && hashTok !== cloudGetToken()) {
-            cloudSetToken(hashTok);
-            cloudPagePaths = {}; cloudSavePages();
-            cloudLastSig = {};
-        }
-        try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
-        const tok = cloudGetToken();
-        if (tok) {
-            setCloudStatus('pending');
-            cloudPull().then(res => {
-                if (res.ok) {
-                    cloudPullAttempts = 0;
-                    restoreSession(); // เช็ค session ใหม่ (เครื่องที่เพิ่งกู้จะได้ชื่อในหน้าล็อกอิน)
-                    const s = res.stats || {};
-                    if (s.usersAdded && !currentUser) {
-                        setLoginMsg('☁️ กู้คืนจากคลาวด์แล้ว: พบผู้ใช้ในร้านนี้แล้ว แตะชื่อแล้วใส่ PIN เดิมได้เลย', 'ok');
-                    }
-                    if (s.usersAdded || s.invAdded || s.invUpdated || s.logAdded) scheduleCloudPush();
-                } else if (res.error !== 'busy') {
-                    scheduleCloudPullRetry(); // เน็ตอ่อน/คลาวด์ติดขัด -> ลองใหม่เอง
-                }
-                refreshCloudBar();
-            }).catch(() => { scheduleCloudPullRetry(); refreshCloudBar(); });
-        } else if (loadUsers().length) {
-            // เครื่องที่มีข้อมูลผู้ใช้อยู่แล้วแต่ยังไม่มีคลาวด์ -> สร้างร้านบนคลาวด์ให้เอง
-            ensureCloudWorkspace();
-        } else {
-            refreshCloudBar();
-        }
-        // ดึงข้อมูลเครื่องอื่นเงียบ ๆ ทุก 90 วินาที (หลายเครื่องใช้พร้อมกัน)
-        if (cloudPullTimer) clearInterval(cloudPullTimer);
-        cloudPullTimer = setInterval(() => {
-            if (document.visibilityState !== 'visible') return;
-            if (!cloudGetToken() || cloudBusy || modalCtx || dupCtx) return;
-            cloudPull().then(res => {
-                if (res.ok) cloudPullAttempts = 0;
-                refreshCloudBar();
-            }).catch(() => {});
-        }, CLOUD_PULL_INTERVAL_MS);
-    }
-
-    async function ensureCloudWorkspace() {
-        if (cloudGetToken()) return true;
-        if (cloudBusy) return false;
-        setCloudStatus('pending');
-        try {
-            const r = await cloudFetch('createAccount', {
-                short_name: 'stock' + String(Math.floor(Math.random() * 9000) + 1000),
-                author_name: 'stock system'
-            });
-            if (!r.ok || !r.result || !r.result.access_token) throw new Error(r.error || 'สร้างคลาวด์ไม่สำเร็จ');
-            cloudSetToken(r.result.access_token);
-            cloudPagePaths = {}; cloudSavePages();
-            cloudLastSig = {};
-            refreshCloudBar();
-            await cloudPushNow();
-            return true;
-        } catch (e) {
-            cloudInfo.lastError = String((e && e.message) || e);
-            cloudSaveInfo();
-            setCloudStatus('error');
-            return false;
-        }
-    }
-
-    function cloudErrText(err) {
-        const s = String(err || '');
-        if (s === 'no-data') return 'รหัสร้านนี้ยังไม่มีข้อมูลบนคลาวด์';
-        if (s === 'syncing') return 'คลาวด์กำลังบันทึกอยู่ ลองอีกครั้งในอีกสักครู่';
-        if (s === 'busy') return 'ระบบกำลังทำงานอยู่ ลองอีกครั้ง';
-        if (s === 'no-token') return 'ยังไม่ได้ใส่รหัสร้าน';
-        if (s.indexOf('TOKEN') >= 0) return 'รหัสร้านไม่ถูกต้อง';
-        if (s.indexOf('fetch') >= 0 || s.indexOf('Network') >= 0 || s.indexOf('Failed') >= 0) return 'เข้าอินเทอร์เน็ตไม่ได้ ตรวจเน็ตแล้วลองใหม่';
-        return s;
-    }
-
-    async function doRestoreCloud() {
-        const input = document.getElementById('restoreCode');
-        const msg = document.getElementById('restoreMsg');
-        const tok = input ? input.value.trim() : '';
-        const setMsg = (text, cls) => { if (msg) { msg.textContent = text; msg.className = 'login-msg ' + (cls || ''); } };
-        if (!/^[a-f0-9]{40,}$/i.test(tok)) {
-            setMsg('รหัสร้านไม่ถูกต้อง - ควรเป็นตัวอักษร/ตัวเลขยาว ๆ ที่กดคัดลอกจากเครื่องเดิม', 'err');
-            return;
-        }
-        setMsg('กำลังดึงข้อมูลจากคลาวด์ (ประมาณ 3-8 วินาที)...', '');
-        const prevTok = cloudGetToken();
-        const prevPages = cloudPagePaths;
-        cloudSetToken(tok);
-        cloudPagePaths = {}; cloudSavePages();
-        cloudLastSig = {};
-        const res = await cloudPull();
-        if (res.ok) {
-            refreshCloudBar();
-            const s = res.stats || {};
-            setMsg('☁️ กู้คืนสำเร็จ! ผู้ใช้เพิ่มใหม่ ' + (s.usersAdded || 0)
-                + ' คน / สต๊อกเพิ่ม-ปรับ ' + ((s.invAdded || 0) + (s.invUpdated || 0))
-                + ' รายการ - ไปแท็บ "เข้าสู่ระบบ" แตะชื่อที่ลงทะเบียนไว้ ใส่ PIN เดิมได้เลย', 'ok');
-            if (input) input.value = '';
-            showLoginTab('login');
-            const usersNow = loadUsers();
-            if (usersNow.length === 1) {
-                const nameEl = document.getElementById('loginName');
-                if (nameEl) nameEl.value = usersNow[0].name;
-                const pinEl = document.getElementById('loginPin');
-                if (pinEl) { try { pinEl.focus(); } catch (e) {} }
-            }
-        } else {
-            cloudSetToken(prevTok); // กู้ไม่สำเร็จ คืนค่ารหัสเดิมของเครื่องนี้
-            cloudPagePaths = prevPages; cloudSavePages();
-            refreshCloudBar();
-            setMsg('❌ กู้คืนไม่สำเร็จ: ' + cloudErrText(res.error), 'err');
-        }
-    }
-
-    function fallbackCopy(text) {
-        try {
-            const ta = document.createElement('textarea');
-            ta.value = text;
-            ta.style.position = 'fixed';
-            ta.style.opacity = '0';
-            document.body.appendChild(ta);
-            ta.select();
-            const ok = document.execCommand('copy');
-            document.body.removeChild(ta);
-            return ok;
-        } catch (e) { return false; }
-    }
-
-    function copyTextToClipboard(text) {
-        try {
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                return navigator.clipboard.writeText(text).then(() => true).catch(() => fallbackCopy(text));
-            }
-        } catch (e) {}
-        return Promise.resolve(fallbackCopy(text));
-    }
-
-    function copyCloudCode() {
-        const tok = cloudGetToken();
-        if (!tok) { showStatus('ยังไม่ได้เปิดใช้คลาวด์', true); return; }
-        copyTextToClipboard(tok).then(ok =>
-            showStatus(ok ? '📋 คัดลอกรหัสร้านแล้ว - เก็บไว้เพื่อกู้คืนข้อมูลบนเครื่องอื่น' : 'คัดลอกไม่ได้ ลองเลือกข้อความแล้วกดคัดลอกเอง', !ok));
-    }
-
-    function copyCloudLink() {
-        const tok = cloudGetToken();
-        if (!tok) { showStatus('ยังไม่ได้เปิดใช้คลาวด์', true); return; }
-        let base = '';
-        try { base = location.href.split('#')[0]; } catch (e) {}
-        const link = base + '#c=' + tok;
-        copyTextToClipboard(link).then(ok =>
-            showStatus(ok ? '🔗 คัดลอกลิงก์กู้คืนแล้ว - ส่งเก็บไว้ (เช่น ส่งหาตัวเองทางไลน์) เปิดลิงก์เมื่อไหร่ ข้อมูลกลับมาทันที' : 'คัดลอกไม่ได้', !ok));
-    }
-
-    function manualCloudPull() {
-        if (!cloudGetToken()) { showStatus('ยังไม่ได้เปิดใช้คลาวด์', true); return; }
-        showStatus('🔄 กำลังดึงข้อมูลจากคลาวด์...');
-        cloudPull().then(res => {
-            if (res.ok) showStatus('✅ ดึงข้อมูลจากคลาวด์เรียบร้อย');
-            else showStatus('❌ ดึงข้อมูลไม่สำเร็จ: ' + cloudErrText(res.error), true);
-            refreshCloudBar();
-        });
-    }
-
-    let isConfirmingCloudOff = false;
-    function handleCloudOffButton() {
-        const btn = document.getElementById('btnCloudOff');
-        if (!isConfirmingCloudOff) {
-            isConfirmingCloudOff = true;
-            if (btn) btn.textContent = '⚠️ กดซ้ำเพื่อยืนยัน';
-            setTimeout(() => {
-                isConfirmingCloudOff = false;
-                if (btn) btn.textContent = 'ปิดคลาวด์';
-            }, 3000);
-        } else {
-            isConfirmingCloudOff = false;
-            if (btn) btn.textContent = 'ปิดคลาวด์';
-            cloudSetToken('');
-            cloudPagePaths = {}; cloudSavePages();
-            cloudLastSig = {};
-            if (cloudPushTimer) clearTimeout(cloudPushTimer);
-            setCloudStatus('off');
-            showStatus('ปิดคลาวด์แล้ว ข้อมูลยังอยู่ในเครื่องครบ (กดเปิดใหม่ได้เสมอ)');
-        }
-    }
-
-    function enableCloud() {
-        showStatus('☁️ กำลังเปิดคลาวด์...');
-        ensureCloudWorkspace().then(ok => {
-            if (ok) showStatus('☁️ เปิดคลาวด์สำเร็จ! กด "คัดลอกรหัสร้าน" เก็บไว้ได้เลย');
-            else showStatus('❌ เปิดคลาวด์ไม่สำเร็จ: ' + cloudErrText(cloudInfo.lastError) + ' (จะลองใหม่เมื่อเปิดหน้าถัดไป)', true);
-        });
-    }
-
-    function requestPersistentStorage() {
-        try {
-            if (navigator.storage && typeof navigator.storage.persist === 'function') {
-                navigator.storage.persist().catch(() => {});
-            }
-        } catch (e) {}
-    }
-
-    // ตรวจว่าเบราว์เซอร์นี้เก็บข้อมูลถาวรได้จริงไหม (โหมดไม่ระบุตัวตน/ห้ามเก็บ = เตือนทันที)
-    function probeAndWarnStorage() {
-        let ok = false;
-        try {
-            const k = '__stock_probe_v1', v = 'p' + Date.now();
-            localStorage.setItem(k, v);
-            ok = localStorage.getItem(k) === v;
-            try { localStorage.removeItem(k); } catch (e) {}
-        } catch (e) { ok = false; }
-        if (ok) return;
-        const msg = '⚠️ <b>เบราว์เซอร์นี้เก็บข้อมูลไม่ถาวร!</b> (โหมดไม่ระบุตัวตน หรือห้ามเก็บข้อมูล) '
-            + 'ลงทะเบียน/สแกนเท่าไรก็จะหายหมดเมื่อปิดหน้า และจำรหัสร้านไว้กู้คืนไม่ได้<br>'
-            + 'วิธีแก้: ออกจากโหมดไม่ระบุตัวตน แล้วเปิดด้วย Chrome/Safari ปกติผ่านลิงก์ https เดิมเสมอ';
-        const lw = document.getElementById('loginWarn');
-        if (lw) { lw.style.display = 'block'; lw.innerHTML = msg; }
-        const ew = document.getElementById('envWarning');
-        if (ew) { ew.style.display = 'block'; ew.innerHTML = msg; }
-    }
-
-    /* ============================================================
-       รอบที่ 3: หน้าต่างหลังสแกน - กรอกจำนวนชิ้น + เลือก plate/chanel
+    /* ==================================================================
+       หน้าต่างหลังสแกน - กรอกจำนวนชิ้น + เลือก plate/chanel
        เปิดทุกครั้งที่อ่านโค้ดได้ (กล้อง/รูปภาพ/พิมพ์มือ) ก่อนบันทึกลงสต๊อก
-       ============================================================ */
+       ================================================================== */
     function typeLabel(t) {
         if (t === 'plate') return 'PLATE';
         if (t === 'chanel') return 'CHANEL';
@@ -2065,39 +1486,39 @@
     }
 
     function modalMsg(text, cls) {
-        const box = document.getElementById('modalMsg');
+        const box = el('modalMsg');
         if (!box) return;
         box.textContent = text;
         box.className = 'login-msg ' + (cls || '');
     }
 
     function refreshTypeButtons() {
-        const p = document.getElementById('typePlate');
-        const c = document.getElementById('typeChanel');
-        if (p) p.className = 'mode-btn type-plate' + (modalType === 'plate' ? ' active' : '');
-        if (c) c.className = 'mode-btn type-chanel' + (modalType === 'chanel' ? ' active' : '');
+        const p = el('typePlate');
+        const c = el('typeChanel');
+        if (p) p.className = 'seg-btn type-plate' + (modalType === 'plate' ? ' active' : '');
+        if (c) c.className = 'seg-btn type-chanel' + (modalType === 'chanel' ? ' active' : '');
     }
 
     function openScanModal(code, fmt) {
-        if (!currentUser) { showStatus('⚠️ กรุณาเข้าสู่ระบบก่อนบันทึก', true); return; }
-        // รอบที่ 7: โค้ดที่เคยบันทึกแล้ว -> เปิดหน้าต่างเตือน "โค้ดซ้ำ" แทน ไม่บันทึกลงสต๊อกซ้ำ
+        if (!currentUser) { showStatus('กรุณาเข้าสู่ระบบก่อนบันทึก', true); return; }
+        // โค้ดที่เคยบันทึกแล้ว -> เปิดหน้าต่างเตือนโค้ดซ้ำ แทนการบันทึกซ้ำ
         const dup = findDuplicateEntry(code, currentMode);
         if (dup) { openDupModal(code, fmt, dup); return; }
         modalCtx = { code: code, fmt: fmt || '' };
         modalType = lastUsedType;
-        const codeEl = document.getElementById('modalCode');
-        const fmtEl = document.getElementById('modalFmt');
-        const qtyEl = document.getElementById('modalQty');
-        const userEl = document.getElementById('modalUser');
-        const modeEl = document.getElementById('modalMode');
+        const codeEl = el('modalCode');
+        const fmtEl = el('modalFmt');
+        const qtyEl = el('modalQty');
+        const userEl = el('modalUser');
+        const modeEl = el('modalMode');
         if (codeEl) codeEl.textContent = code;
         if (fmtEl) fmtEl.textContent = fmt ? '(' + fmt + ')' : '';
         if (qtyEl) qtyEl.value = lastUsedQty;
         if (userEl) userEl.textContent = currentUser.name;
-        if (modeEl) modeEl.textContent = currentMode === 'IN' ? '📥 รับเข้าสินค้า (+)' : '📤 เบิกออกสินค้า (-)';
+        if (modeEl) modeEl.textContent = currentMode === 'IN' ? 'รับเข้าสินค้า (+)' : 'เบิกออกสินค้า (-)';
         refreshTypeButtons();
         modalMsg('', '');
-        const overlay = document.getElementById('scanModal');
+        const overlay = el('scanModal');
         if (overlay) overlay.classList.add('open');
         if (qtyEl) setTimeout(() => { try { qtyEl.focus(); qtyEl.select(); } catch (e) {} }, 120);
     }
@@ -2109,21 +1530,21 @@
 
     function confirmScanModal() {
         if (!modalCtx) return;
-        // รอบที่ 7: ตรวจโค้ดซ้ำอีกชั้นก่อนเขียนลงสต๊อกจริง (กันข้อมูลเปลี่ยนระหว่างกรอก)
+        // ตรวจโค้ดซ้ำอีกชั้นก่อนเขียนลงสต๊อกจริง (กันข้อมูลเปลี่ยนระหว่างกรอก)
         const dup = findDuplicateEntry(modalCtx.code, currentMode);
         if (dup) {
             closeModalBox(false);
             openDupModal(modalCtx.code, modalCtx.fmt, dup);
             return;
         }
-        const qtyEl = document.getElementById('modalQty');
+        const qtyEl = el('modalQty');
         const qty = qtyEl ? parseInt(qtyEl.value, 10) : NaN;
         if (!qty || qty < 1) { modalMsg('กรุณากรอกจำนวนชิ้น (อย่างน้อย 1)', 'err'); return; }
         lastUsedQty = Math.min(qty, 9999);
         lastUsedType = modalType;
         try {
-            localStorage.setItem('stock_last_qty', String(lastUsedQty));
-            localStorage.setItem('stock_last_type', lastUsedType);
+            localStorage.setItem(STORAGE_KEYS.lastQty, String(lastUsedQty));
+            localStorage.setItem(STORAGE_KEYS.lastType, lastUsedType);
         } catch (e) {}
         processStockUpdate(modalCtx.code, qty, modalType, modalCtx.fmt);
         closeModalBox(true);
@@ -2136,24 +1557,24 @@
     }
 
     function closeModalBox(saved) {
-        const overlay = document.getElementById('scanModal');
+        const overlay = el('scanModal');
         if (overlay) overlay.classList.remove('open');
         modalCtx = null;
         if (saved) {
-            // กันโค้ดเดิมที่ยังชี้อยู่หน้ากล้อง ถูกจับซ้ำทันทีหลังบันทึก
-            // (แต่ถ้าเจอโค้ด "ใหม่" ต่างจากเดิม ลูปสแกนจะรับทันที ไม่ต้องรอ cooldown)
+            // กันโค้ดเดิมที่ยังชี้อยู่หน้ากล้องถูกจับซ้ำทันทีหลังบันทึก
+            // (โค้ด "ใหม่" ต่างจากเดิม ลูปสแกนรับทันที ไม่ต้องรอ)
             isCooldown = true;
             setTimeout(() => { isCooldown = false; }, SAVE_COOLDOWN_MS);
         }
-        // รอบที่ 4: ปิดหน้าต่างแล้วให้ลูปสแกนเดินต่อทันที
         if (isScanning) scheduleDecode(250);
     }
 
-    /* ============================================================
-       รอบที่ 3: ประวัติการสแกน - ใคร / สแกนอะไร / กี่ชิ้น / เข้าหรือออก
-       ============================================================ */
-    let isConfirmingLogClear = false;
-    let logConfirmTimer = null;
+    /* ==================================================================
+       ประวัติการสแกน - ใคร สแกนอะไร กี่ชิ้น เข้าหรือออก
+       ================================================================== */
+    function saveLogToStorage() {
+        try { localStorage.setItem(STORAGE_KEYS.log, JSON.stringify(scanLog)); } catch (e) {}
+    }
 
     function pushScanLog(entry) {
         scanLog.unshift({
@@ -2167,14 +1588,15 @@
             fmt: entry.fmt || ''
         });
         if (scanLog.length > 300) scanLog = scanLog.slice(0, 300);
-        try { localStorage.setItem('stock_scan_log', JSON.stringify(scanLog)); } catch (e) {}
-        scheduleCloudPush(); // รอบที่ 8: ประวัติเปลี่ยน -> สำรองคลาวด์เบื้องหลัง
+        saveLogToStorage();
         renderLog();
     }
 
     function renderLog() {
-        const tbody = document.getElementById('logTableBody');
+        const tbody = el('logTableBody');
         if (!tbody) return;
+        const countChip = el('logCount');
+        if (countChip) countChip.textContent = String(scanLog.length);
         const rows = scanLog.slice(0, 20);
         if (!rows.length) {
             tbody.innerHTML = '<tr><td colspan="7" class="empty-state">ยังไม่มีประวัติการสแกน</td></tr>';
@@ -2194,7 +1616,8 @@
     }
 
     function exportLogCSV() {
-        if (!scanLog.length) { showStatus('⚠️ ยังไม่มีประวัติการสแกนสำหรับส่งออก', true); return; }
+        if (!isAdmin()) { showStatus('เฉพาะ admin เท่านั้น', true); return; }
+        if (!scanLog.length) { showStatus('ยังไม่มีประวัติการสแกนสำหรับส่งออก', true); return; }
         let csv = "\uFEFFวันที่-เวลา,ผู้สแกน,Model,ประเภท,จำนวน,โหมด,รูปแบบโค้ด\n";
         scanLog.forEach(e => {
             csv += `"${e.t || '-'}","${(e.user || '-').replace(/"/g, '""')}","${(e.code || '-').replace(/"/g, '""')}","${typeLabel(e.type)}",${e.qty || 1},"${e.mode === 'OUT' ? 'เบิกออก' : 'รับเข้า'}","${e.fmt || '-'}"\n`;
@@ -2203,65 +1626,67 @@
     }
 
     function handleClearLogButton() {
+        if (!isAdmin()) { showStatus('เฉพาะ admin เท่านั้น', true); return; }
         if (!scanLog.length) { showStatus('ประวัติการสแกนว่างเปล่าอยู่แล้ว', true); return; }
-        const btn = document.getElementById('btnClearLog');
+        const btn = el('btnClearLog');
         if (!isConfirmingLogClear) {
             isConfirmingLogClear = true;
-            if (btn) btn.textContent = '⚠️ กดซ้ำเพื่อยืนยัน';
+            if (btn) btn.textContent = 'กดซ้ำเพื่อยืนยัน';
             logConfirmTimer = setTimeout(() => {
                 isConfirmingLogClear = false;
-                if (btn) btn.textContent = '🗑️ ล้างประวัติ';
+                if (btn) btn.textContent = 'ล้างประวัติ';
             }, 3000);
         } else {
             clearTimeout(logConfirmTimer);
             isConfirmingLogClear = false;
-            if (btn) btn.textContent = '🗑️ ล้างประวัติ';
+            if (btn) btn.textContent = 'ล้างประวัติ';
             scanLog = [];
-            try { localStorage.setItem('stock_scan_log', '[]'); } catch (e) {}
-            scheduleCloudPush(); // รอบที่ 8
+            saveLogToStorage();
             renderLog();
-            showStatus('🗑️ ล้างประวัติการสแกนเรียบร้อย');
+            showStatus('ล้างประวัติการสแกนเรียบร้อย');
         }
     }
 
+    /* ==================================================================
+       โหมดรับเข้า/เบิกออก + โหมดรูปแบบโค้ด + แจ้งสถานะ + เสียงสแกนปกติ
+       ================================================================== */
     function setMode(mode) {
         currentMode = mode;
-        const btnIn = document.getElementById('modeIn');
-        const btnOut = document.getElementById('modeOut');
+        const btnIn = el('modeIn');
+        const btnOut = el('modeOut');
         if (btnIn && btnOut) {
             if (mode === 'IN') {
-                btnIn.className = 'mode-btn active-in';
-                btnOut.className = 'mode-btn';
+                btnIn.className = 'seg-btn active-in';
+                btnOut.className = 'seg-btn';
             } else {
-                btnIn.className = 'mode-btn';
-                btnOut.className = 'mode-btn active-out';
+                btnIn.className = 'seg-btn';
+                btnOut.className = 'seg-btn active-out';
             }
         }
     }
 
     function setFormatMode(mode) {
         scanFormatMode = (mode === 'DM') ? 'DM' : 'ALL';
-        // รอบที่ 5: คีย์ใหม่ v2 (เครื่องเก่าที่เคยตั้ง ALL ไว้ จะได้ค่าเริ่มต้น DM ใหม่หนึ่งครั้ง)
-        try { localStorage.setItem('barcode_scan_fmt_mode_v2', scanFormatMode); } catch (e) {}
-        const btnAll = document.getElementById('fmtAll');
-        const btnDM = document.getElementById('fmtDM');
+        try { localStorage.setItem(STORAGE_KEYS.fmtMode, scanFormatMode); } catch (e) {}
+        const btnAll = el('fmtAll');
+        const btnDM = el('fmtDM');
         if (btnAll && btnDM) {
-            btnAll.className = scanFormatMode === 'ALL' ? 'mode-btn active-fmt' : 'mode-btn';
-            btnDM.className = scanFormatMode === 'DM' ? 'mode-btn active-fmt' : 'mode-btn';
+            btnAll.className = scanFormatMode === 'ALL' ? 'seg-btn active-fmt' : 'seg-btn';
+            btnDM.className = scanFormatMode === 'DM' ? 'seg-btn active-fmt' : 'seg-btn';
         }
-        // รอบที่ 4: สลับโหมดรูปแบบได้ทันที ไม่ต้องปิด-เปิดกล้องใหม่ (สร้างเอนจินใหม่เงียบ ๆ)
-        // โหมดใหม่จะมีผลตั้งแต่เฟรมถัดไปของลูปสแกน
+        // สลับโหมดได้ทันที ไม่ต้องปิด-เปิดกล้องใหม่ (สร้างเอนจินใหม่เงียบ ๆ)
         createEngineReaders();
-        // รอบที่ 5: เอนจิน BarcodeDetector ก็ต้องจำกัดฟอร์แมตใหม่ตามโหมด (ถ้ากล้องเปิดอยู่)
         if (isScanning) setupBarcodeDetector();
     }
 
     function showStatus(msg, isError = false) {
-        const banner = document.getElementById('statusBanner');
-        if (!banner) return;
-        banner.textContent = msg;
-        banner.className = isError ? 'status-err' : 'status-ok';
-        setTimeout(() => { banner.style.display = 'none'; banner.className = ''; }, 3500);
+        const toast = el('statusToast');
+        if (!toast) return;
+        toast.textContent = msg;
+        toast.className = isError ? 'err' : '';
+        toast.style.display = 'block';
+        clearTimeout(showStatus._t);
+        showStatus._t = setTimeout(() => { toast.style.display = 'none'; }, 3500);
     }
 
     function triggerFeedback() {
@@ -2281,15 +1706,13 @@
         } catch (e) {}
     }
 
-    /* ============================================================
-       รอบที่ 4: ลูปสแกนแบบสลับกลยุทธ์ (ทำให้สแกนไวขึ้นมากและหน้าจอลื่น)
-       - จับ "เฟรมล่าสุดเสมอ" ไม่ต่อคิวเฟรมเก่า ถอดรหัสเสร็จเมื่อไหร่คว้าเฟรมใหม่ทันที
-       - สลับกลยุทธ์: เฟรมย่อ 1024px แบบเร็ว (QR ใหญ่ติดไว)
-                       -> เฟรมเต็มแบบเร็ว
-                       -> เฟรมเต็มแบบละเอียด TRY_HARDER + ลองกลับสี (จับ DM จิ๋ว/โค้ดขาวบนดำ)
-       - เว้นช่วง 55ms ระหว่างเฟรม ให้ UI เรนเดอร์ได้ ไม่บล็อกหน้าจอนาน ๆ เหมือนลูปเดิม
-       - โหมดเฉพาะ Data Matrix: ใช้เฟรมเต็มเสมอ (DM เป็นโค้ดจิ๋ว) สลับเร็ว/ละเอียด
-       ============================================================ */
+    /* ==================================================================
+       ลูปสแกนแบบสลับกลยุทธ์ (สแกนไว หน้าจอลื่น)
+       - จับเฟรมล่าสุดเสมอ ไม่ต่อคิวเฟรมเก่า
+       - สลับ: เฟรมย่อ 1024px เร็ว -> เฟรมเต็มเร็ว -> เฟรมเต็มละเอียด TRY_HARDER + กลับสี
+       - โหมดเฉพาะ Data Matrix: เฟรมเต็มละเอียดทุกครั้ง (DM เป็นโค้ดจิ๋ว)
+       - เว้นช่วง 55ms ระหว่างเฟรม ให้ UI เรนเดอร์ได้
+       ================================================================== */
     async function toggleCamera() {
         if (isScanning) {
             stopCamera();
@@ -2322,24 +1745,21 @@
     }
 
     // ถอดรหัสจาก canvas แบบซิงก์: สำเร็จคืนผลลัพธ์ ไม่เจอคืน null
-    // (ไม่มีทางค้างแบบ decodeFromImage เดิม เพราะไม่ผ่าน promise)
     // สำคัญ: ต้องใช้ decodeWithState เท่านั้น! ถ้าเรียก decode(bitmap) โดยไม่ส่ง hints
-    // ไลบรารีจะ setHints(undefined) ทุกครั้ง = สร้าง reader ทุกรูปแบบใหม่ต่อเฟรม (ช้า + ล็อก DM ไม่ทำงาน)
+    // ไลบรารีจะ setHints(undefined) ทุกครั้ง = ช้าและล็อก DM ไม่ทำงาน
     function decodeCanvasOnce(canvas, reader, invert) {
         try {
             const source = new ZXing.HTMLCanvasElementLuminanceSource(canvas, false);
             if (invert && typeof source.invert === 'function') source.invert();
             const bitmap = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(source));
-            return reader.decodeWithState(bitmap); // ใช้ reader ชุดเดิมจาก setHints ตอนสร้าง (เร็ว)
+            return reader.decodeWithState(bitmap);
         } catch (e) {
-            return null; // NotFoundException / Checksum / Format -> เฟรมนี้ไม่มีโค้ด ไปเฟรมถัดไป
+            return null; // เฟรมนี้ไม่มีโค้ด ไปเฟรมถัดไป
         }
     }
 
-    // กลยุทธ์ของแต่ละรอบ: สลับเร็ว/ละเอียด เพื่อให้ QR ใหญ่ติดไว และ DM เล็กก็ยังติด
     function getAttemptPlan() {
-        // รอบที่ 5: โหมดเฉพาะ Data Matrix ใช้แบบละเอียดทุกครั้ง (เฟรมเต็ม + TRY_HARDER + กลับสี)
-        // DM เป็นโค้ดจิ๋ว เฟรมย่อ/ไม่ TRY_HARDER มักอ่านไม่ออก ทำให้ "สแกนไม่ติด" บนโทรศัพท์
+        // โหมดเฉพาะ Data Matrix ใช้แบบละเอียดทุกครั้ง (เฟรมเต็ม + TRY_HARDER + กลับสี)
         if (scanFormatMode === 'DM') {
             return { canvas: fullCanvas, ctx: fullCtx, maxW: 0, reader: hardReader, invert: true };
         }
@@ -2350,8 +1770,8 @@
     }
 
     function setScanPulse(show) {
-        const el = document.getElementById('scanPulse');
-        if (el) el.style.display = show ? 'flex' : 'none';
+        const node = el('scanPulse');
+        if (node) node.style.display = show ? 'flex' : 'none';
     }
 
     function scheduleDecode(gapMs) {
@@ -2360,8 +1780,8 @@
         scanTimer = setTimeout(runDecodeAttempt, gapMs === undefined ? ATTEMPT_GAP_MS : gapMs);
     }
 
-    // รอบที่ 5: รับโค้ดจากเอนจินใดก็ได้ (BD / ZXing / ภาพนิ่ง)
-    // cooldown หลังบันทึก: ข้าม "โค้ดเดิม" ที่ยังชี้หน้ากล้อง แต่โค้ดใหม่ต่างจากเดิมรับทันที
+    // รับโค้ดจากเอนจินใดก็ได้ (BD / ZXing / ภาพนิ่ง)
+    // cooldown หลังบันทึก: ข้ามโค้ดเดิมที่ยังชี้หน้ากล้อง แต่โค้ดใหม่ต่างจากเดิมรับทันที
     function acceptCode(code, fmtName, rawBytes) {
         if (!code) return false;
         if (isCooldown && code === lastHandledCode) return false;
@@ -2376,22 +1796,12 @@
         return f === 'PDF417' ? 'PDF_417' : f;
     }
 
-    /* ===== รอบที่ 5: เอนจิน ZXing-C++ (WASM) - ชุดเดียวกับเครื่องอ่านจริง แม่นกว่า ZXing JS =====
-       ทดสอบกับฉลาก DM จริงบนโลหะ: ZXing JS อ่านไม่ออกทุกเวอร์ชันภาพ แต่ C++ อ่านออกทันที
-       ใช้เป็นตัวช่วยรอบสอง ถ้าโหลด WASM ไม่สำเร็จ (ออฟไลน์) ข้ามไปใช้ ZXing JS เงียบ ๆ */
-    let wasmState = 'unknown';   // 'ready' | 'failed'
-    let wasmWarmed = false;
-    const WASM_FMT_MAP = {
-        'DataMatrix': 'DATA_MATRIX', 'QRCode': 'QR_CODE', 'Code128': 'CODE_128',
-        'Code39': 'CODE_39', 'Code93': 'CODE_93', 'EAN13': 'EAN_13', 'EAN8': 'EAN_8',
-        'UPCA': 'UPC_A', 'UPCE': 'UPC_E', 'Aztec': 'AZTEC', 'PDF417': 'PDF_417',
-        'ITF': 'ITF', 'Codabar': 'CODABAR'
-    };
-
     function mapWasmFormatName(fmt) {
         return WASM_FMT_MAP[fmt] || String(fmt || '').toUpperCase();
     }
 
+    /* เอนจิน ZXing-C++ (WASM) - ชุดเดียวกับเครื่องอ่านจริง ทนเงา/นอยส์กว่า JS
+       ใช้เป็นตัวช่วยรอบสอง ถ้าโหลด WASM ไม่สำเร็จ (ออฟไลน์) ข้ามไป ZXing JS เงียบ ๆ */
     async function wasmRead(canvas) {
         if (wasmState === 'failed') return null;
         if (!window.ZXingWASM || typeof window.ZXingWASM.readBarcodesFromImageData !== 'function') {
@@ -2447,15 +1857,15 @@
         return null;
     }
 
-    // รอบที่ 5: ลูปไฮบริด - ใช้ BarcodeDetector ของเบราว์เซอร์ก่อนทุกครั้ง (เร็ว/อ่านจิ๋วเก่ง)
-    // ถ้าไม่มี BD (iPhone/Safari) หรือ BD พลาด 4 ครั้งติดกัน จะสลับลอง ZXing 1 รอบ ไม่ปล่อยให้พลาดเงียบ ๆ
+    // ลูปไฮบริด: BarcodeDetector ก่อนทุกครั้ง (เร็ว/อ่านจิ๋วเก่ง)
+    // ถ้าไม่มี BD (iPhone/Safari) หรือ BD พลาด 4 ครั้งติดกัน สลับลอง ZXing 1 รอบ
     async function runDecodeAttempt() {
         scanTimer = null;
-        if (!isScanning || modalCtx || dupCtx) return; // หน้าต่างกรอกจำนวน/เตือนโค้ดซ้ำเปิดอยู่ -> พักถอดรหัสชั่วคราว
+        if (!isScanning || modalCtx || dupCtx) return; // หน้าต่างกรอกจำนวน/เตือนโค้ดซ้ำเปิดอยู่ -> พักชั่วคราว
         const t0 = performance.now();
         let handled = false;
         try {
-            // A) เอนจิน BarcodeDetector (Android Chrome) - เรียกที่ video ตรง ๆ ได้เฟรมล่าสุดเสมอ
+            // A) BarcodeDetector (Android Chrome) - เรียกที่ video ตรง ๆ ได้เฟรมล่าสุดเสมอ
             if (bdDetector) {
                 const hit = await detectWithBarcodeDetector();
                 if (hit && isScanning && !modalCtx) handled = acceptCode(hit.code, hit.fmtName, null);
@@ -2474,7 +1884,7 @@
                     const ex = extractResult(result);
                     if (ex && isScanning && !modalCtx) handled = acceptCode(ex.code, ex.fmtName, ex.rawBytes);
                 }
-                // C) เอนจิน ZXing-C++ WASM (แม่นพิเศษ) อ่านเฟรมเต็ม - ทนเงาโลหะ/นอยส์กว่า JS
+                // C) ZXing-C++ WASM (แม่นพิเศษ) อ่านเฟรมเต็ม - ทนเงาโลหะ/นอยส์กว่า JS
                 if (!handled && isScanning && !modalCtx) {
                     if (plan.canvas !== fullCanvas) grabFrame(fullCanvas, fullCtx, 0);
                     const wex = await wasmRead(fullCanvas);
@@ -2498,28 +1908,26 @@
     }
 
     async function startCamera() {
-        const btnToggle = document.getElementById('btnToggleCam');
-        const placeholder = document.getElementById('camPlaceholder');
+        const btnToggle = el('btnToggleCam');
+        const placeholder = el('camPlaceholder');
 
         if (typeof ZXing === 'undefined' || !ZXing.MultiFormatReader ||
             !ZXing.BinaryBitmap || !ZXing.HybridBinarizer || !ZXing.HTMLCanvasElementLuminanceSource) {
-            showStatus('❌ ระบบสแกนยังไม่พร้อมใช้งาน', true);
+            showStatus('ระบบสแกนยังไม่พร้อมใช้งาน', true);
             return;
         }
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            showStatus('❌ เบราว์เซอร์นี้ไม่รองรับการเปิดกล้อง', true);
+            showStatus('เบราว์เซอร์นี้ไม่รองรับการเปิดกล้อง', true);
             return;
         }
 
-        if (btnToggle) btnToggle.textContent = '⏳ กำลังเปิดกล้อง...';
+        if (btnToggle) btnToggle.textContent = 'กำลังเปิดกล้อง...';
 
         // สร้างเอนจินถอดรหัสชุดใหม่ทุกครั้งที่เปิดกล้อง (ได้โหมดรูปแบบโค้ดล่าสุดเสมอ)
         createEngineReaders();
-        // รอบที่ 5: เตรียมเอนจิน BarcodeDetector ของเบราว์เซอร์ตามโหมดที่เลือก (ถ้ามี)
         await setupBarcodeDetector();
 
-        // ขอกล้องหลัง (environment) ความละเอียดสูง: Data Matrix เป็นโค้ดเล็ก
-        // ถ้าได้เฟรม 640x480 จะอ่านไม่ออก (ideal = ขอสูงสุดเท่าที่อุปกรณ์ให้ได้)
+        // ขอกล้องหลัง (environment) ความละเอียดสูง: DM เป็นโค้ดเล็ก ถ้าได้ 640x480 จะอ่านไม่ออก
         const constraints = {
             video: {
                 facingMode: { ideal: 'environment' },
@@ -2532,24 +1940,22 @@
         try {
             camStream = await navigator.mediaDevices.getUserMedia(constraints);
         } catch (err) {
-            console.error('camera error', err);
             camStream = null;
             isScanning = false;
             if (btnToggle) {
-                btnToggle.textContent = '📷 เปิดกล้องสแกน';
-                btnToggle.className = 'btn-primary full-width';
+                btnToggle.textContent = 'เปิดกล้องสแกน';
+                btnToggle.className = 'btn btn-primary';
             }
-            showStatus('❌ เปิดกล้องไม่สำเร็จ กรุณาอนุญาตสิทธิ์กล้อง', true);
+            showStatus('เปิดกล้องไม่สำเร็จ กรุณาอนุญาตสิทธิ์กล้อง', true);
             return;
         }
 
-        videoEl = document.getElementById('video');
+        videoEl = el('video');
         try {
             videoEl.srcObject = camStream;
             await videoEl.play();
         } catch (err) {
-            // บางเบราว์เซอร์ play() แล้ว resolve ช้า ถ้าเฟรมมาจริงถือว่าใช้ได้
-            console.warn('video play warning', err);
+            // บางเบราว์เซอร์ play() resolve ช้า ถ้าเฟรมมาจริงถือว่าใช้ได้
         }
 
         isScanning = true;
@@ -2563,19 +1969,19 @@
         if (placeholder) placeholder.style.display = 'none';
         setScanPulse(true);
         if (btnToggle) {
-            btnToggle.textContent = '⏹️ ปิดกล้อง';
-            btnToggle.className = 'btn-danger full-width';
+            btnToggle.textContent = 'ปิดกล้อง';
+            btnToggle.className = 'btn btn-danger';
         }
         updateTorchVisibility();
-        setupZoomControls(); // รอบที่ 5: แถบซูม (ขึ้นเฉพาะอุปกรณ์ที่ซูมได้)
-        ensureWasmWarmed(); // รอบที่ 5: โหลดเอนจิน WASM ล่วงหน้าในฉากหลัง
-        // รอบที่ 5: ขอโฟกัสต่อเนื่อง (continuous focus) ถ้าอุปกรณ์รองรับ ช่วยโค้ดจิ๋วมาก
+        setupZoomControls();
+        ensureWasmWarmed();
+        // ขอโฟกัสต่อเนื่องถ้าอุปกรณ์รองรับ ช่วยโค้ดจิ๋วมาก
         try {
             const track = getActiveVideoTrack();
             if (track) await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
         } catch (e) {}
-        const stillBtn = document.getElementById('btnStillScan');
-        if (stillBtn) stillBtn.style.display = 'flex';
+        const stillBtn = el('btnStillScan');
+        if (stillBtn) stillBtn.style.display = 'inline-flex';
         scheduleDecode(150); // ให้เฟรมแรกมาก่อน แล้วค่อยเริ่มลูป
     }
 
@@ -2592,25 +1998,24 @@
         }
         torchOn = false;
         setScanPulse(false);
-        const btnTorch = document.getElementById('btnTorch');
+        const btnTorch = el('btnTorch');
         if (btnTorch) {
             btnTorch.style.display = 'none';
-            btnTorch.textContent = 'เปิดแฟลช';
-            btnTorch.classList.remove('btn-torch-active');
+            btnTorch.textContent = 'แฟลช';
+            btnTorch.classList.remove('on');
         }
-        // รอบที่ 5: ซ่อนปุ่มจับภาพนิ่ง/แถบซูม และปลดเอนจิน BD (ผูกกับวิดีโอที่กำลังเล่น)
-        const stillBtn = document.getElementById('btnStillScan');
+        const stillBtn = el('btnStillScan');
         if (stillBtn) stillBtn.style.display = 'none';
-        const zoomWrap = document.getElementById('zoomControls');
+        const zoomWrap = el('zoomControls');
         if (zoomWrap) zoomWrap.style.display = 'none';
         zoomCaps = null;
         bdDetector = null;
-        const placeholder = document.getElementById('camPlaceholder');
-        if (placeholder) placeholder.style.display = 'block';
-        const btnToggle = document.getElementById('btnToggleCam');
+        const placeholder = el('camPlaceholder');
+        if (placeholder) placeholder.style.display = 'flex';
+        const btnToggle = el('btnToggleCam');
         if (btnToggle) {
-            btnToggle.textContent = '📷 เปิดกล้องสแกน';
-            btnToggle.className = 'btn-primary full-width';
+            btnToggle.textContent = 'เปิดกล้องสแกน';
+            btnToggle.className = 'btn btn-primary';
         }
     }
 
@@ -2626,7 +2031,7 @@
     }
 
     function updateTorchVisibility() {
-        const btn = document.getElementById('btnTorch');
+        const btn = el('btnTorch');
         if (!btn) return;
         let supported = false;
         try {
@@ -2636,19 +2041,19 @@
         } catch (e) {
             supported = false;
         }
-        btn.style.display = supported ? 'flex' : 'none';
+        btn.style.display = supported ? 'inline-flex' : 'none';
     }
 
     async function toggleTorch() {
         const track = getActiveVideoTrack();
-        const btn = document.getElementById('btnTorch');
+        const btn = el('btnTorch');
         if (!track) return;
         try {
             torchOn = !torchOn;
             await track.applyConstraints({ advanced: [{ torch: torchOn }] });
             if (btn) {
-                btn.textContent = torchOn ? 'ปิดแฟลช' : 'เปิดแฟลช';
-                btn.classList.toggle('btn-torch-active', torchOn);
+                btn.textContent = torchOn ? 'ปิดแฟลช' : 'แฟลช';
+                btn.classList.toggle('on', torchOn);
             }
         } catch (e) {
             torchOn = !torchOn;
@@ -2656,7 +2061,7 @@
         }
     }
 
-    /* ===== รอบที่ 5: BarcodeDetector (เอนจินเร็วของเบราว์เซอร์ - Android Chrome) ===== */
+    /* BarcodeDetector (เอนจินเร็วของเบราว์เซอร์ - Android Chrome) */
     async function setupBarcodeDetector() {
         bdDetector = null;
         bdMisses = 0;
@@ -2673,9 +2078,9 @@
         }
     }
 
-    /* ===== รอบที่ 5: ซูมกล้อง - โค้ดจิ๋วให้ซูมเข้า แทนการเอาเครื่องใกล้จนโฟกัสไม่ติด ===== */
+    /* ซูมกล้อง: โค้ดจิ๋วให้ซูมเข้า แทนการเอาเครื่องใกล้จนโฟกัสไม่ติด */
     async function setupZoomControls() {
-        const wrap = document.getElementById('zoomControls');
+        const wrap = el('zoomControls');
         zoomCaps = null;
         zoomValue = 1;
         if (!wrap) return;
@@ -2687,14 +2092,14 @@
         } catch (e) {}
         if (z && z.max > z.min) {
             zoomCaps = z;
-            const slider = document.getElementById('zoomSlider');
+            const slider = el('zoomSlider');
             if (slider) {
                 slider.min = z.min;
                 slider.max = z.max;
                 slider.step = z.step || 0.1;
                 slider.value = z.min;
             }
-            wrap.style.display = 'block';
+            wrap.style.display = 'flex';
             updateZoomLabel();
         } else {
             wrap.style.display = 'none';
@@ -2702,8 +2107,8 @@
     }
 
     function updateZoomLabel() {
-        const label = document.getElementById('zoomLabel');
-        if (label) label.textContent = 'ซูม ' + zoomValue.toFixed(1) + 'x';
+        const label = el('zoomLabel');
+        if (label) label.textContent = zoomValue.toFixed(1) + 'x';
     }
 
     async function applyZoom(v) {
@@ -2712,7 +2117,7 @@
         const clamped = Math.min(zoomCaps.max, Math.max(zoomCaps.min, Math.round(v / step) * step));
         zoomValue = clamped;
         updateZoomLabel();
-        const slider = document.getElementById('zoomSlider');
+        const slider = el('zoomSlider');
         if (slider) slider.value = clamped;
         try {
             const track = getActiveVideoTrack();
@@ -2720,9 +2125,8 @@
         } catch (e) {}
     }
 
-    /* ===== รอบที่ 5: จับภาพนิ่งจากกล้องแล้วสแกนแบบละเอียด =====
-       ใช้เมื่อถือนิ่งแล้วลูปสแกนยังไม่ติด (แสงสะท้อนโลหะ/โฟกัสเพี้ยน/โค้ดจิ๋วมาก)
-       เฟรมเต็มความละเอียด -> เติมขอบขาว -> ขยาย 2 เท่า + ครอปกลาง 70% อีกชุด แล้วลองทุกเวอร์ชัน */
+    /* จับภาพนิ่งจากกล้องแล้วสแกนละเอียด (ใช้เมื่อถือนิ่งแล้วยังไม่ติด)
+       เฟรมเต็ม -> เติมขอบขาว -> ขยาย 2 เท่า + ครอปกลาง 70% แล้วลองทุกเวอร์ชัน */
     function cropCenterCanvas(srcCanvas, frac) {
         const w = srcCanvas.width, h = srcCanvas.height;
         const cw = Math.max(1, Math.round(w * frac));
@@ -2752,7 +2156,7 @@
         const list = [];
         const w = srcCanvas.width, h = srcCanvas.height;
         if (!w || !h) return list;
-        // 1) เฟรมเต็ม (ย่อลงเฉพาะถ้ากว้างเกิน 2048 เพื่อความเร็ว)
+        // 1) เฟรมเต็ม (ย่อลงเฉพาะถ้ากว้างเกิน 2048)
         const base = (w > 2048) ? drawToCanvas(srcCanvas, 2048, Math.round(h * 2048 / w)) : srcCanvas;
         list.push(base);
         // 2) เฟรมเต็ม + เติมขอบขาว + ขยาย 2 เท่า (โค้ดจิ๋ว)
@@ -2763,7 +2167,7 @@
                 list.push(drawToCanvas(padFull, padFull.width * 2, padFull.height * 2));
             }
         }
-        // 3) ครอปกลาง 70% ความละเอียดเดิม (โฟกัสโค้ดที่เล็งไว้) + เติมขอบ + ขยาย 2 เท่า
+        // 3) ครอปกลาง 70% + เติมขอบ + ขยาย 2 เท่า
         const crop = cropCenterCanvas(base, 0.7);
         const padCrop = padCanvas(crop, 0.1);
         if (padCrop) {
@@ -2777,15 +2181,15 @@
 
     async function stillScanFromVideo() {
         if (stillBusy) return;
-        const stillBtn = document.getElementById('btnStillScan');
+        const stillBtn = el('btnStillScan');
         if (!videoEl || !videoEl.videoWidth) {
-            showStatus('❌ ยังไม่ได้เปิดกล้อง กด "📷 เปิดกล้องสแกน" ก่อน', true);
+            showStatus('ยังไม่ได้เปิดกล้อง กด "เปิดกล้องสแกน" ก่อน', true);
             return;
         }
         stillBusy = true;
-        if (stillBtn) stillBtn.textContent = '⏳ กำลังวิเคราะห์ภาพนิ่ง...';
-        showStatus('⏳ กำลังสแกนภาพนิ่งความละเอียดสูง...');
-        await new Promise(r => setTimeout(r, 30)); // ให้ข้อความขึ้นก่อน (งานหนักจะบล็อก UI ชั่วคราว)
+        if (stillBtn) stillBtn.textContent = 'กำลังวิเคราะห์...';
+        showStatus('กำลังสแกนภาพนิ่งความละเอียดสูง...');
+        await new Promise(r => setTimeout(r, 30));
         let ok = false;
         try {
             getWorkCanvases();
@@ -2796,10 +2200,10 @@
                     if (!ok && !modalCtx) showStatus('โค้ดเดิมเพิ่งบันทึกไป รอสักครู่แล้วลองใหม่', true);
                 }
             }
-            if (!ok && !modalCtx) showStatus('❌ ยังอ่านไม่ออก ลองซูมเข้าให้โค้ดใหญ่ขึ้น เปลี่ยนมุมแสง แล้วกดใหม่', true);
+            if (!ok && !modalCtx) showStatus('ยังอ่านไม่ออก ลองซูมเข้า ให้โค้ดใหญ่ขึ้น เปลี่ยนมุมแสง แล้วกดใหม่', true);
         } finally {
             stillBusy = false;
-            if (stillBtn) stillBtn.textContent = '📸 จับภาพนิ่ง สแกนละเอียด';
+            if (stillBtn) stillBtn.textContent = 'จับภาพนิ่ง';
         }
     }
 
@@ -2824,21 +2228,19 @@
         return canvas;
     }
 
-    // เตรียมภาพหลายเวอร์ชัน: รองรับทั้ง QR ใหญ่และ Data Matrix จิ๋ว
-    // (ทำเป็น canvas ตรง ๆ เร็วกว่าวิธีเดิมที่แปลง toDataURL แล้วโหลดกลับเป็น Image)
+    /* เตรียมภาพหลายเวอร์ชัน: รองรับทั้ง QR ใหญ่และ Data Matrix จิ๋ว */
     function buildFileCandidates(img) {
         const iw = img.naturalWidth || img.width;
         const ih = img.naturalHeight || img.height;
         if (!iw || !ih) return [];
         const candidates = [];
-        // 1) ภาพต้นฉบับ (ถ้ากว้างเกิน 2048 ย่อลง เพราะถอดรหัสภาพใหญ่มากช้าโดยไม่จำเป็น)
         const maxW = 2048;
         if (iw > maxW) {
             candidates.push(drawToCanvas(img, maxW, Math.round(ih * maxW / iw)));
         } else {
             candidates.push(drawToCanvas(img, iw, ih));
         }
-        // 2) เติมขอบขาว (quiet zone): Data Matrix ที่ภาพตัดขอบขาวออกหมดจะอ่านไม่ออก
+        // เติมขอบขาว (quiet zone): DM ที่ภาพตัดขอบขาวออกหมดจะอ่านไม่ออก
         const base = candidates[0];
         const border = Math.max(12, Math.round(Math.min(base.width, base.height) * 0.1));
         if (base.width + border * 2 <= 4096 && base.height + border * 2 <= 4096) {
@@ -2850,7 +2252,7 @@
             pctx.fillRect(0, 0, pad.width, pad.height);
             pctx.drawImage(base, border, border);
             candidates.push(pad);
-            // 3) ขยาย 2 เท่าสำหรับโค้ดจิ๋ว (Data Matrix เล็ก ๆ)
+            // ขยาย 2 เท่าสำหรับโค้ดจิ๋ว
             if (base.width < 1600) {
                 candidates.push(drawToCanvas(pad, Math.min(4096, pad.width * 2), Math.min(4096, pad.height * 2)));
             }
@@ -2858,8 +2260,7 @@
         return candidates;
     }
 
-    // ถอดรหัส 1 canvas ด้วยทุกเอนจิน: ZXing JS (เร็ว) -> ZXing-C++ WASM (แม่นพิเศษ)
-    // คืน { code, fmtName, rawBytes } หรือ null
+    /* ถอดรหัส 1 canvas ด้วยทุกเอนจิน: ZXing JS (เร็ว) -> ZXing-C++ WASM (แม่น) */
     async function decodeAnyFromCanvas(canvas, useWasm) {
         let res = decodeCanvasOnce(canvas, fastReader, false);
         if (!res) res = decodeCanvasOnce(canvas, hardReader, true);
@@ -2871,8 +2272,6 @@
         return null;
     }
 
-    // รอบที่ 4 + 5: ถอดรหัสทุกเวอร์ชันภาพ - ZXing JS ก่อนทุกเวอร์ชัน (เร็ว)
-    // ถ้าไม่ออก สลับไป ZXing-C++ WASM ทีละเวอร์ชัน (แม่น ทนเงาโลหะ/นอยส์)
     async function decodeFromCanvasCandidates(candidates, useWasm) {
         ensureEngineReaders();
         for (const canvas of candidates) {
@@ -2887,7 +2286,7 @@
         if (!file) return;
 
         if (isScanning) stopCamera();
-        showStatus('⏳ กำลังแกะรหัสจากรูปภาพ...');
+        showStatus('กำลังแกะรหัสจากรูปภาพ...');
 
         const objectUrl = URL.createObjectURL(file);
         try {
@@ -2897,26 +2296,26 @@
             triggerFeedback();
             handleDecodedText(ex.code, ex.fmtName, ex.rawBytes);
         } catch (err) {
-            showStatus('❌ ไม่พบรหัสในรูปภาพนี้ (ลองถ่ายใหม่ให้โค้ดใหญ่และชัดกว่านี้)', true);
+            showStatus('ไม่พบรหัสในรูปภาพนี้ (ลองถ่ายใหม่ให้โค้ดใหญ่และชัดกว่านี้)', true);
         } finally {
             URL.revokeObjectURL(objectUrl);
             event.target.value = '';
         }
     }
 
+    /* ==================================================================
+       สต๊อก: บันทึก / ประมวลผลเข้า-ออก / ตาราง
+       ================================================================== */
     function saveToStorage() {
-        try {
-            localStorage.setItem('barcode_stock_inventory', JSON.stringify(inventory));
-        } catch (e) {}
-        scheduleCloudPush(); // รอบที่ 8: สต๊อกเปลี่ยน -> สำรองคลาวด์เบื้องหลัง
+        try { localStorage.setItem(STORAGE_KEYS.inventory, JSON.stringify(inventory)); } catch (e) {}
     }
 
     function processStockUpdate(code, qty, type, fmtName = '') {
         code = normalizeCodeText(code);
         if (!code) return;
-        // รอบที่ 7: กันบันทึกซ้ำขั้นสุดท้าย - โค้ดที่เคยบันทึกตามโหมดนี้แล้ว จะไม่เขียนลงสต๊อกอีก
+        // กันบันทึกซ้ำขั้นสุดท้าย
         if (findDuplicateEntry(code, currentMode)) {
-            showStatus('⛔ โค้ดซ้ำ "' + code + '" เคยบันทึกไว้แล้ว จึงไม่บันทึกข้อมูลซ้ำ', true);
+            showStatus('โค้ดซ้ำ "' + code + '" เคยบันทึกไว้แล้ว จึงไม่บันทึกข้อมูลซ้ำ', true);
             triggerFeedbackDup();
             return;
         }
@@ -2934,19 +2333,18 @@
             if (currentMode === 'IN') {
                 item.inTotal += qty;
                 item.stock += qty;
-                showStatus(`📥 รับเข้า ${typeTag} "${code}" ×${qty} โดย ${who} (เหลือ: ${item.stock})${fmtTag}`);
+                showStatus(`รับเข้า ${typeTag} "${code}" x${qty} โดย ${who} (เหลือ: ${item.stock})${fmtTag}`);
             } else {
                 item.outTotal += qty;
                 item.stock -= qty;
                 if (item.stock < 0) item.stock = 0;
-                showStatus(`📤 เบิกออก ${typeTag} "${code}" ×${qty} โดย ${who} (เหลือ: ${item.stock})${fmtTag}`, item.stock === 0);
+                showStatus(`เบิกออก ${typeTag} "${code}" x${qty} โดย ${who} (เหลือ: ${item.stock})${fmtTag}`, item.stock === 0);
             }
             item.lastUpdate = nowStr;
             item.lastBy = who;
-            item.lastUpdateMs = Date.now(); // รอบที่ 8: ประทับเวลาไว้รวมข้อมูลข้ามเครื่อง (อันใหม่ชนะ)
+            item.lastUpdateMs = Date.now(); // ประทับเวลาไว้รวมข้อมูลข้ามเครื่อง (อันใหม่ชนะ)
         } else {
             const initialStock = currentMode === 'IN' ? qty : 0;
-
             inventory.unshift({
                 id: Date.now(),
                 code: code,
@@ -2959,18 +2357,18 @@
                 lastBy: who,
                 lastUpdateMs: Date.now()
             });
-            showStatus(`✨ เพิ่มใหม่ ${typeTag} "${code}" ×${qty} โดย ${who}${fmtTag}`);
+            showStatus(`เพิ่มใหม่ ${typeTag} "${code}" x${qty} โดย ${who}${fmtTag}`);
         }
 
         pushScanLog({ code: code, type: type, qty: qty, mode: currentMode, user: who, fmt: fmtName });
         saveToStorage();
-        const searchInput = document.getElementById('searchInput');
+        const searchInput = el('searchInput');
         if (searchInput) searchInput.value = '';
         renderTable();
     }
 
     function manualAdd() {
-        const manualInput = document.getElementById('manualCodeInput');
+        const manualInput = el('manualCodeInput');
         if (!manualInput) return;
         const code = normalizeCodeText(manualInput.value);
         if (code) {
@@ -2978,15 +2376,16 @@
             openScanModal(code, 'MANUAL');
             manualInput.value = '';
         } else {
-            showStatus('⚠️ กรุณากรอก Model ก่อน', true);
+            showStatus('กรุณากรอก Model ก่อน', true);
         }
     }
 
+    /* ปุ่มแก้เร็วในตาราง (+1 / -1) - เฉพาะ admin */
     function quickAdjust(id, mode) {
+        if (!isAdmin()) { showStatus('แก้รายการในตารางได้เฉพาะ admin', true); return; }
         const item = inventory.find(i => i.id === id);
         if (!item) return;
         const who = currentUser ? currentUser.name : '-';
-
         if (mode === 'IN') {
             item.inTotal += 1;
             item.stock += 1;
@@ -2997,82 +2396,74 @@
         }
         item.lastUpdate = new Date().toLocaleString('th-TH');
         item.lastBy = who;
-        item.lastUpdateMs = Date.now(); // รอบที่ 8
+        item.lastUpdateMs = Date.now();
         pushScanLog({ code: item.code, type: item.type, qty: 1, mode: mode, user: who, fmt: 'ปุ่มในตาราง' });
         saveToStorage();
         renderTable();
     }
 
+    /* ลบรายการ - เฉพาะ admin */
     function deleteItem(id) {
-        const victim = inventory.find(item => item.id === id);
-        if (victim) addTombstone(victim); // รอบที่ 8: จด tombstone กันข้อมูลเก่าจากคลาวด์ฟื้นคืน
+        if (!isAdmin()) { showStatus('ลบรายการได้เฉพาะ admin', true); return; }
         inventory = inventory.filter(item => item.id !== id);
         saveToStorage();
         renderTable();
     }
 
     function handleClearButton() {
+        if (!isAdmin()) { showStatus('ล้างสต๊อกได้เฉพาะ admin', true); return; }
         if (inventory.length === 0) {
             showStatus('สต๊อกว่างเปล่าอยู่แล้ว', true);
             return;
         }
-        const btn = document.getElementById('btnClear');
+        const btn = el('btnClear');
         if (!isConfirmingClear) {
             isConfirmingClear = true;
-            if (btn) {
-                btn.textContent = '⚠️ กดซ้ำเพื่อยืนยันลบสต๊อก';
-                btn.style.background = '#991b1b';
-            }
+            if (btn) btn.textContent = 'กดซ้ำเพื่อยืนยัน';
             clearConfirmTimer = setTimeout(() => {
                 isConfirmingClear = false;
-                if (btn) {
-                    btn.textContent = '🗑️ ล้างสต๊อก';
-                    btn.style.background = '';
-                }
+                if (btn) btn.textContent = 'ล้างสต๊อก';
             }, 3000);
         } else {
             clearTimeout(clearConfirmTimer);
             isConfirmingClear = false;
-            if (btn) {
-                btn.textContent = '🗑️ ล้างสต๊อก';
-                btn.style.background = '';
-            }
+            if (btn) btn.textContent = 'ล้างสต๊อก';
             inventory = [];
             saveToStorage();
             renderTable();
-            showStatus('🗑️ ล้างข้อมูลสต๊อกทั้งหมดเรียบร้อย');
+            showStatus('ล้างข้อมูลสต๊อกทั้งหมดเรียบร้อย');
         }
     }
 
-    function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-
     function renderTable() {
-        const tbody = document.getElementById('dataTableBody');
-        const searchInput = document.getElementById('searchInput');
-        const totalCount = document.getElementById('totalCount');
+        const tbody = el('dataTableBody');
+        const searchInput = el('searchInput');
+        const totalCount = el('totalCount');
         if (!tbody) return;
 
         const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
-
         const filtered = inventory.filter(item =>
             (item.code || '').toLowerCase().includes(searchTerm) ||
             (item.type || '').toLowerCase().includes(searchTerm) ||
             (item.name || '').toLowerCase().includes(searchTerm)
         );
-
-        if (totalCount) totalCount.textContent = filtered.length;
+        if (totalCount) totalCount.textContent = String(filtered.length);
 
         if (filtered.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="8" class="empty-state">ไม่พบสินค้าในสต๊อก</td></tr>`;
+            tbody.innerHTML = '<tr><td colspan="8" class="empty-state">ไม่พบสินค้าในสต๊อก</td></tr>';
             return;
         }
 
+        const adminActions = isAdmin();
         tbody.innerHTML = filtered.map(item => {
             const typeText = item.type ? typeLabel(item.type) : (item.name ? escapeHtml(item.name) + ' (ข้อมูลเดิม)' : '-');
+            const actions = adminActions
+                ? `<div class="row-actions">
+                       <button type="button" class="btn btn-mini btn-in" onclick="quickAdjust(${item.id}, 'IN')">+1</button>
+                       <button type="button" class="btn btn-mini btn-out2" onclick="quickAdjust(${item.id}, 'OUT')">-1</button>
+                       <button type="button" class="btn btn-mini btn-del" onclick="deleteItem(${item.id})">ลบ</button>
+                   </div>`
+                : '';
             return `
             <tr>
                 <td><span class="badge">${escapeHtml(item.code)}</span></td>
@@ -3082,19 +2473,15 @@
                 <td class="stock-out">-${item.outTotal}</td>
                 <td class="date-col">${escapeHtml(item.lastBy || '-')}</td>
                 <td class="date-col">${item.lastUpdate || '-'}</td>
-                <td>
-                    <div style="display:flex; gap:4px;">
-                        <button type="button" class="btn-success btn-sm" onclick="quickAdjust(${item.id}, 'IN')" title="เพิ่ม +1">+1</button>
-                        <button type="button" class="btn-warning btn-sm" onclick="quickAdjust(${item.id}, 'OUT')" title="ลด -1">-1</button>
-                        <button type="button" class="btn-danger btn-sm" onclick="deleteItem(${item.id})" title="ลบ">✕</button>
-                    </div>
-                </td>
+                <td class="action-col">${actions}</td>
             </tr>`;
         }).join('');
     }
 
-    function downloadCSV(csvContent, filename) {
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    /* ==================================================================
+       ไฟล์ CSV / ไฟล์ข้อมูล (ซิงค์ข้ามเครื่อง)
+       ================================================================== */
+    function downloadBlob(blob, filename) {
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
@@ -3102,21 +2489,133 @@
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        setTimeout(() => { URL.revokeObjectURL(url); }, 1500);
+    }
+
+    function downloadCSV(csvContent, filename) {
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        downloadBlob(blob, filename);
     }
 
     function exportToCSV() {
+        if (!isAdmin()) { showStatus('เฉพาะ admin เท่านั้น', true); return; }
         if (inventory.length === 0) {
-            showStatus('⚠️ ไม่มีข้อมูลสต๊อกสำหรับส่งออก', true);
+            showStatus('ไม่มีข้อมูลสต๊อกสำหรับส่งออก', true);
             return;
         }
-
         let csvContent = "\uFEFFModel,ประเภท,จำนวนคงเหลือ,รับเข้าทั้งหมด,เบิกออกทั้งหมด,ผู้สแกนล่าสุด,วันที่ทำรายการล่าสุด\n";
         inventory.forEach(row => {
             const typeText = row.type ? typeLabel(row.type) : (row.name || '-').replace(/"/g, '""');
             csvContent += `"${row.code}","${typeText}",${row.stock},${row.inTotal},${row.outTotal},"${(row.lastBy || '-').replace(/"/g, '""')}","${row.lastUpdate || '-'}"\n`;
         });
-
         downloadCSV(csvContent, `stock_report_${new Date().toISOString().slice(0, 10)}.csv`);
+    }
+
+    /* ---- ซิงค์ข้อมูลมือถือ-คอมพิวเตอร์ด้วยไฟล์ข้อมูล ----
+       ส่งออก: ไฟล์ JSON รวมทุกอย่าง (บัญชี + สต๊อก + ประวัติ)
+       นำเข้า: รวมกับข้อมูลเครื่องนี้โดยยึดรายการที่แก้ล่าสุด (อันใหม่ชนะ)
+       ผลคือทุกเครื่องมีข้อมูลตรงกัน ใช้ชื่อ/รหัสผ่านเดิมข้ามเครื่องได้ */
+    function pad2(n) { return String(n).padStart(2, '0'); }
+
+    function exportDataFile() {
+        if (!isAdmin()) { showStatus('เฉพาะ admin เท่านั้น', true); return; }
+        const d = new Date();
+        const stamp = d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate()) + '-' + pad2(d.getHours()) + pad2(d.getMinutes());
+        const payload = {
+            app: 'stock-scanner',
+            ver: 2,
+            exportedAt: Date.now(),
+            exportedBy: currentUser ? currentUser.name : '-',
+            users: loadUsers(),
+            inventory: inventory,
+            scanLog: scanLog
+        };
+        const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+        downloadBlob(blob, 'stock-backup-' + stamp + '.json');
+        showStatus('ส่งออกไฟล์ข้อมูลแล้ว นำไปกด "นำเข้าไฟล์ข้อมูล" ที่เครื่องอื่นได้เลย');
+    }
+
+    /* รวมบัญชี: ชื่อเดียวกันยึดที่แก้ล่าสุด + บัญชี admin มีได้ตัวเดียว */
+    function mergeUsers(localUsers, incUsers) {
+        const map = new Map();
+        const put = (u) => {
+            if (!u || !u.name) return;
+            const k = String(u.name).toLowerCase();
+            const cur = map.get(k);
+            if (!cur || (u.updatedAt || 0) >= (cur.updatedAt || 0)) map.set(k, {
+                name: u.name,
+                role: u.role || 'user',
+                hash: u.hash || '',
+                updatedAt: u.updatedAt || 0
+            });
+        };
+        localUsers.forEach(put);
+        incUsers.forEach(put);
+        const admins = [...map.values()].filter(u => u.role === 'admin');
+        if (admins.length > 1) {
+            admins.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+            admins.slice(1).forEach(a => { a.role = 'user'; });
+        }
+        return [...map.values()];
+    }
+
+    /* รวมสต๊อก: คู่ Model+ประเภทเดียวกัน ยึดรายการที่แก้ล่าสุด */
+    function mergeInventory(local, inc) {
+        const map = new Map();
+        const key = i => String(i.code || '') + '\u0001' + (i.type || '');
+        const stampOf = i => i.lastUpdateMs || i.id || 0;
+        const put = i => {
+            if (!i || !i.code) return;
+            const k = key(i);
+            const cur = map.get(k);
+            if (!cur || stampOf(i) >= stampOf(cur)) map.set(k, i);
+        };
+        local.forEach(put);
+        inc.forEach(put);
+        return [...map.values()].sort((a, b) => stampOf(b) - stampOf(a));
+    }
+
+    /* รวมประวัติ: ตัดรายการซ้ำด้วยคีย์เนื้อหา เรียงใหม่สุดก่อน (เก็บสูงสุด 300) */
+    function mergeLog(local, inc) {
+        const map = new Map();
+        const key = e => [e.ms, e.user, e.code, e.type, e.qty, e.mode].join('\u0001');
+        (local || []).concat(inc || []).forEach(e => { if (e && e.code) map.set(key(e), e); });
+        return [...map.values()].sort((a, b) => (b.ms || 0) - (a.ms || 0)).slice(0, 300);
+    }
+
+    async function importDataFile(file, fromLogin) {
+        try {
+            const text = await file.text();
+            const data = JSON.parse(text);
+            if (!data || data.app !== 'stock-scanner' || !Array.isArray(data.inventory)) {
+                throw new Error('bad file');
+            }
+            const users = mergeUsers(loadUsers(), Array.isArray(data.users) ? data.users : []);
+            saveUsers(users);
+            inventory = mergeInventory(inventory, data.inventory);
+            scanLog = mergeLog(scanLog, Array.isArray(data.scanLog) ? data.scanLog : []);
+            saveToStorage();
+            saveLogToStorage();
+            // ถ้าเซสชันที่จำไว้หายไปหลังรวมบัญชี ให้ออกจากระบบ
+            if (currentUser && !loadUsers().some(u => u.name === currentUser.name)) {
+                currentUser = null;
+                try { localStorage.removeItem(STORAGE_KEYS.session); } catch (e) {}
+            }
+            const msg = 'นำเข้าสำเร็จ: สต๊อก ' + inventory.length + ' รายการ | ประวัติ ' + scanLog.length + ' รายการ | บัญชี ' + users.length + ' บัญชี';
+            if (fromLogin || !currentUser) {
+                showLoginView();
+                setLoginMsg(msg, 'ok');
+            } else {
+                applyRoleUI();
+                renderTable();
+                renderLog();
+                showStatus(msg);
+            }
+        } catch (err) {
+            const msg = 'ไฟล์นี้ไม่ใช่ไฟล์ข้อมูลของระบบ หรือเสียหาย ลองใช้ไฟล์ที่ได้จากปุ่ม "ส่งออกไฟล์ข้อมูล"';
+            if (fromLogin || !currentUser) setLoginMsg(msg, 'err');
+            else showStatus(msg, true);
+        }
     }
 </script>
 
