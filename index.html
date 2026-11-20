@@ -19,17 +19,24 @@
     (ครั้งแรกให้ตั้งรหัสผ่านเอง ครั้งถัดไปใช้รหัสเดิมได้ตลอด)
   * admin จัดการได้ครบ: แก้/ลบรายการ, CSV, จัดการบัญชี, เปลี่ยนรหัสผ่าน
   * พนักงาน: สแกนรับเข้า/เบิกออกเท่านั้น
+- หน้าเข้าสู่ระบบ: มีแค่ช่องเข้าสู่ระบบอย่างเดียว (จำบัญชีที่ลงทะเบียนไว้)
+  มีข้อความลิงก์ไป "หน้าสมัครไอดีใหม่" (#register) ซึ่งเป็นหน้าเว็บแยกของตัวเอง
+  หน้าสมัครไอดีใหม่มี: ลงทะเบียนพนักงาน + ช่องเชื่อมต่อรหัสห้องคลาวด์
+  (ดึงบัญชีเดิมจากคอมพิวเตอร์ ไม่ต้องสมัครใหม่) + รหัสซิงค์/ไฟล์ข้อมูล
 - ปุ่มตั้งค่า (⚙): เปลี่ยนธีมพื้นหลัง 6 แบบ / เปิด-ปิดเสียงและการสั่น
   / ซิงค์ข้อมูล / เปลี่ยนรหัสผ่านของฉัน / จัดการบัญชี+เครื่องมือ admin / ออกจากระบบ
 - คลาวด์ร้าน (ผ่าน textdb.dev ฟรี ไม่ต้องสมัครสมาชิก): สร้าง/เชื่อมต่อ "รหัสห้อง"
-  ครั้งเดียวต่อเครื่อง แล้วบัญชี รหัสผ่าน สต๊อก ประวัติ จะถูกจัดเก็บบนคลาวด์
+  แล้วบัญชี รหัสผ่าน สต๊อก ประวัติ จะถูกจัดเก็บบนคลาวด์
   และซิงค์อัตโนมัติทุกเครื่องที่ใช้รหัสห้องเดียวกัน:
   สมัคร/เปลี่ยนรหัสผ่านที่เครื่องใด เครื่องอื่นเข้าได้ทันที (ไม่ต้องสมัครใหม่)
   สแกนที่เครื่องใด ตารางทุกเครื่องอัปเดตภายใน ~15 วินาที
   ลบรายการ/บัญชี แล้วจะหายจากทุกเครื่อง (ส่งผ่านด้วย tombstone)
   ออฟไลน์ก็ใช้งานได้ปกติ ข้อมูลเก็บในเครื่องไว้ กลับออนไลน์ค่อยซิงค์เอง
+- "ลิงก์เชิญ" (?room=รหัสห้อง): คัดลอกจากปุ่มตั้งค่า ส่งไปมือถือ (LINE)
+  เปิดลิงก์แล้วระบบเชื่อมต่อห้องให้เอง บัญชีเดิมโผล่ที่หน้าเข้าสู่ระบบทันที
+  ใช้รหัสผ่านเดิมจากเครื่องอื่นได้เลย ไม่ต้องลงทะเบียนใหม่
 - ซิงค์สำรอง (ไม่ใช้เน็ต): "รหัสซิงค์" คัดลอก/วางผ่าน LINE ได้ และ
-  "ส่งออก/นำเข้าไฟล์ข้อมูล" (.json) - หน้าเข้าสู่ระบบมีช่องใช้พร้อมใช้
+  "ส่งออก/นำเข้าไฟล์ข้อมูล" (.json) - หน้าสมัครไอดีใหม่และหน้าตั้งค่ามีช่องใช้พร้อมใช้
 -->
 <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
 <script>window.ZXing || document.write('<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"><\/script>');</script>
@@ -187,26 +194,6 @@
     .login-brand { text-align: center; margin-bottom: 16px; }
     .login-brand h1 { margin: 0; font-size: 1.25rem; }
     .login-brand p { margin: 4px 0 0; color: var(--muted); font-size: .82rem; }
-    .seg-tabs {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        background: var(--seg-bg);
-        border-radius: 12px;
-        padding: 4px;
-        gap: 4px;
-        margin-bottom: 14px;
-    }
-    .seg-tabs .tab {
-        padding: 10px;
-        text-align: center;
-        border-radius: 9px;
-        font-weight: 700;
-        font-size: .9rem;
-        color: var(--soft-ink);
-        cursor: pointer;
-        user-select: none;
-    }
-    .seg-tabs .tab.active { background: var(--primary); color: #fff; }
     .form-group { margin: 10px 0; }
     .login-msg {
         display: none;
@@ -263,6 +250,17 @@
     }
     .saved-chip.confirming .chip-x { background: #fecaca; color: var(--out-ink); }
     .login-note { font-size: .75rem; color: var(--muted); text-align: center; margin: 14px 0 0; }
+    .page-title { margin: 0 0 6px; font-size: 1.05rem; text-align: center; }
+    .register-link {
+        display: block;
+        text-align: center;
+        margin: 16px auto 0;
+        color: var(--primary);
+        font-weight: 700;
+        font-size: .9rem;
+        text-decoration: underline;
+        cursor: pointer;
+    }
     .admin-hint {
         margin-top: 12px;
         background: #fffbeb;
@@ -618,7 +616,7 @@
 </head>
 <body>
 
-<!-- ================= หน้าเข้าสู่ระบบ ================= -->
+<!-- ================= หน้าเข้าสู่ระบบ / หน้าสมัครไอดีใหม่ ================= -->
 <div id="loginOverlay">
     <div class="login-card">
         <div class="login-brand">
@@ -626,57 +624,76 @@
             <p>Data Matrix / QR - ใช้ได้ทั้งมือถือและคอมพิวเตอร์</p>
         </div>
         <div id="envWarning" class="alert-box"></div>
-        <div class="seg-tabs">
-            <div id="tabLogin" class="tab active">เข้าสู่ระบบ</div>
-            <div id="tabRegister" class="tab">ลงทะเบียนใหม่</div>
-        </div>
 
-        <div id="loginForm">
-            <div class="form-group"><input type="text" id="loginName" placeholder="ชื่อผู้ใช้ (ผู้ดูแลระบบพิมพ์ admin)" autocomplete="off"></div>
-            <div class="form-group"><input type="password" id="loginPin" inputmode="numeric" placeholder="รหัสผ่าน (ตัวเลข 4-6 หลัก)"></div>
-            <button type="button" id="btnLogin" class="btn btn-primary full">เข้าสู่ระบบ</button>
-            <div id="savedUsersWrap" class="saved-users-wrap">
-                <div class="saved-title">บัญชีที่ลงทะเบียนไว้ในเครื่องนี้ - แตะชื่อแล้วใส่รหัสเดิม (กด x 2 ครั้งเพื่อลบชื่อ)</div>
-                <div id="savedUsersList" class="saved-list"></div>
+        <!-- หน้าเข้าสู่ระบบ: มีแค่ช่องเข้าสู่ระบบอย่างเดียว ส่วนอื่นไปหน้าสมัครไอดี/ตั้งค่า -->
+        <div id="pageLogin">
+            <div id="loginForm">
+                <div class="form-group"><input type="text" id="loginName" placeholder="ชื่อผู้ใช้ (ผู้ดูแลระบบพิมพ์ admin)" autocomplete="off"></div>
+                <div class="form-group"><input type="password" id="loginPin" inputmode="numeric" placeholder="รหัสผ่าน (ตัวเลข 4-6 หลัก)"></div>
+                <button type="button" id="btnLogin" class="btn btn-primary full">เข้าสู่ระบบ</button>
+                <div id="savedUsersWrap" class="saved-users-wrap">
+                    <div class="saved-title">บัญชีที่ลงทะเบียนไว้ในเครื่องนี้ - แตะชื่อแล้วใส่รหัสเดิม (กด x 2 ครั้งเพื่อลบชื่อ)</div>
+                    <div id="savedUsersList" class="saved-list"></div>
+                </div>
             </div>
-        </div>
 
-        <div id="registerForm" style="display:none">
-            <div class="form-group"><input type="text" id="regName" placeholder="ตั้งชื่อผู้ใช้ (เช่น ชื่อพนักงาน)" autocomplete="off"></div>
-            <div class="form-group"><input type="password" id="regPin" inputmode="numeric" placeholder="ตั้งรหัสผ่าน (ตัวเลข 4-6 หลัก)"></div>
-            <div class="form-group"><input type="password" id="regPin2" inputmode="numeric" placeholder="ยืนยันรหัสผ่านอีกครั้ง"></div>
-            <button type="button" id="btnRegister" class="btn btn-primary full">ลงทะเบียนบัญชีพนักงาน</button>
-            <p class="login-note">บัญชีพนักงานสแกนรับเข้า/เบิกออกได้เท่านั้น - ชื่อ admin สงวนไว้สำหรับผู้ดูแลระบบ</p>
-        </div>
-
-        <div id="adminSetupForm" style="display:none">
-            <div class="admin-hint" style="margin:0 0 10px">ตั้งรหัสผ่านของบัญชี admin (ทำครั้งแรกครั้งเดียว) บัญชี admin มีได้คนเดียวและจัดการระบบได้ทุกอย่าง ถ้าเคยตั้งรหัส admin ไว้บนคอมพิวเตอร์หรือมือถือเครื่องอื่นแล้ว ไม่ต้องตั้งใหม่ ใช้ช่อง "ย้ายข้อมูลจากเครื่องเดิม" ด้านล่างแล้วใส่รหัสเดิมได้เลย</div>
-            <div class="form-group"><input type="password" id="asPin" inputmode="numeric" placeholder="ตั้งรหัสผ่าน admin (ตัวเลข 4-6 หลัก)"></div>
-            <div class="form-group"><input type="password" id="asPin2" inputmode="numeric" placeholder="ยืนยันรหัสผ่านอีกครั้ง"></div>
-            <button type="button" id="btnAdminSetup" class="btn btn-primary full">สร้างบัญชี admin</button>
-        </div>
-
-        <div id="loginWarn" class="alert-box"></div>
-        <div id="loginMsg" class="login-msg"></div>
-        <div class="transfer-wrap">
-            <div class="saved-title">☁ คลาวด์ร้าน - จำบัญชี รหัสผ่าน สต๊อก ทุกเครื่องอัตโนมัติ (แนะนำ)</div>
-            <div id="cloudStatusLogin" class="cloud-status" style="display:none"></div>
-            <div class="input-row" style="margin-top:8px">
-                <input type="text" id="cloudRoomLogin" placeholder="รหัสห้องคลาวด์ เช่น STK-XXXX-XXXX" autocomplete="off">
-                <button type="button" id="btnCloudJoinLogin" class="btn btn-primary">เชื่อมต่อ</button>
+            <!-- ตั้งรหัสผ่าน admin ครั้งแรก (เกิดจากการพิมพ์ "admin" ที่หน้าเข้าสู่ระบบ) -->
+            <div id="adminSetupForm" style="display:none">
+                <div class="admin-hint" style="margin:0 0 10px">ตั้งรหัสผ่านของบัญชี admin (ทำครั้งแรกครั้งเดียว) บัญชี admin มีได้คนเดียวและจัดการระบบได้ทุกอย่าง ถ้าเคยตั้งรหัส admin ไว้บนคอมพิวเตอร์หรือมือถือเครื่องอื่นแล้ว ไม่ต้องตั้งใหม่ - ใช้ช่อง "รหัสห้องคลาวด์" ด้านล่างเชื่อมต่อก่อน แล้วใส่รหัสเดิมได้เลย</div>
+                <div class="form-group"><input type="password" id="asPin" inputmode="numeric" placeholder="ตั้งรหัสผ่าน admin (ตัวเลข 4-6 หลัก)"></div>
+                <div class="form-group"><input type="password" id="asPin2" inputmode="numeric" placeholder="ยืนยันรหัสผ่านอีกครั้ง"></div>
+                <button type="button" id="btnAdminSetup" class="btn btn-primary full">สร้างบัญชี admin</button>
+                <div class="transfer-wrap">
+                    <div class="saved-title">☁ มีรหัสห้องคลาวด์ของร้าน? เชื่อมต่อเพื่อดึงรหัสผ่าน admin เดิม (ไม่ต้องตั้งใหม่)</div>
+                    <div id="cloudStatusAdmin" class="cloud-status" style="display:none"></div>
+                    <div class="input-row" style="margin-top:8px">
+                        <input type="text" id="asRoomInput" placeholder="รหัสห้องคลาวด์ เช่น STK-XXXX-XXXX" autocomplete="off">
+                        <button type="button" id="btnAsRoomJoin" class="btn btn-primary">เชื่อมต่อ</button>
+                    </div>
+                </div>
             </div>
-            <button type="button" id="btnCloudCreateLogin" class="link-btn">ยังไม่มีห้อง? สร้างห้องคลาวด์ใหม่สำหรับร้าน (จะได้รหัสห้องไปให้พนักงาน)</button>
+
+            <div id="loginWarn" class="alert-box"></div>
+            <div id="loginMsg" class="login-msg"></div>
+            <a class="register-link" href="#register">ยังไม่มีไอดี? ไปหน้าสมัครไอดีใหม่ &rsaquo;</a>
+            <p class="login-note">ลงทะเบียนครั้งเดียว เครื่องจะจำชื่อและรหัสผ่านไว้ให้เอง จนกว่าจะกดออกจากระบบ (เปลี่ยนธีม/ซิงค์ข้อมูล อยู่ในปุ่ม ⚙ ตั้งค่าหลังเข้าสู่ระบบ)</p>
         </div>
-        <div class="transfer-wrap">
-            <div class="saved-title">ย้ายข้อมูลจากเครื่องเดิม โดยไม่ใช้เน็ต (สำรอง) บัญชี admin/พนักงาน + สต๊อก + ประวัติ ย้ายมาทั้งหมด</div>
-            <textarea id="loginSyncIn" class="mono-area" rows="3" placeholder="วางรหัสซิงค์ที่คัดลอกจากเครื่องเดิม (ขึ้นต้น STOCK1:)"></textarea>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
-                <button type="button" id="btnLoginSyncCode" class="btn btn-primary">นำเข้ารหัสซิงค์</button>
-                <button type="button" id="loginImportBtn" class="btn btn-ghost">นำเข้าไฟล์ข้อมูล</button>
+
+        <!-- หน้าสมัครไอดีใหม่: เป็นหน้าเว็บแยกของตัวเอง (ลิงก์ #register) -->
+        <div id="pageRegister" style="display:none">
+            <h2 class="page-title">สมัครไอดีใหม่</h2>
+            <div id="registerForm">
+                <div class="form-group"><input type="text" id="regName" placeholder="ตั้งชื่อผู้ใช้ (เช่น ชื่อพนักงาน)" autocomplete="off"></div>
+                <div class="form-group"><input type="password" id="regPin" inputmode="numeric" placeholder="ตั้งรหัสผ่าน (ตัวเลข 4-6 หลัก)"></div>
+                <div class="form-group"><input type="password" id="regPin2" inputmode="numeric" placeholder="ยืนยันรหัสผ่านอีกครั้ง"></div>
+                <button type="button" id="btnRegister" class="btn btn-primary full">ลงทะเบียนบัญชีพนักงาน</button>
+                <p class="login-note">บัญชีพนักงานสแกนรับเข้า/เบิกออกได้เท่านั้น - ชื่อ admin สงวนไว้สำหรับผู้ดูแลระบบ (พิมพ์ admin ที่หน้าเข้าสู่ระบบ)</p>
             </div>
-            <input type="file" id="loginImportInput" accept=".json,application/json" style="display:none">
+            <div id="regMsg" class="login-msg"></div>
+
+            <div class="transfer-wrap">
+                <div class="saved-title">☁ ใช้บัญชีเดิมจากคอมพิวเตอร์/เครื่องอื่น ไม่ต้องสมัครใหม่ (แนะนำ)</div>
+                <div id="cloudStatusReg" class="cloud-status" style="display:none"></div>
+                <div class="input-row" style="margin-top:8px">
+                    <input type="text" id="regRoomInput" placeholder="รหัสห้องคลาวด์ของร้าน เช่น STK-XXXX-XXXX" autocomplete="off">
+                    <button type="button" id="btnRegRoomJoin" class="btn btn-primary">เชื่อมต่อ</button>
+                </div>
+                <button type="button" id="btnRegRoomCreate" class="link-btn">ยังไม่มีห้อง? สร้างห้องคลาวด์ใหม่สำหรับร้านที่นี่</button>
+                <p class="sync-hint">ใส่รหัสห้องที่ได้จาก admin แล้วกดเชื่อมต่อ ระบบจะดึงบัญชี สต๊อก และประวัติทั้งหมดมาที่เครื่องนี้ กลับไปหน้าเข้าสู่ระบบแล้วใช้ชื่อ/รหัสผ่านเดิมจากเครื่องนั้นได้เลย (ไม่ต้องลงทะเบียนใหม่)</p>
+            </div>
+
+            <div class="transfer-wrap">
+                <div class="saved-title">ย้ายข้อมูลจากเครื่องเดิมโดยไม่ใช้เน็ต (สำรอง) บัญชี admin/พนักงาน + สต๊อก + ประวัติ ย้ายมาทั้งหมด</div>
+                <textarea id="regSyncIn" class="mono-area" rows="3" placeholder="วางรหัสซิงค์ที่คัดลอกจากเครื่องเดิม (ขึ้นต้น STOCK1:)"></textarea>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+                    <button type="button" id="btnRegSyncCode" class="btn btn-primary">นำเข้ารหัสซิงค์</button>
+                    <button type="button" id="btnRegImportFile" class="btn btn-ghost">นำเข้าไฟล์ข้อมูล</button>
+                </div>
+                <input type="file" id="regImportFileInput" accept=".json,application/json" style="display:none">
+            </div>
+
+            <a class="register-link" href="#login">&lsaquo; กลับหน้าเข้าสู่ระบบ</a>
         </div>
-        <p class="login-note">ลงทะเบียนครั้งเดียว เครื่องจะจำชื่อและรหัสผ่านไว้ให้เอง เปิดใช้ครั้งถัดไปเข้าได้ทันทีจนกว่าจะกดออกจากระบบ</p>
     </div>
 </div>
 
@@ -841,8 +858,12 @@
             <button type="button" id="btnCloudCreate" class="btn btn-ghost">สร้างห้องใหม่</button>
             <button type="button" id="btnCloudLeave" class="btn btn-danger" style="display:none">ออกจากห้อง</button>
         </div>
-        <button type="button" id="btnCloudCopyRoom" class="btn btn-ghost full">คัดลอกรหัสห้อง ส่งให้พนักงาน/อีกเครื่อง</button>
-        <p class="sync-hint">เมื่อเชื่อมต่อแล้ว บัญชี รหัสผ่าน สต๊อก และประวัติจะถูกจัดเก็บบนคลาวด์ เครื่องไหนใช้รหัสห้องเดียวกันข้อมูลจะตรงกันหมด: สมัคร/เปลี่ยนรหัสผ่านที่เครื่องใด เครื่องอื่นเข้าได้ทันที สแกนที่เครื่องใด ตารางทุกเครื่องอัปเดตใน ~15 วิ ลบรายการแล้วหายทุกเครื่อง รหัสห้องคือกุญแจของร้าน อย่าเปิดเผยให้คนนอกทีม (ต้องมีอินเทอร์เน็ต)</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+            <button type="button" id="btnCloudCopyRoom" class="btn btn-ghost">คัดลอกรหัสห้อง</button>
+            <button type="button" id="btnCloudCopyInvite" class="btn btn-primary">คัดลอกลิงก์เชิญ (สำหรับมือถือ)</button>
+        </div>
+        <p class="sync-hint">เมื่อเชื่อมต่อแล้ว บัญชี รหัสผ่าน สต๊อก และประวัติจะถูกจัดเก็บบนคลาวด์ เครื่องไหนใช้รหัสห้องเดียวกันข้อมูลจะตรงกันหมด: สมัคร/เปลี่ยนรหัสผ่านที่เครื่องใด เครื่องอื่นเข้าได้ทันที สแกนที่เครื่องใด ตารางทุกเครื่องอัปเดตใน ~15 วิ ลบรายการแล้วหายทุกเครื่อง</p>
+        <p class="sync-hint">วิธีเพิ่มมือถือ/เครื่องใหม่ให้ง่ายที่สุด: กด "คัดลอกลิงก์เชิญ" ส่งลิงก์ไปที่มือถือ (LINE) แล้วเปิดลิงก์นั้น ระบบจะเชื่อมต่อห้องให้เอง บัญชีที่สมัครไว้จะโผล่ที่หน้าเข้าสู่ระบบทันที ใช้รหัสผ่านเดิมได้เลย ไม่ต้องลงทะเบียนใหม่ (รหัสห้องคือกุญแจของร้าน อย่าเปิดเผยให้คนนอกทีม ต้องมีอินเทอร์เน็ต)</p>
 
         <div class="modal-label">ซิงค์ด้วยไฟล์ / รหัสซิงค์ (สำรอง ไม่ใช้เน็ต)</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
@@ -1136,11 +1157,11 @@
         if (typeof ZXing === 'undefined') {
             showEnvWarn('โหลดไลบรารีสแกนไม่สำเร็จ ตรวจอินเทอร์เน็ตแล้วรีเฟรชหน้าใหม่');
         } else if (window.location.protocol === 'file:') {
-            showEnvWarn('เปิดจากไฟล์ในเครื่อง: ควรนำไปวางบนเว็บแล้วเปิดผ่านลิงก์ https เพราะบางอุปกรณ์ไม่ให้เปิดกล้อง');
+            showEnvWarn('เปิดจากไฟล์ในเครื่อง: บางอุปกรณ์จะไม่เปิดกล้องและไม่จำบัญชี/ข้อมูลถาวร ควรนำไฟล์นี้ไปวางบนเว็บแล้วเปิดผ่านลิงก์ https');
         } else if (!window.isSecureContext) {
             showEnvWarn('หน้านี้ไม่ใช่ HTTPS: เบราว์เซอร์จะไม่อนุญาตให้เปิดกล้อง กรุณาเปิดผ่านลิงก์ https');
         } else if (/Line|FBAN|FBAV|Instagram/i.test(ua)) {
-            showEnvWarn('กำลังเปิดผ่านแอปแชท: ให้กดเมนูมุมจอแล้วเลือก "เปิดในเบราว์เซอร์ (Chrome / Safari)"');
+            showEnvWarn('กำลังเปิดผ่านแอปแชท: แอปแชทจะไม่จำบัญชีและรหัสห้องถาวร ต้องทำซ้ำทุกครั้ง ให้กดเมนูมุมจอแล้วเลือก "เปิดในเบราว์เซอร์ (Chrome / Safari)"');
         } else if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
             showEnvWarn('เบราว์เซอร์นี้ไม่รองรับการเปิดกล้อง กรุณาใช้ Chrome หรือ Safari เวอร์ชันใหม่');
         }
@@ -1177,8 +1198,8 @@
             try { localStorage.setItem(STORAGE_KEYS.sound, e.target.checked ? '1' : '0'); } catch (err) {}
             showStatus(e.target.checked ? 'เปิดเสียงและการสั่นเตือนแล้ว' : 'ปิดเสียงและการสั่นเตือนแล้ว');
         });
-        safeBind('tabLogin', 'click', () => showLoginPanel('login'));
-        safeBind('tabRegister', 'click', () => showLoginPanel('register'));
+        // ลิงก์สลับหน้าเข้าสู่ระบบ <-> สมัครไอดีใหม่ (เปลี่ยน #register ใน URL แล้วหน้าตาม)
+        window.addEventListener('hashchange', () => { if (!currentUser) showAuthPage(currentAuthHashPage()); });
         safeBind('loginName', 'keydown', (e) => { if (e.key === 'Enter') doLogin(); });
         safeBind('loginPin', 'keydown', (e) => { if (e.key === 'Enter') doLogin(); });
         safeBind('regPin2', 'keydown', (e) => { if (e.key === 'Enter') doRegister(); });
@@ -1205,9 +1226,9 @@
             pickSavedUser(name);
         });
 
-        // ซิงค์ด้วยไฟล์ข้อมูล
-        safeBind('loginImportBtn', 'click', () => { const n = el('loginImportInput'); if (n) n.click(); });
-        safeBind('loginImportInput', 'change', (e) => {
+        // ซิงค์ด้วยไฟล์ข้อมูล (หน้าสมัครไอดีใหม่)
+        safeBind('btnRegImportFile', 'click', () => { const n = el('regImportFileInput'); if (n) n.click(); });
+        safeBind('regImportFileInput', 'change', (e) => {
             const f = e.target.files[0];
             if (f) importDataFile(f, true);
             e.target.value = '';
@@ -1234,16 +1255,19 @@
         safeBind('btnGenSyncCode', 'click', generateSyncCode);
         safeBind('btnCopySyncCode', 'click', copySyncCode);
         safeBind('btnPasteSyncCode', 'click', importFromSyncBox);
-        safeBind('btnLoginSyncCode', 'click', importLoginSyncCode);
+        safeBind('btnRegSyncCode', 'click', importRegSyncCode);
         safeBind('btnChangeMyPin', 'click', changeMyPin);
         safeBind('setNewPin2', 'keydown', (e) => { if (e.key === 'Enter') changeMyPin(); });
-        // คลาวด์ร้าน: สร้างห้อง/เชื่อมต่อห้อง (หน้าเข้าสู่ระบบ + ในตั้งค่า)
-        safeBind('btnCloudJoinLogin', 'click', () => cloudJoin(el('cloudRoomLogin') ? el('cloudRoomLogin').value : ''));
-        safeBind('btnCloudCreateLogin', 'click', () => cloudCreateRoom(el('cloudRoomLogin') ? el('cloudRoomLogin').value : ''));
-        safeBind('cloudRoomLogin', 'keydown', (e) => { if (e.key === 'Enter') cloudJoin(el('cloudRoomLogin') ? el('cloudRoomLogin').value : ''); });
+        // คลาวด์ร้าน: เชื่อมต่อห้องจากหน้าสมัครไอดี / แผง admin / ตั้งค่า + ลิงก์เชิญ
+        safeBind('btnRegRoomJoin', 'click', () => cloudJoin(el('regRoomInput') ? el('regRoomInput').value : ''));
+        safeBind('btnRegRoomCreate', 'click', () => cloudCreateRoom(el('regRoomInput') ? el('regRoomInput').value : ''));
+        safeBind('regRoomInput', 'keydown', (e) => { if (e.key === 'Enter') cloudJoin(el('regRoomInput') ? el('regRoomInput').value : ''); });
+        safeBind('btnAsRoomJoin', 'click', () => cloudJoin(el('asRoomInput') ? el('asRoomInput').value : ''));
+        safeBind('asRoomInput', 'keydown', (e) => { if (e.key === 'Enter') cloudJoin(el('asRoomInput') ? el('asRoomInput').value : ''); });
         safeBind('btnCloudJoin', 'click', () => cloudJoin(el('cloudRoomInput') ? el('cloudRoomInput').value : ''));
         safeBind('btnCloudCreate', 'click', () => cloudCreateRoom(el('cloudRoomInput') ? el('cloudRoomInput').value : ''));
         safeBind('cloudRoomInput', 'keydown', (e) => { if (e.key === 'Enter') cloudJoin(el('cloudRoomInput') ? el('cloudRoomInput').value : ''); });
+        safeBind('btnCloudCopyInvite', 'click', cloudCopyInvite);
         safeBind('btnCloudLeave', 'click', cloudLeave);
         safeBind('btnCloudCopyRoom', 'click', cloudCopyRoom);
         document.addEventListener('keydown', (e) => {
@@ -1266,6 +1290,13 @@
         renderCloudUI();
         if (cloudRoomKey()) cloudSync('auto');
         setInterval(() => { if (cloudRoomKey() && !document.hidden) cloudSync('auto'); }, 15000);
+
+        // ลิงก์เชิญ (?room=STK-XXXX-XXXX): เปิดลิงก์ที่เครื่องใหม่ -> เชื่อมต่อห้องเองอัตโนมัติ
+        const urlRoom = detectRoomFromUrl();
+        if (urlRoom && urlRoom !== cloudRoomKey()) {
+            setCloudStatus('', 'พบรหัสห้องจากลิงก์: ' + urlRoom + ' - กำลังเชื่อมต่อ...');
+            cloudJoin(urlRoom, true);
+        }
     });
 
     function showEnvWarn(msg) {
@@ -1345,16 +1376,43 @@
         box.className = 'login-msg ' + (cls || '');
     }
 
+    function setRegMsg(text, cls) {
+        const box = el('regMsg');
+        if (!box) return;
+        box.textContent = text;
+        box.className = 'login-msg ' + (cls || '');
+    }
+
     function setAdminMsg(text, cls) { return setSettingsMsg(text, cls); }
 
+    /* หน้าล็อกอินมี 2 หน้าย่อย: ฟอร์มเข้าสู่ระบบ / ตั้งรหัสผ่าน admin ครั้งแรก */
     function showLoginPanel(which) {
-        const tL = el('tabLogin'), tR = el('tabRegister');
-        if (tL) tL.classList.toggle('active', which === 'login');
-        if (tR) tR.classList.toggle('active', which === 'register');
         setDisp('loginForm', which === 'login');
-        setDisp('registerForm', which === 'register');
         setDisp('adminSetupForm', which === 'adminSetup');
         setLoginMsg('', '');
+    }
+
+    /* หน้าเว็บหลักก่อนเข้าสู่ระบบ: login (เข้าสู่ระบบ) หรือ register (สมัครไอดีใหม่)
+       เปลี่ยนตามลิงก์ #register / #login ใน URL - แชร์/บุ๊กมาร์กหน้าสมัครไอดีได้ */
+    function currentAuthHashPage() {
+        let h = '';
+        try { h = (window.location.hash || '').toLowerCase(); } catch (e) {}
+        return h === '#register' ? 'register' : 'login';
+    }
+
+    function showAuthPage(page) {
+        const isReg = page === 'register';
+        setDisp('pageLogin', !isReg);
+        setDisp('pageRegister', isReg);
+        setLoginMsg('', '');
+        setRegMsg('', '');
+        if (!isReg) showLoginPanel('login');
+        try {
+            const want = isReg ? '#register' : '';
+            if ((window.location.hash || '') !== want) {
+                window.history.replaceState(null, '', window.location.pathname + window.location.search + want);
+            }
+        } catch (e) {}
     }
 
     /* รายชื่อบัญชีที่ลงทะเบียนไว้ในเครื่องนี้ (แตะเพื่อกรอกชื่อ) */
@@ -1418,7 +1476,8 @@
         if (overlay) overlay.style.display = 'flex';
         if (header) header.style.display = 'none';
         if (app) app.style.display = 'none';
-        showLoginPanel('login');
+        // ถ้า URL เปิดด้วยลิงก์หน้าสมัครไอดี (#register) ให้ขึ้นหน้าสมัครไอดี ไม่งั้นขึ้นหน้าเข้าสู่ระบบ
+        showAuthPage(currentAuthHashPage());
         // เคลียร์ช่องกรอกทุกครั้ง แล้วเติมชื่อที่จำไว้ใหม่ เหลือแค่ใส่รหัสผ่าน
         const nameEl = el('loginName');
         const pinEl = el('loginPin');
@@ -1507,7 +1566,7 @@
         }
 
         const user = loadUsers().find(u => u.name.toLowerCase() === name.toLowerCase());
-        if (!user) { setLoginMsg('ไม่พบบัญชีนี้ ลองไปที่แท็บ "ลงทะเบียนใหม่"', 'err'); return; }
+        if (!user) { setLoginMsg('ไม่พบบัญชีนี้ ถ้ายังไม่มีไอดี ให้ไปที่ลิงก์ "ไปหน้าสมัครไอดีใหม่" ด้านล่าง', 'err'); return; }
         const h = await hashPin(pin);
         if (h !== user.hash) { setLoginMsg('รหัสผ่านไม่ถูกต้อง ลองอีกครั้ง', 'err'); return; }
         finishLogin(user);
@@ -1541,13 +1600,13 @@
         const name = nameEl ? nameEl.value.trim() : '';
         const pin = pinEl ? pinEl.value : '';
         const pin2 = pin2El ? pin2El.value : '';
-        if (name.toLowerCase() === ADMIN_NAME) { setLoginMsg('ชื่อ admin สงวนไว้สำหรับผู้ดูแลระบบ ใช้ชื่ออื่น', 'err'); return; }
-        if (name.length < 2) { setLoginMsg('ชื่อผู้ใช้ต้องมีอย่างน้อย 2 ตัวอักษร', 'err'); return; }
-        if (!/^\d{4,6}$/.test(pin)) { setLoginMsg('รหัสผ่านต้องเป็นตัวเลข 4-6 หลัก', 'err'); return; }
-        if (pin !== pin2) { setLoginMsg('รหัสผ่านสองช่องไม่ตรงกัน', 'err'); return; }
+        if (name.toLowerCase() === ADMIN_NAME) { setRegMsg('ชื่อ admin สงวนไว้สำหรับผู้ดูแลระบบ ใช้ชื่ออื่น', 'err'); return; }
+        if (name.length < 2) { setRegMsg('ชื่อผู้ใช้ต้องมีอย่างน้อย 2 ตัวอักษร', 'err'); return; }
+        if (!/^\d{4,6}$/.test(pin)) { setRegMsg('รหัสผ่านต้องเป็นตัวเลข 4-6 หลัก', 'err'); return; }
+        if (pin !== pin2) { setRegMsg('รหัสผ่านสองช่องไม่ตรงกัน', 'err'); return; }
         const users = loadUsers();
         if (users.some(u => u.name.toLowerCase() === name.toLowerCase())) {
-            setLoginMsg('มีชื่อนี้ในระบบแล้ว ให้ไปที่แท็บ "เข้าสู่ระบบ"', 'err');
+            setRegMsg('มีชื่อนี้ในระบบแล้ว กลับไปหน้าเข้าสู่ระบบแล้วใส่รหัสผ่านเดิมได้เลย', 'err');
             return;
         }
         const hash = await hashPin(pin);
@@ -2868,15 +2927,15 @@
         }
     }
 
-    function importLoginSyncCode() {
-        const inp = el('loginSyncIn');
+    function importRegSyncCode() {
+        const inp = el('regSyncIn');
         const raw = inp ? inp.value : '';
-        if (!raw.trim()) { setLoginMsg('วางรหัสซิงค์ที่คัดลอกจากเครื่องเดิมลงช่องก่อน', 'err'); return; }
+        if (!raw.trim()) { setRegMsg('วางรหัสซิงค์ที่คัดลอกจากเครื่องเดิมลงช่องก่อน', 'err'); return; }
         try {
             applyImportedData(parseSyncCode(raw), true);
             if (inp) inp.value = '';
         } catch (e) {
-            setLoginMsg('รหัสซิงค์ไม่ถูกต้อง ต้องขึ้นต้นด้วย STOCK1: และครบทั้งข้อความ', 'err');
+            setRegMsg('รหัสซิงค์ไม่ถูกต้อง ต้องขึ้นต้นด้วย STOCK1: และครบทั้งข้อความ', 'err');
         }
     }
 
@@ -2924,7 +2983,7 @@
     }
 
     function setCloudStatus(cls, text) {
-        ['cloudStatusLogin', 'cloudStatus'].forEach(id => {
+        ['cloudStatus', 'cloudStatusReg', 'cloudStatusAdmin'].forEach(id => {
             const box = el(id);
             if (!box) return;
             if (!text) { box.style.display = 'none'; box.textContent = ''; return; }
@@ -2938,12 +2997,24 @@
         const key = cloudRoomKey();
         const leave = el('btnCloudLeave');
         if (leave) leave.style.display = key ? '' : 'none';
-        ['cloudRoomLogin', 'cloudRoomInput'].forEach(id => {
+        ['cloudRoomInput', 'regRoomInput', 'asRoomInput'].forEach(id => {
             const n = el(id);
             if (n) n.placeholder = key ? ('ห้องปัจจุบัน: ' + key) : 'รหัสห้องคลาวด์ เช่น STK-XXXX-XXXX';
         });
         if (!key) setCloudStatus('', 'ยังไม่เชื่อมต่อคลาวด์ - ข้อมูลเก็บในเครื่องนี้เท่านั้น');
         else setCloudStatus('', 'ห้องปัจจุบัน: ' + key + ' - รอการซิงค์...');
+    }
+
+    /* อ่านรหัสห้องจากลิงก์เชิญ ?room=STK-XXXX-XXXX หรือ #room=... */
+    function detectRoomFromUrl() {
+        try {
+            const p = new URLSearchParams(window.location.search);
+            const fromSearch = sanitizeRoomKey(p.get('room') || '');
+            if (fromSearch) return fromSearch;
+            const m = (window.location.hash || '').match(/room=([A-Za-z0-9_-]{6,40})/);
+            if (m) return sanitizeRoomKey(m[1]);
+        } catch (e) {}
+        return '';
     }
 
     function scheduleCloudPush() {
@@ -2985,7 +3056,7 @@
         }
     }
 
-    async function cloudJoin(keyInput) {
+    async function cloudJoin(keyInput, viaLink) {
         const key = sanitizeRoomKey(keyInput);
         if (!key) { setCloudStatus('err', 'รหัสห้องต้องเป็นตัวอักษร/ตัวเลข/ขีด 6-40 ตัว ไม่มีเว้นวรรค'); return; }
         setCloudStatus('', 'กำลังเชื่อมต่อห้อง ' + key + ' ...');
@@ -2998,7 +3069,25 @@
             renderCloudUI();
             const res = mergeAll(data);
             if (currentUser) { applyRoleUI(); renderTable(); renderLog(); }
-            else renderRegisteredUsers();
+            else {
+                renderRegisteredUsers();
+                const asForm = el('adminSetupForm');
+                const inAdminSetup = !!(asForm && asForm.style.display !== 'none');
+                if (inAdminSetup) {
+                    // เชื่อมต่อจากแผงตั้งรหัส admin -> กลับไปหน้าล็อกอินให้ใส่รหัสเดิม
+                    showLoginPanel('login');
+                    setLoginMsg('เชื่อมต่อคลาวด์ร้านแล้ว รหัสผ่าน admin เดิมจากคลาวด์ใช้ได้เลย พิมพ์ชื่อ admin แล้วใส่รหัสเดิม', 'ok');
+                } else if (viaLink) {
+                    if (currentAuthHashPage() !== 'register' && res.users.length) {
+                        setLoginMsg('เชื่อมต่อข้อมูลร้านจากลิงก์สำเร็จ แตะชื่อบัญชีของคุณด้านล่างแล้วใส่รหัสผ่านเดิมเข้าได้เลย ไม่ต้องลงทะเบียนใหม่', 'ok');
+                    }
+                } else if (currentAuthHashPage() === 'register') {
+                    // เชื่อมต่อจากหน้าสมัครไอดี -> พากลับหน้าล็อกอินพร้อมบัญชีที่ดึงมา
+                    showAuthPage('login');
+                    renderRegisteredUsers();
+                    setLoginMsg('เชื่อมต่อคลาวด์ร้านแล้ว บัญชีที่สมัครไว้จากเครื่องอื่นขึ้นด้านล่างแล้ว แตะชื่อแล้วใส่รหัสผ่านเดิมเข้าได้เลย', 'ok');
+                }
+            }
             setCloudStatus('ok', 'เชื่อมต่อห้อง ' + key + ' สำเร็จ');
             showStatus('เชื่อมต่อคลาวด์สำเร็จ: บัญชีและข้อมูลร้านจะซิงค์อัตโนมัติทุกเครื่องที่ใช้รหัสห้องนี้');
             cloudDirty = true;
@@ -3047,6 +3136,29 @@
             else ok = fallbackCopy(key);
         } catch (e) { ok = fallbackCopy(key); }
         showStatus(ok ? 'คัดลอกรหัสห้อง "' + key + '" แล้ว ส่งให้พนักงานผ่าน LINE ได้เลย' : 'คัดลอกอัตโนมัติไม่ได้ รหัสห้องคือ: ' + key, !ok);
+    }
+
+    /* ลิงก์เชิญ: URL ที่ฝังรหัสห้องไว้ เปิดที่เครื่องใหม่แล้วเชื่อมต่อเองอัตโนมัติ */
+    async function cloudCopyInvite() {
+        const key = cloudRoomKey();
+        if (!key) { showStatus('ยังไม่ได้เชื่อมต่อห้องคลาวด์ ให้เชื่อมต่อห้องก่อน', true); return; }
+        const proto = window.location.protocol || '';
+        let base = '';
+        if (proto === 'http:' || proto === 'https:') {
+            base = window.location.origin + window.location.pathname;
+        }
+        if (!base) {
+            showStatus('ไฟล์นี้เปิดจากเครื่องโดยตรง ใช้ลิงก์เชิญไม่ได้ ให้คัดลอก "รหัสห้อง" ไปใส่ที่เครื่องอื่นแทน (หรือนำไฟล์ไปวางบนเว็บ https ก่อน)', true);
+            return;
+        }
+        const invite = base + '?room=' + key;
+        let ok = false;
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(invite); ok = true; }
+            else ok = fallbackCopy(invite);
+        } catch (e) { ok = fallbackCopy(invite); }
+        showStatus(ok ? 'คัดลอกลิงก์เชิญแล้ว ส่งไปที่มือถือ (LINE) แล้วเปิดลิงก์ ระบบจะเชื่อมต่อห้องให้เอง: ' + invite
+                      : 'คัดลอกอัตโนมัติไม่ได้ ลิงก์เชิญคือ: ' + invite, !ok);
     }
 
     /* ==================================================================
@@ -3213,7 +3325,8 @@
             try { localStorage.removeItem(STORAGE_KEYS.session); } catch (e) {}
         }
         if (fromLogin || !currentUser) {
-            showLoginView();
+            showAuthPage('login');
+            renderRegisteredUsers();
             setLoginMsg(msg, 'ok');
         } else {
             applyRoleUI();
