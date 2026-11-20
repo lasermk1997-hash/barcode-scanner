@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#1d4ed8">
+<meta name="theme-color" content="#f6d7e9">
 <title>ระบบสแกนสต๊อกสินค้า (Data Matrix / QR)</title>
 <!--
 =====================================================================
@@ -23,7 +23,8 @@
   มีข้อความลิงก์ไป "หน้าสมัครไอดีใหม่" (#register) ซึ่งเป็นหน้าเว็บแยกของตัวเอง
   หน้าสมัครไอดีใหม่มี: ลงทะเบียนพนักงาน + ช่องเชื่อมต่อรหัสห้องคลาวด์
   (ดึงบัญชีเดิมจากคอมพิวเตอร์ ไม่ต้องสมัครใหม่) + รหัสซิงค์/ไฟล์ข้อมูล
-- ปุ่มตั้งค่า (⚙): เปลี่ยนธีมพื้นหลัง 6 แบบ / เปิด-ปิดเสียงและการสั่น
+- ปุ่มตั้งค่า (⚙): เปลี่ยนธีมพื้นหลัง 6 แบบ (พาสเทลทั้งหมด: ชมพู/มินต์/ลาเวนเดอร์/ฟ้าอ่อน/ครีม/พีช)
+  / เปิด-ปิดเสียงและการสั่น
   / ซิงค์ข้อมูล / เปลี่ยนรหัสผ่านของฉัน / จัดการบัญชี+เครื่องมือ admin / ออกจากระบบ
 - คลาวด์ร้าน (ผ่าน textdb.dev ฟรี ไม่ต้องสมัครสมาชิก): สร้าง/เชื่อมต่อ "รหัสห้อง"
   แล้วบัญชี รหัสผ่าน สต๊อก ประวัติ จะถูกจัดเก็บบนคลาวด์
@@ -32,6 +33,10 @@
   สแกนที่เครื่องใด ตารางทุกเครื่องอัปเดตภายใน ~15 วินาที
   ลบรายการ/บัญชี แล้วจะหายจากทุกเครื่อง (ส่งผ่านด้วย tombstone)
   ออฟไลน์ก็ใช้งานได้ปกติ ข้อมูลเก็บในเครื่องไว้ กลับออนไลน์ค่อยซิงค์เอง
+- ห้องคลาวด์ "ฝังในไฟล์" (STK-E4YS-6U3X): เปิดไฟล์นี้ที่เครื่องใหม่ครั้งแรก
+  ระบบเชื่อมห้องให้เองทันที บัญชี/สต๊อก/ประวัติจากเครื่องอื่นจะขึ้นเองที่หน้าเข้าสู่ระบบ
+  (ส่งไฟล์นี้ไปมือถือทาง LINE แล้วเปิด = ซิงค์กันทันที ไม่ต้องตั้งค่ารหัสห้อง)
+  ถ้ากด "ออกจากห้อง" ในหน้าตั้งค่า ระบบจะไม่เชื่อมให้อัตโนมัติอีก จนกว่าจะเชื่อมเอง
 - "ลิงก์เชิญ" (?room=รหัสห้อง): คัดลอกจากปุ่มตั้งค่า ส่งไปมือถือ (LINE)
   เปิดลิงก์แล้วระบบเชื่อมต่อห้องให้เอง บัญชีเดิมโผล่ที่หน้าเข้าสู่ระบบทันที
   ใช้รหัสผ่านเดิมจากเครื่องอื่นได้เลย ไม่ต้องลงทะเบียนใหม่
@@ -42,83 +47,117 @@
 <script>window.ZXing || document.write('<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"><\/script>');</script>
 <script src="https://cdn.jsdelivr.net/npm/zxing-wasm@3.1.7/dist/iife/reader/index.js"></script>
 <style>
+    /* ===== ธีมพาสเทล (ค่าเริ่มต้น: ชมพูพาสเทล เลือกอื่นได้ในปุ่มตั้งค่า) ===== */
     :root {
-        --bg: #eef1f6;
+        --bg: #fbf3f7;
         --card: #ffffff;
-        --ink: #0f172a;
-        --muted: #64748b;
-        --line: #e2e8f0;
-        --soft: #f8fafc;
-        --soft-ink: #475569;
-        --seg-bg: #eef2f7;
-        --chip-bg: #f1f5f9;
-        --primary: #2563eb;
-        --in: #16a34a;
-        --in-soft: #dcfce7;
-        --in-ink: #166534;
-        --out: #dc2626;
-        --out-soft: #fee2e2;
-        --out-ink: #991b1b;
-        --header1: #0f2a6b;
-        --header2: #1d4ed8;
-        --login1: #10275e;
-        --login2: #1d4ed8;
-        --login3: #2563eb;
-        --toast-bg: #0f172a;
-        --badge-bg: #eff6ff;
-        --badge-ink: #1d4ed8;
-        --plate-soft: #dbeafe;
-        --plate-ink: #1e40af;
-        --chanel-soft: #ccfbf1;
-        --chanel-ink: #0f766e;
-        --admin-soft: #f8fbff;
-        --admin-line: #bfdbfe;
+        --ink: #4a3542;
+        --muted: #a3899a;
+        --line: #f2dbe8;
+        --soft: #fdf6fa;
+        --soft-ink: #7d6474;
+        --seg-bg: #f7e8f0;
+        --chip-bg: #f9eef5;
+        --primary: #d96ba6;
+        --in: #3ba276;
+        --in-soft: #dcf5e8;
+        --in-ink: #2e7d5b;
+        --out: #e26d5c;
+        --out-soft: #fce5df;
+        --out-ink: #b34a3a;
+        --header1: #f6d7e9;
+        --header2: #edc3e0;
+        --header-ink: #6d4460;
+        --login1: #fce7f3;
+        --login2: #f8d7ec;
+        --login3: #ecd7f5;
+        --toast-bg: #5c4453;
+        --badge-bg: #fbe4f1;
+        --badge-ink: #b04a80;
+        --plate-soft: #fde8f3;
+        --plate-ink: #a34d7d;
+        --chanel-soft: #e0f7f1;
+        --chanel-ink: #1f7a68;
+        --admin-soft: #fdf4fa;
+        --admin-line: #f0cfe4;
         --radius: 14px;
-        --shadow: 0 1px 2px rgba(15,23,42,.06), 0 10px 28px rgba(15,23,42,.07);
+        --shadow: 0 1px 2px rgba(120,60,90,.05), 0 10px 28px rgba(120,60,90,.08);
     }
-    /* ===== ธีมพื้นหลัง (เลือกได้ในปุ่มตั้งค่า) ===== */
-    :root[data-theme="dark"] {
-        --bg: #0b1220; --card: #151d2e; --ink: #e7eef9; --muted: #94a3b8; --line: #2b3850;
-        --soft: #1a2337; --soft-ink: #a5b4cf; --seg-bg: #182136; --chip-bg: #1c2740;
-        --primary: #3b82f6;
-        --in: #22c55e; --in-soft: #14532d; --in-ink: #86efac;
-        --out: #ef4444; --out-soft: #7f1d1d; --out-ink: #fca5a5;
-        --header1: #0b1220; --header2: #1e3a8a;
-        --login1: #0b1220; --login2: #172554; --login3: #1e3a8a;
-        --toast-bg: #1e293b;
-        --badge-bg: #1e3a8a; --badge-ink: #bfdbfe;
-        --plate-soft: #1e3a8a; --plate-ink: #bfdbfe;
-        --chanel-soft: #134e4a; --chanel-ink: #99f6e4;
-        --admin-soft: #121a2c; --admin-line: #2b3850;
-        --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 28px rgba(0,0,0,.45);
+    /* ===== ธีมพื้นหลังพาสเทล (เลือกได้ในปุ่มตั้งค่า) ===== */
+    :root[data-theme="mint"] {
+        --bg: #effaf3; --card: #ffffff; --ink: #33463c; --muted: #7fa38f;
+        --line: #d5ecdf; --soft: #f6fcf8; --soft-ink: #5c7a69; --seg-bg: #e6f4ec; --chip-bg: #eaf6f0;
+        --primary: #3aa981;
+        --in: #3ba276; --in-soft: #dcf5e8; --in-ink: #2e7d5b;
+        --out: #e26d5c; --out-soft: #fce5df; --out-ink: #b34a3a;
+        --header1: #d3f0e2; --header2: #bfe8d3; --header-ink: #2e6449;
+        --login1: #e3f7ec; --login2: #d5f1e3; --login3: #dcf0f7;
+        --toast-bg: #3d5347;
+        --badge-bg: #dcf3e7; --badge-ink: #2e7d5b;
+        --plate-soft: #dcf3e7; --plate-ink: #2e7d5b;
+        --chanel-soft: #dff2ee; --chanel-ink: #1f7a68;
+        --admin-soft: #f4fbf7; --admin-line: #cde9da;
+        --shadow: 0 1px 2px rgba(46,100,73,.06), 0 10px 28px rgba(46,100,73,.08);
     }
-    :root[data-theme="ocean"] {
-        --bg: #e8f1fa; --primary: #0284c7;
-        --header1: #075985; --header2: #0284c7;
-        --login1: #0c4a6e; --login2: #0284c7; --login3: #38bdf8;
-        --badge-bg: #e0f2fe; --badge-ink: #0369a1;
-        --plate-soft: #e0f2fe; --plate-ink: #075985;
+    :root[data-theme="lavender"] {
+        --bg: #f4f1fa; --card: #ffffff; --ink: #3e3554; --muted: #9287ab;
+        --line: #e1d9f2; --soft: #faf8fd; --soft-ink: #6b6284; --seg-bg: #ece5f7; --chip-bg: #f0eaf9;
+        --primary: #8f7ad2;
+        --in: #3ba276; --in-soft: #dcf5e8; --in-ink: #2e7d5b;
+        --out: #e26d5c; --out-soft: #fce5df; --out-ink: #b34a3a;
+        --header1: #e3dcf6; --header2: #d3c7f0; --header-ink: #513f7a;
+        --login1: #ece6fa; --login2: #ddd2f5; --login3: #e3d9f7;
+        --toast-bg: #47405e;
+        --badge-bg: #e7defa; --badge-ink: #5b4a9e;
+        --plate-soft: #e7defa; --plate-ink: #5b4a9e;
+        --chanel-soft: #dff2ee; --chanel-ink: #1f7a68;
+        --admin-soft: #f7f4fc; --admin-line: #ded3f0;
+        --shadow: 0 1px 2px rgba(81,63,122,.06), 0 10px 28px rgba(81,63,122,.08);
     }
-    :root[data-theme="green"] {
-        --bg: #eaf7ef; --primary: #16a34a;
-        --header1: #14532d; --header2: #16a34a;
-        --login1: #14532d; --login2: #16a34a; --login3: #22c55e;
-        --badge-bg: #dcfce7; --badge-ink: #15803d;
-        --plate-soft: #dcfce7; --plate-ink: #166534;
+    :root[data-theme="sky"] {
+        --bg: #edf5fc; --card: #ffffff; --ink: #33465a; --muted: #7f97ab;
+        --line: #d5e6f5; --soft: #f5f9fd; --soft-ink: #5a7288; --seg-bg: #e2eef8; --chip-bg: #e8f1f9;
+        --primary: #5293c9;
+        --in: #3ba276; --in-soft: #dcf5e8; --in-ink: #2e7d5b;
+        --out: #e26d5c; --out-soft: #fce5df; --out-ink: #b34a3a;
+        --header1: #d5e9f9; --header2: #bedcf3; --header-ink: #2f5a7d;
+        --login1: #e0f0fb; --login2: #cfe5f8; --login3: #dcd9f7;
+        --toast-bg: #3d4f60;
+        --badge-bg: #dcedfb; --badge-ink: #2e6da4;
+        --plate-soft: #dcedfb; --plate-ink: #2e6da4;
+        --chanel-soft: #dff2ee; --chanel-ink: #1f7a68;
+        --admin-soft: #f3f9fd; --admin-line: #ccdfef;
+        --shadow: 0 1px 2px rgba(47,90,125,.06), 0 10px 28px rgba(47,90,125,.08);
     }
-    :root[data-theme="purple"] {
-        --bg: #f3effb; --primary: #7c3aed;
-        --header1: #4c1d95; --header2: #7c3aed;
-        --login1: #3b0764; --login2: #7c3aed; --login3: #a78bfa;
-        --badge-bg: #ede9fe; --badge-ink: #6d28d9;
-        --plate-soft: #ede9fe; --plate-ink: #5b21b6;
+    :root[data-theme="cream"] {
+        --bg: #fdf7ea; --card: #ffffff; --ink: #4a3f2a; --muted: #a5946f;
+        --line: #f0e2c8; --soft: #fefbf3; --soft-ink: #7a6c4e; --seg-bg: #f7ecd8; --chip-bg: #faf1de;
+        --primary: #b98428;
+        --in: #3ba276; --in-soft: #dcf5e8; --in-ink: #2e7d5b;
+        --out: #e26d5c; --out-soft: #fce5df; --out-ink: #b34a3a;
+        --header1: #f7e9c8; --header2: #f2dfb4; --header-ink: #7a5c1e;
+        --login1: #fdf3d9; --login2: #f8e8c4; --login3: #f5ecd9;
+        --toast-bg: #55492e;
+        --badge-bg: #f9edcd; --badge-ink: #8a6519;
+        --plate-soft: #f9edcd; --plate-ink: #8a6519;
+        --chanel-soft: #e0f7f1; --chanel-ink: #1f7a68;
+        --admin-soft: #fdfaf1; --admin-line: #ecdfbe;
+        --shadow: 0 1px 2px rgba(122,92,30,.06), 0 10px 28px rgba(122,92,30,.08);
     }
-    :root[data-theme="sunset"] {
-        --bg: #fdf3ea; --primary: #ea580c;
-        --header1: #9a3412; --header2: #ea580c;
-        --login1: #7c2d12; --login2: #ea580c; --login3: #fb923c;
-        --badge-bg: #ffedd5; --badge-ink: #c2410c;
-        --plate-soft: #ffedd5; --plate-ink: #9a3412;
+    :root[data-theme="peach"] {
+        --bg: #fdf1ea; --card: #ffffff; --ink: #4f3a30; --muted: #ab8d7e;
+        --line: #f3d8c8; --soft: #fef8f4; --soft-ink: #7d6154; --seg-bg: #f9e8dc; --chip-bg: #fbeee4;
+        --primary: #d8703f;
+        --in: #3ba276; --in-soft: #dcf5e8; --in-ink: #2e7d5b;
+        --out: #e26d5c; --out-soft: #fce5df; --out-ink: #b34a3a;
+        --header1: #fbdfcc; --header2: #f6cdb2; --header-ink: #8a4a28;
+        --login1: #fde8d8; --login2: #fad6c0; --login3: #f9dcd4;
+        --toast-bg: #5c4438;
+        --badge-bg: #fbe3d2; --badge-ink: #a35430;
+        --plate-soft: #fbe3d2; --plate-ink: #a35430;
+        --chanel-soft: #e0f7f1; --chanel-ink: #1f7a68;
+        --admin-soft: #fdf6f1; --admin-line: #f1d5c2;
+        --shadow: 0 1px 2px rgba(138,74,40,.06), 0 10px 28px rgba(138,74,40,.08);
     }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     html, body { margin: 0; padding: 0; }
@@ -186,7 +225,7 @@
     .login-card {
         background: var(--card);
         border-radius: 20px;
-        box-shadow: 0 24px 70px rgba(2,8,30,.45);
+        box-shadow: 0 24px 70px rgba(90,40,70,.16);
         width: 100%;
         max-width: 410px;
         padding: 26px 22px;
@@ -301,12 +340,12 @@
         top: 0;
         z-index: 900;
         background: linear-gradient(120deg, var(--header1), var(--header2));
-        color: #fff;
+        color: var(--header-ink);
         padding: 10px 14px;
         display: flex;
         align-items: center;
         gap: 10px;
-        box-shadow: 0 2px 10px rgba(2,8,30,.25);
+        box-shadow: 0 2px 10px rgba(90,40,70,.10);
     }
     .app-title {
         font-weight: 800;
@@ -322,7 +361,7 @@
         display: flex;
         align-items: center;
         gap: 8px;
-        background: rgba(255,255,255,.14);
+        background: rgba(255,255,255,.55);
         border-radius: 999px;
         padding: 5px 6px 5px 12px;
         font-size: .85rem;
@@ -332,8 +371,8 @@
         min-height: 34px;
         padding: 5px 12px;
         font-size: .8rem;
-        background: rgba(255,255,255,.16);
-        color: #fff;
+        background: rgba(255,255,255,.55);
+        color: var(--header-ink);
         flex: none;
     }
 
@@ -378,7 +417,7 @@
     .seg-btn.active-in { background: var(--in); border-color: var(--in); color: #fff; }
     .seg-btn.active-out { background: var(--out); border-color: var(--out); color: #fff; }
     .seg-btn.active-fmt { background: var(--primary); border-color: var(--primary); color: #fff; }
-    .cam-frame { position: relative; background: #0b1220; border-radius: 14px; overflow: hidden; aspect-ratio: 4 / 3; }
+    .cam-frame { position: relative; background: var(--seg-bg); border-radius: 14px; overflow: hidden; aspect-ratio: 4 / 3; border: 1.5px dashed var(--line); }
     #video { width: 100%; height: 100%; object-fit: cover; display: block; }
     .cam-placeholder {
         position: absolute;
@@ -386,7 +425,7 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        color: #94a3b8;
+        color: var(--muted);
         font-size: .9rem;
         text-align: center;
         padding: 16px;
@@ -627,6 +666,7 @@
 
         <!-- หน้าเข้าสู่ระบบ: มีแค่ช่องเข้าสู่ระบบอย่างเดียว ส่วนอื่นไปหน้าสมัครไอดี/ตั้งค่า -->
         <div id="pageLogin">
+            <div id="cloudStatusLogin" class="cloud-status" style="display:none"></div>
             <div id="loginForm">
                 <div class="form-group"><input type="text" id="loginName" placeholder="ชื่อผู้ใช้ (ผู้ดูแลระบบพิมพ์ admin)" autocomplete="off"></div>
                 <div class="form-group"><input type="password" id="loginPin" inputmode="numeric" placeholder="รหัสผ่าน (ตัวเลข 4-6 หลัก)"></div>
@@ -656,7 +696,7 @@
             <div id="loginWarn" class="alert-box"></div>
             <div id="loginMsg" class="login-msg"></div>
             <a class="register-link" href="#register">ยังไม่มีไอดี? ไปหน้าสมัครไอดีใหม่ &rsaquo;</a>
-            <p class="login-note">ลงทะเบียนครั้งเดียว เครื่องจะจำชื่อและรหัสผ่านไว้ให้เอง จนกว่าจะกดออกจากระบบ (เปลี่ยนธีม/ซิงค์ข้อมูล อยู่ในปุ่ม ⚙ ตั้งค่าหลังเข้าสู่ระบบ)</p>
+            <p class="login-note">บัญชี สต๊อก และประวัติ ซิงค์กันอัตโนมัติทุกเครื่องที่เปิดไฟล์นี้ (มือถือ ↔ คอมพิวเตอร์ ไม่ต้องตั้งค่า) - ลงทะเบียนครั้งเดียว เครื่องจำไว้เอง (ธีม/เสียง/ซิงค์ อยู่ในปุ่ม ⚙ ตั้งค่า)</p>
         </div>
 
         <!-- หน้าสมัครไอดีใหม่: เป็นหน้าเว็บแยกของตัวเอง (ลิงก์ #register) -->
@@ -672,7 +712,7 @@
             <div id="regMsg" class="login-msg"></div>
 
             <div class="transfer-wrap">
-                <div class="saved-title">☁ ใช้บัญชีเดิมจากคอมพิวเตอร์/เครื่องอื่น ไม่ต้องสมัครใหม่ (แนะนำ)</div>
+                <div class="saved-title">☁ ปกติบัญชีเดิมจะขึ้นเองที่หน้าเข้าสู่ระบบ (ซิงค์อัตโนมัติ) - ช่องนี้ใช้เมื่อต้องการเชื่อมห้องร้านอื่นด้วยตนเอง</div>
                 <div id="cloudStatusReg" class="cloud-status" style="display:none"></div>
                 <div class="input-row" style="margin-top:8px">
                     <input type="text" id="regRoomInput" placeholder="รหัสห้องคลาวด์ของร้าน เช่น STK-XXXX-XXXX" autocomplete="off">
@@ -922,6 +962,7 @@
         theme: 'stock_theme',
         sound: 'stock_sound',
         cloud: 'stock_cloud_room',
+        cloudLeft: 'stock_cloud_left',
         tombs: 'stock_tombstones'
     };
 
@@ -1147,9 +1188,9 @@
        เริ่มระบบเมื่อหน้าเปิด
        ================================================================== */
     window.addEventListener('DOMContentLoaded', () => {
-        // ธีมพื้นหลังที่เคยเลือกไว้ (ค่าเริ่มต้น: สว่าง)
-        let savedTheme = 'light';
-        try { savedTheme = localStorage.getItem(STORAGE_KEYS.theme) || 'light'; } catch (e) {}
+        // ธีมพื้นหลังที่เคยเลือกไว้ (ค่าเริ่มต้น: พาสเทลชมพู)
+        let savedTheme = 'pink';
+        try { savedTheme = localStorage.getItem(STORAGE_KEYS.theme) || 'pink'; } catch (e) {}
         applyTheme(savedTheme);
 
         // ตรวจสภาพแวดล้อม (กล้องใช้ไม่ได้กรณีใด บอกทันที)
@@ -1288,7 +1329,8 @@
 
         // คลาวด์ร้าน: ดึงข้อมูลล่าสุดทันที (ถ้าเคยเชื่อมต่อ) + ตรวจงานใหม่ทุก 15 วินาที
         renderCloudUI();
-        if (cloudRoomKey()) cloudSync('auto');
+        // เครื่องใหม่: เชื่อมห้องคลาวด์ที่ฝังในไฟล์อัตโนมัติ / เครื่องเดิม: ดึงข้อมูลห้องทันที
+        if (!cloudAutoConnectDefault() && cloudRoomKey()) cloudSync('auto');
         setInterval(() => { if (cloudRoomKey() && !document.hidden) cloudSync('auto'); }, 15000);
 
         // ลิงก์เชิญ (?room=STK-XXXX-XXXX): เปิดลิงก์ที่เครื่องใหม่ -> เชื่อมต่อห้องเองอัตโนมัติ
@@ -2779,20 +2821,20 @@
        ปุ่มตั้งค่า: ธีมพื้นหลัง / เสียง / ซิงค์ข้อมูล / รหัสซิงค์
        ================================================================== */
     const THEMES = [
-        { id: 'light', name: 'สว่าง', dot: '#2563eb' },
-        { id: 'dark', name: 'มืด', dot: '#3b82f6' },
-        { id: 'ocean', name: 'น้ำเงิน', dot: '#0284c7' },
-        { id: 'green', name: 'เขียว', dot: '#16a34a' },
-        { id: 'purple', name: 'ม่วง', dot: '#7c3aed' },
-        { id: 'sunset', name: 'อาทิตย์', dot: '#ea580c' }
+        { id: 'pink', name: 'ชมพู', dot: '#f2cfe6' },
+        { id: 'mint', name: 'มินต์', dot: '#bfe8d3' },
+        { id: 'lavender', name: 'ลาเวนเดอร์', dot: '#d3c7f0' },
+        { id: 'sky', name: 'ฟ้าอ่อน', dot: '#bedcf3' },
+        { id: 'cream', name: 'ครีม', dot: '#f2dfb4' },
+        { id: 'peach', name: 'พีช', dot: '#f6cdb2' }
     ];
 
     function currentThemeId() {
-        return document.documentElement.getAttribute('data-theme') || 'light';
+        return document.documentElement.getAttribute('data-theme') || 'pink';
     }
 
     function applyTheme(id) {
-        if (!THEMES.some(t => t.id === id)) id = 'light';
+        if (!THEMES.some(t => t.id === id)) id = 'pink';
         document.documentElement.setAttribute('data-theme', id);
         try { localStorage.setItem(STORAGE_KEYS.theme, id); } catch (e) {}
         renderThemeGrid();
@@ -2947,6 +2989,10 @@
        - ออฟไลน์: ใช้งานจากข้อมูลในเครื่องได้ปกติ กลับออนไลน์ค่อยซิงค์
        ================================================================== */
     const CLOUD_API = 'https://textdb.dev/api/data/';
+    /* ห้องคลาวด์ที่ฝังมากับไฟล์นี้: เครื่องทุกเครื่องที่เปิดไฟล์ไฟล์เดียวกันจะเชื่อมห้องเดียวกัน
+       อัตโนมัติตอนเปิดครั้งแรก จึงซิงค์บัญชี/สต๊อก/ประวัติกันเองโดยไม่ต้องตั้งค่ารหัสห้อง
+       (OVERRIDE_ROOM_KEY ใช้สำหรับนักพัฒนา/เครื่องมือทดสอบเท่านั้น) */
+    const DEFAULT_ROOM_KEY = (typeof window !== 'undefined' && window.OVERRIDE_ROOM_KEY) || 'STK-E4YS-6U3X';
     let cloudBusy = false;
     let cloudDirty = false;
     let cloudTimer = null;
@@ -2955,6 +3001,26 @@
 
     function setCloudRoomKey(key) {
         try { if (key) localStorage.setItem(STORAGE_KEYS.cloud, key); else localStorage.removeItem(STORAGE_KEYS.cloud); } catch (e) {}
+    }
+
+    /* ธง "กดออกจากห้องเอง" - กันระบบเชื่อมห้องมาให้ใหม่หลังผู้ใช้ออกเอง */
+    function cloudLeftFlag() {
+        try { return localStorage.getItem(STORAGE_KEYS.cloudLeft) === '1'; } catch (e) { return false; }
+    }
+
+    function setCloudLeftFlag(v) {
+        try { if (v) localStorage.setItem(STORAGE_KEYS.cloudLeft, '1'); else localStorage.removeItem(STORAGE_KEYS.cloudLeft); } catch (e) {}
+    }
+
+    /* เชื่อมห้องคลาวด์ที่ฝังในไฟล์อัตโนมัติ (เครื่องที่ยังไม่เคยตั้งค่าอะไร)
+       ทำให้มือถือและคอมพิวเตอร์ที่ใช้ไฟล์เดียวกันซิงค์กันเองทันที ไม่ต้องก็อปรหัสห้อง */
+    function cloudAutoConnectDefault() {
+        if (cloudRoomKey() || cloudLeftFlag()) return false;
+        setCloudRoomKey(DEFAULT_ROOM_KEY);
+        renderCloudUI();
+        cloudDirty = true;
+        cloudSync('join');
+        return true;
     }
 
     function sanitizeRoomKey(s) {
@@ -2983,7 +3049,7 @@
     }
 
     function setCloudStatus(cls, text) {
-        ['cloudStatus', 'cloudStatusReg', 'cloudStatusAdmin'].forEach(id => {
+        ['cloudStatus', 'cloudStatusLogin', 'cloudStatusReg', 'cloudStatusAdmin'].forEach(id => {
             const box = el(id);
             if (!box) return;
             if (!text) { box.style.display = 'none'; box.textContent = ''; return; }
@@ -3002,6 +3068,7 @@
             if (n) n.placeholder = key ? ('ห้องปัจจุบัน: ' + key) : 'รหัสห้องคลาวด์ เช่น STK-XXXX-XXXX';
         });
         if (!key) setCloudStatus('', 'ยังไม่เชื่อมต่อคลาวด์ - ข้อมูลเก็บในเครื่องนี้เท่านั้น');
+        else if (key === DEFAULT_ROOM_KEY) setCloudStatus('', 'ห้องคลาวด์ของไฟล์นี้: ' + key + ' - ซิงค์อัตโนมัติทุกเครื่องที่เปิดไฟล์เดียวกัน');
         else setCloudStatus('', 'ห้องปัจจุบัน: ' + key + ' - รอการซิงค์...');
     }
 
@@ -3066,6 +3133,7 @@
             const data = JSON.parse(text);
             if (!data || data.app !== 'stock-scanner') throw new Error('not app data');
             setCloudRoomKey(key);
+            setCloudLeftFlag(false);
             renderCloudUI();
             const res = mergeAll(data);
             if (currentUser) { applyRoleUI(); renderTable(); renderLog(); }
@@ -3113,6 +3181,7 @@
             }
         } catch (e) {}
         setCloudRoomKey(key);
+        setCloudLeftFlag(false);
         renderCloudUI();
         cloudDirty = true;
         await cloudSync('join');
@@ -3121,6 +3190,7 @@
 
     function cloudLeave() {
         setCloudRoomKey('');
+        setCloudLeftFlag(true);
         cloudDirty = false;
         if (cloudTimer) { clearTimeout(cloudTimer); cloudTimer = null; }
         renderCloudUI();
