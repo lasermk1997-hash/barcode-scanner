@@ -66,8 +66,9 @@
 - ไฟล์ Excel (ปุ่ม "โหลดสต๊อก (Excel)") รอบนี้:
   * คอลัมน์ Model ทุกชีต ตัดข้อความหลัง "tyw" ออกทั้งหมด (ADL73261205TYW6OJ0169A01 -> ADL73261205)
     ข้อมูลจริงในระบบยังเก็บโค้ดเต็มไว้เหมือนเดิม (ไม่กระทบฐานข้อมูลเดิม)
-  * เพิ่มคอลัมน์ "Part No." ยึดจากฐานข้อมูล Model: รายการ part ใน BOM ของโมเดลนั้น
-    (โค้ดที่ไม่อยู่ในฐานข้อมูลจะใช้โค้ดที่ตัด tyw แล้วเป็น Part No.)
+  * คอลัมน์ "Part No." ยึดจากฐานข้อมูล Model: เฉพาะแถวที่กำกับว่า "Plate , Tube" เท่านั้น
+    (แถวอื่นใน BOM เช่น Tube , Hair Pin / Tube , Return Bend / Fin / CHANNEL และโค้ด
+    ที่ไม่อยู่ในฐานข้อมูล จะไม่แสดงเลย เว้นช่องนั้นว่างไว้)
   * เพิ่มชีต "Part No." รวมฐานข้อมูล part ของทุกโมเดล (Model/ลูกค้า/ชนิด/Part No./จำนวน/รายละเอียด)
 -->
 <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
@@ -3583,8 +3584,8 @@
     /* ==================================================================
        ไฟล์ Excel (.xlsx) สร้างในเครื่องล้วน ๆ: ZIP (ไม่บีบอัด) + XML ฝังในไฟล์นี้
        ไม่ต้องใช้เน็ต/ไลบรารีอื่น เปิดด้วย Excel / Google Sheets / LibreOffice ได้
-       ได้ 3 ชีต: "สต๊อกสินค้า" (Model ตัดข้อความหลัง tyw + คอลัมน์ Part No. จากฐานข้อมูล)
-       + "ประวัติการสแกน" (ตัด tyw เหมือนกัน) + "Part No." (ฐานข้อมูล part ทุกโมเดล)
+       ได้ 3 ชีต: "สต๊อกสินค้า" (Model ตัดข้อความหลัง tyw + คอลัมน์ Part No. เฉพาะแถว "Plate , Tube")
+       + "ประวัติการสแกน" (ตัด tyw เหมือนกัน) + "Part No." (ฐานข้อมูล part ทุกโมเดลครบทุกแถว)
        ================================================================== */
     const CRC_TABLE = (function () {
         const t = new Uint32Array(256);
@@ -3763,21 +3764,31 @@
         }) || null;
     }
 
-    /* Part No. ของสต๊อกแต่ละแถว ยึดจากฐานข้อมูล Model (BOM_DB) ที่มีอยู่
-       - พบโมเดล: รายการ Part Number ทั้งหมดใน BOM ของโมเดลนั้น คั่นด้วย "; "
-       - ไม่พบในฐานข้อมูล: ใช้โค้ดที่ตัด tyw แล้ว (Part No. ของงานนั้นเอง) */
-    function partNoOf(code) {
-        const cut = cutTyw(code);
-        const m = bomLooseFind(cut);
-        if (m) {
-            const parts = (m.bom || []).map(p => String((p && p[1]) || '').trim()).filter(Boolean);
-            if (parts.length) return parts.join('; ');
-            if (m.c) return String(m.c);
-        }
-        return cut || '-';
+    /* เช็คว่าแถวใน BOM เป็นรายการที่กำกับว่า "Plate , Tube" หรือไม่
+       ครอบคลุมทุกเวอร์ชัน เช่น "Plate , Tube" / "Plate , Tube (t0.8 SGCC)" / "Plate,Tube"
+       (พิมพ์เล็ก-ใหญ่หรือช่องว่างรอบจุลภาคไม่สนใจ)
+       แถวอื่นทั้งหมด เช่น "Tube , Hair Pin" / "Tube , Return Bend" / "Fin , ..." / "CHANNEL"
+       ไม่นับ เพราะผู้ใช้ขอเฉพาะแถว Plate , Tube เท่านั้น */
+    function isPlateTubeRow(p) {
+        const label = String((p && p[4]) || '').trim();
+        return /^plate\s*,\s*tube/i.test(label);
     }
 
-    /* โหลดสต๊อกเป็นไฟล์ Excel: ชีตสต๊อก (Model ตัด tyw + คอลัมน์ Part No. จากฐานข้อมูล)
+    /* Part No. ของสต๊อกแต่ละแถว ยึดจากฐานข้อมูล Model (BOM_DB) ที่มีอยู่
+       - พบโมเดล: เฉพาะ Part Number ของแถวที่กำกับว่า "Plate , Tube" เท่านั้น คั่นด้วย "; "
+         (แถวอื่นใน BOM ทั้งหมดเอาออกจากคอลัมน์นี้)
+       - ไม่พบแถว Plate , Tube หรือไม่พบโมเดลในฐานข้อมูล: เว้นว่าง (ไม่ใส่ข้อความอื่น) */
+    function partNoOf(code) {
+        const m = bomLooseFind(cutTyw(code));
+        if (m) {
+            const parts = (m.bom || []).filter(isPlateTubeRow)
+                .map(p => String((p && p[1]) || '').trim()).filter(Boolean);
+            if (parts.length) return parts.join('; ');
+        }
+        return '';
+    }
+
+    /* โหลดสต๊อกเป็นไฟล์ Excel: ชีตสต๊อก (Model ตัด tyw + คอลัมน์ Part No. เฉพาะแถว "Plate , Tube")
        + ชีตประวัติการสแกน + ชีต "Part No." (ฐานข้อมูล part ของทุกโมเดล) */
     function exportToExcel() {
         if (!isAdmin()) { showStatus('เฉพาะ admin เท่านั้น', true); return; }
@@ -3841,7 +3852,7 @@
             const dNow = new Date();
             const fileStamp = dNow.getFullYear() + '-' + pad2(dNow.getMonth() + 1) + '-' + pad2(dNow.getDate());
             downloadBlob(blob, 'stock_report_' + fileStamp + '.xlsx');
-            showStatus('โหลดไฟล์ Excel แล้ว: สต๊อก ' + (stockRows.length - 1) + ' รายการ (ตัด tyw + Part No. จากฐานข้อมูล) + ประวัติ ' + (histRows.length - 1) + ' รายการ + ชีต Part No. ' + (partRows.length - 1) + ' แถว');
+            showStatus('โหลดไฟล์ Excel แล้ว: สต๊อก ' + (stockRows.length - 1) + ' รายการ (ตัด tyw + Part No. เฉพาะแถว Plate , Tube) + ประวัติ ' + (histRows.length - 1) + ' รายการ + ชีต Part No. ' + (partRows.length - 1) + ' แถว');
         } catch (e) {
             showStatus('สร้างไฟล์ Excel ไม่สำเร็จ ส่งออกเป็น CSV แทน', true);
             exportToCSV();
