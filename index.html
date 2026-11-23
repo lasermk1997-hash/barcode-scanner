@@ -775,8 +775,8 @@
 <div id="loginOverlay">
     <div class="login-card">
         <div class="login-brand">
-            <h1>ระบบสแกนสต๊อกสินค้า</h1>
-            <p>Data Matrix / QR - ใช้ได้ทั้งมือถือและคอมพิวเตอร์</p>
+            <h1>ระบบสแกนสต๊อก Plate LASER</h1>
+            <p>Data Matrix / QR </p>
         </div>
         <div id="envWarning" class="alert-box"></div>
 
@@ -784,7 +784,7 @@
         <div id="pageLogin">
             <div id="cloudStatusLogin" class="cloud-status" style="display:none"></div>
             <div id="loginForm">
-                <div class="form-group"><input type="text" id="loginName" placeholder="ชื่อผู้ใช้ (ผู้ดูแลระบบพิมพ์ admin)" autocomplete="off"></div>
+                <div class="form-group"><input type="text" id="loginName" placeholder="ชื่อผู้ใช้" autocomplete="off"></div>
                 <div class="form-group"><input type="password" id="loginPin" inputmode="numeric" placeholder="รหัสผ่าน (ตัวเลข 4-6 หลัก)"></div>
                 <button type="button" id="btnLogin" class="btn btn-primary full">เข้าสู่ระบบ</button>
                 <div id="savedUsersWrap" class="saved-users-wrap">
@@ -835,7 +835,7 @@
 
 <!-- ================= แถบหัวแอป ================= -->
 <header class="app-header" id="appHeader" style="display:none">
-    <h1 class="app-title">ระบบสแกนสต๊อกสินค้า</h1>
+    <h1 class="app-title">ระบบสแกนสต๊อก Plate LASER</h1>
     <div class="user-chip-wrap">
         <span id="userChip">-</span>
         <span id="userRoleBadge" class="role-badge role-user-badge">-</span>
@@ -849,7 +849,7 @@
     <!-- คอลัมน์สแกน -->
     <div class="col-scan">
         <div class="card">
-            <h2 class="card-title">สแกนสินค้า</h2>
+            <h2 class="card-title">สแกน QR </h2>
             <div id="appWarning" class="alert-box" style="margin:0 0 10px"></div>
             <div class="cam-frame">
                 <video id="video" autoplay playsinline muted></video>
@@ -885,7 +885,7 @@
     <!-- คอลัมน์ข้อมูล -->
     <div class="col-main">
         <div class="card">
-            <h2 class="card-title">สต๊อกสินค้า <span id="totalCount" class="count-chip">0</span></h2>
+            <h2 class="card-title">สต๊อกPlate <span id="totalCount" class="count-chip">0</span></h2>
             <div class="form-group"><input type="text" id="searchInput" placeholder="ค้นหา Model หรือประเภท (plate/chanel)..."></div>
             <div class="table-wrap">
                 <table>
