@@ -21,7 +21,7 @@
 - บัญชีผู้ใช้: ลงทะเบียนครั้งเดียว เครื่องจำไว้ตลอด
   * admin มีได้คนเดียว: พิมพ์ชื่อ "admin" ที่หน้าเข้าสู่ระบบ
     (ครั้งแรกให้ตั้งรหัสผ่านเอง ครั้งถัดไปใช้รหัสเดิมได้ตลอด)
-  * admin จัดการได้ครบ: แก้/ลบรายการ, CSV, จัดการบัญชี, เปลี่ยนรหัสผ่าน
+  * admin จัดการได้ครบ: แก้/ลบรายการ, โหลดสต๊อกเป็นไฟล์ Excel, จัดการบัญชี, เปลี่ยนรหัสผ่าน
   * พนักงาน: สแกนรับเข้า/เบิกออกเท่านั้น
 - หน้าเข้าสู่ระบบ: มีแค่ช่องเข้าสู่ระบบอย่างเดียว (จำบัญชีที่ลงทะเบียนไว้)
   มีข้อความลิงก์ไป "หน้าสมัครไอดีใหม่" (#register) ซึ่งเป็นหน้าเว็บแยกของตัวเอง
@@ -32,7 +32,7 @@
   * admin: จัดเป็น 3 แท็บ ใช้งานสบายทั้งมือถือและคอมพิวเตอร์
     - แท็บ "หน้าตา": ธีมพาสเทล 6 แบบ (ชมพู/มินต์/ลาเวนเดอร์/ฟ้าอ่อน/ครีม/พีช) + เสียง/การสั่น
     - แท็บ "ซิงค์ข้อมูล": คลาวด์ร้าน (บัญชี/สต๊อก/ประวัติการสแกน) + ส่งออก/นำเข้าไฟล์ .json + รหัสซิงค์
-    - แท็บ "บัญชี/เครื่องมือ": เปลี่ยนรหัสผ่านของฉัน + จัดการบัญชี + CSV + ล้างข้อมูล
+    - แท็บ "บัญชี/เครื่องมือ": เปลี่ยนรหัสผ่านของฉัน + จัดการบัญชี + โหลดสต๊อก (Excel) + ล้างข้อมูล
 - คลาวด์ร้าน (ผ่าน textdb.dev ฟรี ไม่ต้องสมัครสมาชิก): สร้าง/เชื่อมต่อ "รหัสห้อง"
   แล้วบัญชี รหัสผ่าน สต๊อก จะถูกจัดเก็บบนคลาวด์
   และซิงค์อัตโนมัติทุกเครื่องที่ใช้รหัสห้องเดียวกัน:
@@ -1041,7 +1041,7 @@
 
                 <div class="modal-label">เครื่องมือ admin</div>
                 <div class="settings-grid2" style="margin-top:0">
-                    <button type="button" id="btnExport" class="btn btn-sm btn-ghost">โหลดสต๊อก (CSV)</button>
+                    <button type="button" id="btnExport" class="btn btn-sm btn-ghost">โหลดสต๊อก (Excel)</button>
                     <button type="button" id="btnClear" class="btn btn-sm btn-danger">ล้างสต๊อก</button>
                 </div>
             </div>
@@ -1447,7 +1447,7 @@
         safeBind('btnModalOut', 'click', () => confirmScanModal('OUT'));
         safeBind('btnModalCancel', 'click', cancelScanModal);
         safeBind('btnDupOk', 'click', closeDupModal);
-        safeBind('btnExport', 'click', exportToCSV);
+        safeBind('btnExport', 'click', exportToExcel);
         safeBind('btnClear', 'click', handleClearButton);
         safeBind('btnClearHistory', 'click', clearScanHistory);
         safeBind('searchInput', 'input', renderTable);
@@ -3572,8 +3572,207 @@
     }
 
     /* ==================================================================
-       ไฟล์ CSV / ไฟล์ข้อมูล (ซิงค์ข้ามเครื่อง)
+       ไฟล์ Excel (.xlsx) สร้างในเครื่องล้วน ๆ: ZIP (ไม่บีบอัด) + XML ฝังในไฟล์นี้
+       ไม่ต้องใช้เน็ต/ไลบรารีอื่น เปิดด้วย Excel / Google Sheets / LibreOffice ได้
+       ได้ 2 ชีต: "สต๊อกสินค้า" + "ประวัติการสแกน"
        ================================================================== */
+    const CRC_TABLE = (function () {
+        const t = new Uint32Array(256);
+        for (let n = 0; n < 256; n++) {
+            let c = n;
+            for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+            t[n] = c >>> 0;
+        }
+        return t;
+    })();
+
+    function crc32(u8) {
+        let c = 0xFFFFFFFF;
+        for (let i = 0; i < u8.length; i++) c = CRC_TABLE[(c ^ u8[i]) & 0xFF] ^ (c >>> 8);
+        return (c ^ 0xFFFFFFFF) >>> 0;
+    }
+
+    /* ZIP แบบ store (ไม่บีบอัด) พอสำหรับ xlsx และเชื่อถือได้ทุกโปรแกรมเปิด */
+    function zipStore(files) {
+        const enc = new TextEncoder();
+        const chunks = [];
+        const central = [];
+        let offset = 0;
+        files.forEach(f => {
+            const name = enc.encode(f.name);
+            const data = typeof f.data === 'string' ? enc.encode(f.data) : f.data;
+            const crc = crc32(data);
+            const lh = new Uint8Array(30 + name.length);
+            const v = new DataView(lh.buffer);
+            v.setUint32(0, 0x04034b50, true);
+            v.setUint16(4, 20, true);
+            v.setUint16(12, 0x21, true); // วันที่ 1980-01-01 (ไม่สำคัญกับผู้ใช้)
+            v.setUint32(14, crc, true);
+            v.setUint32(18, data.length, true);
+            v.setUint32(22, data.length, true);
+            v.setUint16(26, name.length, true);
+            lh.set(name, 30);
+            chunks.push(lh, data);
+            const ch = new Uint8Array(46 + name.length);
+            const cv = new DataView(ch.buffer);
+            cv.setUint32(0, 0x02014b50, true);
+            cv.setUint16(4, 20, true);
+            cv.setUint16(6, 20, true);
+            cv.setUint16(14, 0x21, true);
+            cv.setUint32(16, crc, true);
+            cv.setUint32(20, data.length, true);
+            cv.setUint32(24, data.length, true);
+            cv.setUint16(28, name.length, true);
+            cv.setUint32(42, offset, true);
+            ch.set(name, 46);
+            central.push(ch);
+            offset += lh.length + data.length;
+        });
+        let cdSize = 0;
+        central.forEach(c => { cdSize += c.length; });
+        const eocd = new Uint8Array(22);
+        const ev = new DataView(eocd.buffer);
+        ev.setUint32(0, 0x06054b50, true);
+        ev.setUint16(8, files.length, true);
+        ev.setUint16(10, files.length, true);
+        ev.setUint32(12, cdSize, true);
+        ev.setUint32(16, offset, true);
+        return new Blob(chunks.concat(central, [eocd]),
+            { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    }
+
+    function xmlEsc(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+    }
+
+    function colRef(n) {
+        let s = '';
+        while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); }
+        return s;
+    }
+
+    /* sheets: [{name, widths:[กว้างคอลัมน์], rows:[[ค่า, ...]]}]
+       ค่า number จะเป็นเซลล์ตัวเลขจริง (ใช้ SUM ต่อได้เลย) ค่าอื่นเป็นข้อความ
+       แถวแรก = หัวตารางตัวหนาพื้นพาสเทล แช่ไว้ + กดกรองที่หัวคอลัมน์ได้ */
+    function buildXlsxBlob(sheets) {
+        const ct = ['<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
+            '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">',
+            '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>',
+            '<Default Extension="xml" ContentType="application/xml"/>',
+            '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>',
+            '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'];
+        const wbRels = [];
+        sheets.forEach((sh, i) => {
+            ct.push('<Override PartName="/xl/worksheets/sheet' + (i + 1) + '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>');
+            wbRels.push('<Relationship Id="rId' + (i + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet' + (i + 1) + '.xml"/>');
+        });
+        wbRels.push('<Relationship Id="rId' + (sheets.length + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>');
+        ct.push('</Types>');
+        const rootRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' +
+            '</Relationships>';
+        const wbXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+            '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+            '<sheets>' + sheets.map((sh, i) => '<sheet name="' + xmlEsc(sh.name) + '" sheetId="' + (i + 1) + '" r:id="rId' + (i + 1) + '"/>').join('') + '</sheets></workbook>';
+        const wbRelXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' + wbRels.join('') + '</Relationships>';
+        const styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+            '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+            '<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FF6D4460"/><name val="Calibri"/></font></fonts>' +
+            '<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF6D7E9"/><bgColor indexed="64"/></patternFill></fill></fills>' +
+            '<borders count="1"><border/></borders>' +
+            '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+            '<cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
+            '<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs>' +
+            '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>' +
+            '</styleSheet>';
+        const files = [
+            { name: '[Content_Types].xml', data: ct.join('') },
+            { name: '_rels/.rels', data: rootRels },
+            { name: 'xl/workbook.xml', data: wbXml },
+            { name: 'xl/_rels/workbook.xml.rels', data: wbRelXml },
+            { name: 'xl/styles.xml', data: styles }
+        ];
+        sheets.forEach((sh, i) => {
+            const lastCol = Math.max(sh.widths.length, 1);
+            let xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+                '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+                '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>' +
+                '<cols>' + sh.widths.map((w, ci) => '<col min="' + (ci + 1) + '" max="' + (ci + 1) + '" width="' + w + '" customWidth="1"/>').join('') + '</cols>' +
+                '<sheetData>';
+            sh.rows.forEach((row, ri) => {
+                xml += '<row r="' + (ri + 1) + '">';
+                row.forEach((val, ci) => {
+                    const ref = colRef(ci + 1) + (ri + 1);
+                    if (ri === 0) {
+                        xml += '<c r="' + ref + '" s="1"' + (typeof val === 'number' ? '><v>' + val + '</v></c>' : ' t="inlineStr"><is><t xml:space="preserve">' + xmlEsc(val) + '</t></is></c>');
+                    } else if (typeof val === 'number' && isFinite(val)) {
+                        xml += '<c r="' + ref + '"><v>' + val + '</v></c>';
+                    } else if (val === null || val === undefined || val === '') {
+                        // เซลล์ว่าง ไม่ต้องใส่
+                    } else {
+                        xml += '<c r="' + ref + '" t="inlineStr"><is><t xml:space="preserve">' + xmlEsc(val) + '</t></is></c>';
+                    }
+                });
+                xml += '</row>';
+            });
+            xml += '</sheetData>';
+            if (sh.rows.length > 1) xml += '<autoFilter ref="A1:' + colRef(lastCol) + sh.rows.length + '"/>';
+            xml += '</worksheet>';
+            files.push({ name: 'xl/worksheets/sheet' + (i + 1) + '.xml', data: xml });
+        });
+        return zipStore(files);
+    }
+
+    /* โหลดสต๊อกเป็นไฟล์ Excel: ชีตสต๊อก + ชีตประวัติการสแกน (ถ้าล้างสต๊อกหมดจะไม่ส่งออก) */
+    function exportToExcel() {
+        if (!isAdmin()) { showStatus('เฉพาะ admin เท่านั้น', true); return; }
+        if (inventory.length === 0) {
+            showStatus('ไม่มีข้อมูลสต๊อกสำหรับส่งออก', true);
+            return;
+        }
+        try {
+            const stockRows = [['Model', 'ประเภท', 'จำนวนคงเหลือ', 'รับเข้าทั้งหมด', 'เบิกออกทั้งหมด', 'ผู้สแกนล่าสุด', 'วันที่ทำรายการล่าสุด']];
+            inventory.forEach(row => {
+                stockRows.push([
+                    row.code,
+                    row.type ? typeLabel(row.type) : (row.name || '-'),
+                    Number(row.stock) || 0,
+                    Number(row.inTotal) || 0,
+                    Number(row.outTotal) || 0,
+                    row.lastBy || '-',
+                    row.lastUpdate || '-'
+                ]);
+            });
+            const histRows = [['วันที่เวลา', 'Model', 'รูปแบบโค้ด', 'ประเภท', 'รายการ', 'จำนวน', 'ผู้สแกน']];
+            scanLogs.forEach(l => {
+                histRows.push([
+                    l.time || '-',
+                    l.code || '-',
+                    l.fmt || '-',
+                    l.type ? typeLabel(l.type) : '-',
+                    l.mode === 'OUT' ? 'เบิกออก (-)' : 'รับเข้า (+)',
+                    Number(l.qty) || 0,
+                    l.by || '-'
+                ]);
+            });
+            const blob = buildXlsxBlob([
+                { name: 'สต๊อกสินค้า', widths: [28, 12, 14, 14, 14, 14, 22], rows: stockRows },
+                { name: 'ประวัติการสแกน', widths: [22, 28, 14, 10, 13, 8, 12], rows: histRows }
+            ]);
+            const dNow = new Date();
+            const fileStamp = dNow.getFullYear() + '-' + pad2(dNow.getMonth() + 1) + '-' + pad2(dNow.getDate());
+            downloadBlob(blob, 'stock_report_' + fileStamp + '.xlsx');
+            showStatus('โหลดไฟล์ Excel แล้ว: สต๊อก ' + (stockRows.length - 1) + ' รายการ + ประวัติการสแกน ' + (histRows.length - 1) + ' รายการ (เปิดใน Excel/Google Sheets ได้เลย)');
+        } catch (e) {
+            showStatus('สร้างไฟล์ Excel ไม่สำเร็จ ส่งออกเป็น CSV แทน', true);
+            exportToCSV();
+        }
+    }
+
     function downloadBlob(blob, filename) {
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
