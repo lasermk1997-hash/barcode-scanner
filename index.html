@@ -12,7 +12,9 @@
 - สแกน Data Matrix / QR / บาร์โค้ด ด้วยเอนจิน 3 ชั้น
   (BarcodeDetector ของเบราว์เซอร์ -> ZXing JS -> ZXing-C++ WASM)
 - ข้อความที่อ่านได้ตรงกับฉลาก (ตัดตัวอักษรซ่อน FNC1/GS + แก้ encoding ไทย TIS-620)
-- โหมดรับเข้า/เบิกออก + หน้าต่างกรอกจำนวน + เลือก PLATE/CHANEL + บันทึกผู้สแกน
+- สแกนก่อน แล้วค่อยเลือกรับเข้า/เบิกออกในหน้าต่างหลังสแกน (จำนวน + PLATE/CHANEL + ผู้สแกน)
+- ปุ่มเลือกรูปแบบโค้ด (เฉพาะ Data Matrix / ทุกรูปแบบ) ย้ายไปอยู่ในหน้าต่างหลังสแกนเท่านั้น
+- ประวัติการสแกน: เก็บรายการล่าสุด 500 รายการในเครื่อง + ปุ่ม "ล้างประวัติ" เฉพาะ admin
 - กันสแกนซ้ำ: โค้ดที่เคยบันทึกตามโหมดเดิม ระบบเตือนและไม่บันทึกซ้ำ
 - บัญชีผู้ใช้: ลงทะเบียนครั้งเดียว เครื่องจำไว้ตลอด
   * admin มีได้คนเดียว: พิมพ์ชื่อ "admin" ที่หน้าเข้าสู่ระบบ
@@ -30,14 +32,14 @@
     - แท็บ "ซิงค์ข้อมูล": คลาวด์ร้าน + ส่งออก/นำเข้าไฟล์ .json + รหัสซิงค์
     - แท็บ "บัญชี/เครื่องมือ": เปลี่ยนรหัสผ่านของฉัน + จัดการบัญชี + CSV + ล้างข้อมูล
 - คลาวด์ร้าน (ผ่าน textdb.dev ฟรี ไม่ต้องสมัครสมาชิก): สร้าง/เชื่อมต่อ "รหัสห้อง"
-  แล้วบัญชี รหัสผ่าน สต๊อก ประวัติ จะถูกจัดเก็บบนคลาวด์
+  แล้วบัญชี รหัสผ่าน สต๊อก จะถูกจัดเก็บบนคลาวด์
   และซิงค์อัตโนมัติทุกเครื่องที่ใช้รหัสห้องเดียวกัน:
   สมัคร/เปลี่ยนรหัสผ่านที่เครื่องใด เครื่องอื่นเข้าได้ทันที (ไม่ต้องสมัครใหม่)
   สแกนที่เครื่องใด ตารางทุกเครื่องอัปเดตภายใน ~15 วินาที
   ลบรายการ/บัญชี แล้วจะหายจากทุกเครื่อง (ส่งผ่านด้วย tombstone)
   ออฟไลน์ก็ใช้งานได้ปกติ ข้อมูลเก็บในเครื่องไว้ กลับออนไลน์ค่อยซิงค์เอง
 - ห้องคลาวด์ "ฝังในไฟล์" (STK-E4YS-6U3X): เปิดไฟล์นี้ที่เครื่องใหม่ครั้งแรก
-  ระบบเชื่อมห้องให้เองทันที บัญชี/สต๊อก/ประวัติจากเครื่องอื่นจะขึ้นเองที่หน้าเข้าสู่ระบบ
+  ระบบเชื่อมห้องให้เองทันที บัญชี/สต๊อกจากเครื่องอื่นจะขึ้นเองที่หน้าเข้าสู่ระบบ
   (ส่งไฟล์นี้ไปมือถือทาง LINE แล้วเปิด = ซิงค์กันทันที ไม่ต้องตั้งค่ารหัสห้อง)
   ถ้ากด "ออกจากห้อง" ในหน้าตั้งค่า ระบบจะไม่เชื่อมให้อัตโนมัติอีก จนกว่าจะเชื่อมเอง
 - "ลิงก์เชิญ" (?room=รหัสห้อง): คัดลอกจากปุ่มตั้งค่า ส่งไปมือถือ (LINE)
@@ -479,7 +481,7 @@
     }
     .zoom-bar input[type=range] { flex: 1; accent-color: #fbbf24; min-width: 0; }
     .zoom-label { color: #fff; font-size: .75rem; font-weight: 700; min-width: 52px; text-align: center; flex: none; }
-    .cam-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+    .cam-controls { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 10px; }
     .input-row { display: flex; gap: 8px; }
     .input-row input { flex: 1; min-width: 0; }
     .last-read {
@@ -799,7 +801,7 @@
             <div id="loginWarn" class="alert-box"></div>
             <div id="loginMsg" class="login-msg"></div>
             <a class="register-link" href="#register">ยังไม่มีไอดี? ไปหน้าสมัครไอดีใหม่ &rsaquo;</a>
-            <p class="login-note">บัญชี สต๊อก และประวัติ ซิงค์กันอัตโนมัติทุกเครื่องที่เปิดไฟล์นี้ (มือถือ ↔ คอมพิวเตอร์ ไม่ต้องตั้งค่า) - ลงทะเบียนครั้งเดียว เครื่องจำไว้เอง (ธีม/เสียง/ซิงค์ อยู่ในปุ่ม ⚙ ตั้งค่า)</p>
+            <p class="login-note">บัญชี และสต๊อก ซิงค์กันอัตโนมัติทุกเครื่องที่เปิดไฟล์นี้ (มือถือ ↔ คอมพิวเตอร์ ไม่ต้องตั้งค่า) - ลงทะเบียนครั้งเดียว เครื่องจำไว้เอง (ธีม/เสียง/ซิงค์ อยู่ในปุ่ม ⚙ ตั้งค่า)</p>
         </div>
 
         <!-- หน้าสมัครไอดีใหม่: เป็นหน้าเว็บแยกของตัวเอง (ลิงก์ #register)
@@ -838,14 +840,6 @@
         <div class="card">
             <h2 class="card-title">สแกนสินค้า</h2>
             <div id="appWarning" class="alert-box" style="margin:0 0 10px"></div>
-            <div class="mode-seg">
-                <div id="modeIn" class="seg-btn active-in" onclick="setMode('IN')">รับเข้า (+)</div>
-                <div id="modeOut" class="seg-btn" onclick="setMode('OUT')">เบิกออก (-)</div>
-            </div>
-            <div class="mode-seg">
-                <div id="fmtDM" class="seg-btn active-fmt" onclick="setFormatMode('DM')">เฉพาะ Data Matrix</div>
-                <div id="fmtAll" class="seg-btn" onclick="setFormatMode('ALL')">ทุกรูปแบบ</div>
-            </div>
             <div class="cam-frame">
                 <video id="video" autoplay playsinline muted></video>
                 <div id="camPlaceholder" class="cam-placeholder">กดปุ่ม "เปิดกล้องสแกน" เพื่อเริ่มสแกน</div>
@@ -873,7 +867,7 @@
                 </div>
             </div>
             <div id="lastRead" class="last-read"></div>
-            <p class="cam-hint">โค้ดเล็ก: ซูมเข้าให้โค้ดใหญ่ประมาณ 1 ใน 3 ของจอ ถือนิ่ง 1-2 วินาที ถ้ายังไม่ติดกด "จับภาพนิ่ง"</p>
+            <p class="cam-hint">สแกนเสร็จระบบจะถามเองว่า รับเข้า/เบิกออก (เลือกรูปแบบโค้ด เฉพาะ Data Matrix/ทุกรูปแบบ ได้ในหน้าต่างหลังสแกน) แล้วพร้อมสแกนคันต่อไปทันที | โค้ดเล็ก: ซูมเข้าให้โค้ดใหญ่ประมาณ 1 ใน 3 ของจอ ถือนิ่ง 1-2 วินาที ถ้ายังไม่ติดกด "จับภาพนิ่ง"</p>
         </div>
     </div>
 
@@ -902,30 +896,31 @@
         </div>
 
         <div class="card">
-            <h2 class="card-title">ประวัติการสแกน <span id="logCount" class="count-chip">0</span></h2>
+            <h2 class="card-title">ประวัติการสแกน <span id="histCount" class="count-chip">0</span>
+                <span class="card-tools"><button type="button" id="btnClearHistory" class="btn btn-mini btn-del admin-only">ล้างประวัติ</button></span>
+            </h2>
             <div class="table-wrap">
                 <table>
                     <thead>
                         <tr>
-                            <th>เวลา</th>
-                            <th>ผู้สแกน</th>
+                            <th>เมื่อ</th>
                             <th>Model</th>
-                            <th>ประเภท</th>
+                            <th>รายการ</th>
                             <th>จำนวน</th>
-                            <th>โหมด</th>
-                            <th>รูปแบบ</th>
+                            <th>ผู้สแกน</th>
                         </tr>
                     </thead>
-                    <tbody id="logTableBody"></tbody>
+                    <tbody id="histTableBody"></tbody>
                 </table>
             </div>
         </div>
+
     </div>
 </div>
 
 <div id="statusToast"></div>
 
-<!-- หน้าต่างหลังสแกน: กรอกจำนวน + เลือก plate/chanel + ผู้สแกน -->
+<!-- หน้าต่างหลังสแกน: กรอกจำนวน + เลือก plate/chanel + ผู้สแกน + เลือกรับเข้า/เบิกออกหลังสแกน -->
 <div id="scanModal" class="modal-overlay">
     <div class="modal-card">
         <h2 class="modal-title">บันทึกผลการสแกน</h2>
@@ -940,11 +935,17 @@
             <div id="typeChanel" class="seg-btn type-chanel" onclick="setModalType('chanel')">CHANEL</div>
         </div>
         <div class="info-line">ผู้สแกน: <b id="modalUser">-</b></div>
-        <div class="info-line">โหมด: <b id="modalMode">-</b></div>
+        <div class="modal-label">เลือกรับเข้าหรือเบิกออก (กดปุ่ม = บันทึกทันที)</div>
         <div id="modalMsg" class="login-msg"></div>
         <div class="modal-actions">
-            <button type="button" id="btnModalSave" class="btn btn-in">บันทึก</button>
-            <button type="button" id="btnModalCancel" class="btn btn-ghost">ยกเลิก</button>
+            <button type="button" id="btnModalIn" class="btn btn-in">รับเข้า (+)</button>
+            <button type="button" id="btnModalOut" class="btn btn-out2">เบิกออก (-)</button>
+            <button type="button" id="btnModalCancel" class="btn btn-ghost" style="grid-column:1/-1">ยกเลิก</button>
+        </div>
+        <div class="modal-label">รูปแบบโค้ดที่จะสแกนครั้งต่อไป</div>
+        <div class="mode-seg">
+            <div id="fmtDM" class="seg-btn active-fmt" onclick="setFormatMode('DM')">เฉพาะ Data Matrix</div>
+            <div id="fmtAll" class="seg-btn" onclick="setFormatMode('ALL')">ทุกรูปแบบ</div>
         </div>
     </div>
 </div>
@@ -1004,7 +1005,7 @@
                     <button type="button" id="btnCloudCopyRoom" class="btn btn-ghost">คัดลอกรหัสห้อง</button>
                     <button type="button" id="btnCloudCopyInvite" class="btn btn-primary">คัดลอกลิงก์เชิญ (สำหรับมือถือ)</button>
                 </div>
-                <p class="sync-hint">เมื่อเชื่อมต่อแล้ว บัญชี รหัสผ่าน สต๊อก และประวัติจะถูกจัดเก็บบนคลาวด์ เครื่องไหนใช้รหัสห้องเดียวกันข้อมูลจะตรงกันหมด: สมัคร/เปลี่ยนรหัสผ่านที่เครื่องใด เครื่องอื่นเข้าได้ทันที สแกนที่เครื่องใด ตารางทุกเครื่องอัปเดตใน ~15 วิ ลบรายการแล้วหายทุกเครื่อง</p>
+                <p class="sync-hint">เมื่อเชื่อมต่อแล้ว บัญชี รหัสผ่าน และสต๊อกจะถูกจัดเก็บบนคลาวด์ เครื่องไหนใช้รหัสห้องเดียวกันข้อมูลจะตรงกันหมด: สมัคร/เปลี่ยนรหัสผ่านที่เครื่องใด เครื่องอื่นเข้าได้ทันที สแกนที่เครื่องใด ตารางทุกเครื่องอัปเดตใน ~15 วิ ลบรายการแล้วหายทุกเครื่อง</p>
                 <p class="sync-hint">วิธีเพิ่มมือถือ/เครื่องใหม่ให้ง่ายที่สุด: กด "คัดลอกลิงก์เชิญ" ส่งลิงก์ไปที่มือถือ (LINE) แล้วเปิดลิงก์นั้น ระบบจะเชื่อมต่อห้องให้เอง บัญชีที่สมัครไว้จะโผล่ที่หน้าเข้าสู่ระบบทันที ใช้รหัสผ่านเดิมได้เลย ไม่ต้องลงทะเบียนใหม่ (รหัสห้องคือกุญแจของร้าน อย่าเปิดเผยให้คนนอกทีม ต้องมีอินเทอร์เน็ต)</p>
 
                 <div class="modal-label">ซิงค์ด้วยไฟล์ / รหัสซิงค์ (สำรอง ไม่ใช้เน็ต)</div>
@@ -1019,7 +1020,7 @@
                 <button type="button" id="btnCopySyncCode" class="btn btn-ghost full">คัดลอกรหัสซิงค์</button>
                 <textarea id="syncCodeIn" class="mono-area" rows="3" placeholder="วางรหัสซิงค์ที่ได้รับจากเครื่องอื่น (ขึ้นต้น STOCK1:)"></textarea>
                 <button type="button" id="btnPasteSyncCode" class="btn btn-primary full">นำเข้าข้อมูลจากรหัสซิงค์</button>
-                <p class="sync-hint">เครื่องใดก็ได้กด "สร้างรหัสซิงค์" คัดลอกส่งเป็นข้อความไปอีกเครื่อง (LINE/อีเมล) แล้ววางในช่องข้างบนแล้วกดนำเข้า ระบบจะรวมบัญชี สต๊อก และประวัติให้เป็นชุดเดียวกันโดยยึดรายการที่แก้ล่าสุดเสมอ ใช้ชื่อ/รหัสผ่านเดิมข้ามเครื่องได้ทันที ถ้าข้อมูลเยอะจนรหัสยาวเกินไป ให้ใช้ "ส่งออกไฟล์ข้อมูล" แทน</p>
+                <p class="sync-hint">เครื่องใดก็ได้กด "สร้างรหัสซิงค์" คัดลอกส่งเป็นข้อความไปอีกเครื่อง (LINE/อีเมล) แล้ววางในช่องข้างบนแล้วกดนำเข้า ระบบจะรวมบัญชีและสต๊อกให้เป็นชุดเดียวกันโดยยึดรายการที่แก้ล่าสุดเสมอ ใช้ชื่อ/รหัสผ่านเดิมข้ามเครื่องได้ทันที ถ้าข้อมูลเยอะจนรหัสยาวเกินไป ให้ใช้ "ส่งออกไฟล์ข้อมูล" แทน</p>
             </div>
 
             <!-- แท็บ บัญชี/เครื่องมือ (admin) -->
@@ -1039,9 +1040,7 @@
                 <div class="modal-label">เครื่องมือ admin</div>
                 <div class="settings-grid2" style="margin-top:0">
                     <button type="button" id="btnExport" class="btn btn-sm btn-ghost">โหลดสต๊อก (CSV)</button>
-                    <button type="button" id="btnExportLog" class="btn btn-sm btn-ghost">โหลดประวัติ (CSV)</button>
                     <button type="button" id="btnClear" class="btn btn-sm btn-danger">ล้างสต๊อก</button>
-                    <button type="button" id="btnClearLog" class="btn btn-sm btn-danger">ล้างประวัติ</button>
                 </div>
             </div>
 
@@ -1113,12 +1112,11 @@
     let isCooldown = false;
     let audioCtx = null;
     let torchOn = false;
-    let currentMode = 'IN';
     let scanFormatMode = 'DM';
     let inventory = [];
-    let scanLog = [];
     let clearConfirmTimer = null, isConfirmingClear = false;
-    let logConfirmTimer = null, isConfirmingLogClear = false;
+    let clearHistTimer = null, clearHistConfirming = false;
+    let scanLogs = [];
 
     /* เอนจินสแกนกล้อง (ลูปสลับกลยุทธ์) */
     let camStream = null;
@@ -1152,7 +1150,7 @@
         'ITF': 'ITF', 'Codabar': 'CODABAR'
     };
 
-    /* ผู้ใช้ / โมดัล / ประวัติ */
+    /* ผู้ใช้ / โมดัล */
     let currentUser = null;
     let modalCtx = null;
     let modalType = 'plate';
@@ -1165,7 +1163,16 @@
 
     /* โหลดข้อมูลเดิมจากเครื่องนี้ */
     try { inventory = JSON.parse(localStorage.getItem(STORAGE_KEYS.inventory)) || []; } catch (e) { inventory = []; }
-    try { scanLog = JSON.parse(localStorage.getItem(STORAGE_KEYS.log)) || []; } catch (e) { scanLog = []; }
+    /* ฟีเจอร์ประวัติการสแกนกลับมาแล้ว: เคลียร์ข้อมูลประวัติเดิมในเครื่องนี้ออก "ครั้งเดียว"
+       (เปิดครั้งแรกจะลบของเก่าทิ้ง ต่อจากนั้นเก็บประวัติใหม่ตามปกติ) */
+    try {
+        if (!localStorage.getItem('stock_log_reset_v3')) {
+            localStorage.removeItem(STORAGE_KEYS.log);
+            localStorage.setItem('stock_log_reset_v3', '1');
+        }
+        scanLogs = JSON.parse(localStorage.getItem(STORAGE_KEYS.log)) || [];
+        if (!Array.isArray(scanLogs)) scanLogs = [];
+    } catch (e) { scanLogs = []; }
     try { tombs = JSON.parse(localStorage.getItem(STORAGE_KEYS.tombs)) || {}; } catch (e) { tombs = {}; }
     tombs = (tombs && typeof tombs === 'object') ? tombs : {};
     tombs.items = tombs.items || {};
@@ -1433,15 +1440,14 @@
             e.target.value = '';
         });
 
-        // โมดัล / ประวัติ / ตาราง
-        safeBind('btnModalSave', 'click', confirmScanModal);
+        // โมดัล / ตาราง (สแกนก่อน แล้วเลือกรับเข้า/เบิกออกในหน้าต่าง - กดปุ่มแล้วบันทึกทันที)
+        safeBind('btnModalIn', 'click', () => confirmScanModal('IN'));
+        safeBind('btnModalOut', 'click', () => confirmScanModal('OUT'));
         safeBind('btnModalCancel', 'click', cancelScanModal);
-        safeBind('modalQty', 'keydown', (e) => { if (e.key === 'Enter') confirmScanModal(); });
         safeBind('btnDupOk', 'click', closeDupModal);
         safeBind('btnExport', 'click', exportToCSV);
         safeBind('btnClear', 'click', handleClearButton);
-        safeBind('btnExportLog', 'click', exportLogCSV);
-        safeBind('btnClearLog', 'click', handleClearLogButton);
+        safeBind('btnClearHistory', 'click', clearScanHistory);
         safeBind('searchInput', 'input', renderTable);
         safeBind('btnExportData', 'click', exportDataFile);
         // รหัสซิงค์ + เปลี่ยนรหัสผ่านของฉัน
@@ -1472,7 +1478,7 @@
         // เข้าสู่ระบบค้างไว้หรือไม่ ถ้าไม่ ขึ้นหน้าล็อกอินก่อน
         restoreSession();
         renderTable();
-        renderLog();
+        renderHistory();
         probeAndWarnStorage();
 
         // คลาวด์ร้าน: ดึงข้อมูลล่าสุดทันที (ถ้าเคยเชื่อมต่อ) + ตรวจงานใหม่ทุก 15 วินาที
@@ -1656,7 +1662,7 @@
         } catch (e) {}
         chipConfirmName = null;
         renderRegisteredUsers();
-        setLoginMsg('ลบบัญชี "' + name + '" ออกจากเครื่องนี้แล้ว (ประวัติการสแกนเดิมยังอยู่ครบ)', 'ok');
+        setLoginMsg('ลบบัญชี "' + name + '" ออกจากเครื่องนี้แล้ว (สต๊อกเดิมยังอยู่ครบ)', 'ok');
     }
 
     function showLoginView() {
@@ -1693,7 +1699,6 @@
         if (app) app.style.display = '';
         applyRoleUI();
         renderTable();
-        renderLog();
     }
 
     /* ปรับ UI ตามยศ: พนักงานเห็นแค่สแกนเข้า-ออก / admin เห็นทุกอย่าง */
@@ -2086,7 +2091,7 @@
         } catch (e) {}
     }
 
-    function openDupModal(code, fmt, dup) {
+    function openDupModal(code, fmt, dup, mode) {
         dupCtx = { code: code };
         triggerFeedbackDup();
         const codeEl = el('dupCode');
@@ -2095,7 +2100,7 @@
         if (codeEl) codeEl.textContent = code;
         if (fmtEl) fmtEl.textContent = fmt ? '(' + fmt + ')' : '';
         if (detail) {
-            const isIn = currentMode !== 'OUT';
+            const isIn = (mode || 'IN') !== 'OUT';
             const head = isIn ? 'โค้ดนี้ถูกรับเข้ามาแล้ว จึงไม่บันทึกข้อมูลซ้ำ'
                               : 'โค้ดนี้ถูกเบิกออกไปแล้ว จึงไม่บันทึกข้อมูลซ้ำ';
             detail.innerHTML =
@@ -2145,21 +2150,17 @@
 
     function openScanModal(code, fmt) {
         if (!currentUser) { showStatus('กรุณาเข้าสู่ระบบก่อนบันทึก', true); return; }
-        // โค้ดที่เคยบันทึกแล้ว -> เปิดหน้าต่างเตือนโค้ดซ้ำ แทนการบันทึกซ้ำ
-        const dup = findDuplicateEntry(code, currentMode);
-        if (dup) { openDupModal(code, fmt, dup); return; }
+        // สแกนก่อน แล้วค่อยเลือกรับเข้า/เบิกออกในหน้าต่างนี้ (ตรวจโค้ดซ้ำตอนกดปุ่มเลือก)
         modalCtx = { code: code, fmt: fmt || '' };
         modalType = lastUsedType;
         const codeEl = el('modalCode');
         const fmtEl = el('modalFmt');
         const qtyEl = el('modalQty');
         const userEl = el('modalUser');
-        const modeEl = el('modalMode');
         if (codeEl) codeEl.textContent = code;
         if (fmtEl) fmtEl.textContent = fmt ? '(' + fmt + ')' : '';
         if (qtyEl) qtyEl.value = lastUsedQty;
         if (userEl) userEl.textContent = currentUser.name;
-        if (modeEl) modeEl.textContent = currentMode === 'IN' ? 'รับเข้าสินค้า (+)' : 'เบิกออกสินค้า (-)';
         refreshTypeButtons();
         modalMsg('', '');
         renderScanModelInfo('modalBomInfo', code);
@@ -2173,13 +2174,16 @@
         refreshTypeButtons();
     }
 
-    function confirmScanModal() {
+    function confirmScanModal(mode) {
         if (!modalCtx) return;
-        // ตรวจโค้ดซ้ำอีกชั้นก่อนเขียนลงสต๊อกจริง (กันข้อมูลเปลี่ยนระหว่างกรอก)
-        const dup = findDuplicateEntry(modalCtx.code, currentMode);
+        // เลือกทิศทางก่อน (รับเข้า/เบิกออก) แล้วตรวจโค้ดซ้ำของทิศทางนั้นก่อนเขียนลงสต๊อกจริง
+        mode = (mode === 'OUT') ? 'OUT' : 'IN';
+        const dup = findDuplicateEntry(modalCtx.code, mode);
         if (dup) {
+            // จับค่าโค้ดไว้ก่อนปิดหน้าต่าง (closeModalBox จะเคลียร์ modalCtx)
+            const dupCode = modalCtx.code, dupFmt = modalCtx.fmt;
             closeModalBox(false);
-            openDupModal(modalCtx.code, modalCtx.fmt, dup);
+            openDupModal(dupCode, dupFmt, dup, mode);
             return;
         }
         const qtyEl = el('modalQty');
@@ -2191,7 +2195,7 @@
             localStorage.setItem(STORAGE_KEYS.lastQty, String(lastUsedQty));
             localStorage.setItem(STORAGE_KEYS.lastType, lastUsedType);
         } catch (e) {}
-        processStockUpdate(modalCtx.code, qty, modalType, modalCtx.fmt);
+        processStockUpdate(modalCtx.code, qty, modalType, modalCtx.fmt, mode);
         closeModalBox(true);
     }
 
@@ -2215,105 +2219,9 @@
     }
 
     /* ==================================================================
-       ประวัติการสแกน - ใคร สแกนอะไร กี่ชิ้น เข้าหรือออก
+       โหมดรูปแบบโค้ด + แจ้งสถานะ + เสียงสแกนปกติ
+       (โหมดรับเข้า/เบิกออก และปุ่มเลือกรูปแบบโค้ด ย้ายไปเลือกในหน้าต่างหลังสแกนแล้ว)
        ================================================================== */
-    function saveLogToStorage() {
-        try { localStorage.setItem(STORAGE_KEYS.log, JSON.stringify(scanLog)); } catch (e) {}
-    }
-
-    function pushScanLog(entry) {
-        scanLog.unshift({
-            t: new Date().toLocaleString('th-TH'),
-            ms: Date.now(),
-            user: entry.user || '-',
-            code: entry.code || '-',
-            type: entry.type || '',
-            qty: entry.qty || 1,
-            mode: entry.mode || 'IN',
-            fmt: entry.fmt || ''
-        });
-        if (scanLog.length > 300) scanLog = scanLog.slice(0, 300);
-        saveLogToStorage();
-        renderLog();
-    }
-
-    function renderLog() {
-        const tbody = el('logTableBody');
-        if (!tbody) return;
-        const countChip = el('logCount');
-        if (countChip) countChip.textContent = String(scanLog.length);
-        const rows = scanLog.slice(0, 20);
-        if (!rows.length) {
-            tbody.innerHTML = '<tr><td colspan="7" class="empty-state">ยังไม่มีประวัติการสแกน</td></tr>';
-            return;
-        }
-        tbody.innerHTML = rows.map(e => `
-            <tr>
-                <td class="date-col">${escapeHtml(e.t || '-')}</td>
-                <td><b>${escapeHtml(e.user || '-')}</b></td>
-                <td><span class="badge">${escapeHtml(e.code || '-')}</span></td>
-                <td>${escapeHtml(typeLabel(e.type))}</td>
-                <td class="stock-num">${e.qty || 1}</td>
-                <td>${e.mode === 'OUT' ? '<span class="stock-out">เบิกออก</span>' : '<span class="stock-in">รับเข้า</span>'}</td>
-                <td class="date-col">${escapeHtml(e.fmt || '-')}</td>
-            </tr>
-        `).join('');
-    }
-
-    function exportLogCSV() {
-        if (!isAdmin()) { showStatus('เฉพาะ admin เท่านั้น', true); return; }
-        if (!scanLog.length) { showStatus('ยังไม่มีประวัติการสแกนสำหรับส่งออก', true); return; }
-        let csv = "\uFEFFวันที่-เวลา,ผู้สแกน,Model,ประเภท,จำนวน,โหมด,รูปแบบโค้ด\n";
-        scanLog.forEach(e => {
-            csv += `"${e.t || '-'}","${(e.user || '-').replace(/"/g, '""')}","${(e.code || '-').replace(/"/g, '""')}","${typeLabel(e.type)}",${e.qty || 1},"${e.mode === 'OUT' ? 'เบิกออก' : 'รับเข้า'}","${e.fmt || '-'}"\n`;
-        });
-        downloadCSV(csv, `scan_history_${new Date().toISOString().slice(0, 10)}.csv`);
-    }
-
-    function handleClearLogButton() {
-        if (!isAdmin()) { showStatus('เฉพาะ admin เท่านั้น', true); return; }
-        if (!scanLog.length) { showStatus('ประวัติการสแกนว่างเปล่าอยู่แล้ว', true); return; }
-        const btn = el('btnClearLog');
-        if (!isConfirmingLogClear) {
-            isConfirmingLogClear = true;
-            if (btn) btn.textContent = 'กดซ้ำเพื่อยืนยัน';
-            logConfirmTimer = setTimeout(() => {
-                isConfirmingLogClear = false;
-                if (btn) btn.textContent = 'ล้างประวัติ';
-            }, 3000);
-        } else {
-            clearTimeout(logConfirmTimer);
-            isConfirmingLogClear = false;
-            if (btn) btn.textContent = 'ล้างประวัติ';
-            const tnow2 = Date.now();
-            scanLog.forEach(e => { if (e && e.ms) tombs.logs[e.ms] = tnow2; });
-            saveTombs();
-            scanLog = [];
-            saveLogToStorage();
-            renderLog();
-            scheduleCloudPush();
-            showStatus('ล้างประวัติการสแกนเรียบร้อย');
-        }
-    }
-
-    /* ==================================================================
-       โหมดรับเข้า/เบิกออก + โหมดรูปแบบโค้ด + แจ้งสถานะ + เสียงสแกนปกติ
-       ================================================================== */
-    function setMode(mode) {
-        currentMode = mode;
-        const btnIn = el('modeIn');
-        const btnOut = el('modeOut');
-        if (btnIn && btnOut) {
-            if (mode === 'IN') {
-                btnIn.className = 'seg-btn active-in';
-                btnOut.className = 'seg-btn';
-            } else {
-                btnIn.className = 'seg-btn';
-                btnOut.className = 'seg-btn active-out';
-            }
-        }
-    }
-
     function setFormatMode(mode) {
         scanFormatMode = (mode === 'DM') ? 'DM' : 'ALL';
         try { localStorage.setItem(STORAGE_KEYS.fmtMode, scanFormatMode); } catch (e) {}
@@ -2960,11 +2868,81 @@
         try { localStorage.setItem(STORAGE_KEYS.inventory, JSON.stringify(inventory)); } catch (e) {}
     }
 
-    function processStockUpdate(code, qty, type, fmtName = '') {
+    /* ==================================================================
+       ประวัติการสแกน (เก็บในเครื่องนี้ ล่าสุด 500 รายการ)
+       บันทึกทุกครั้งที่รับเข้า/เบิกออกสำเร็จ + ปุ่มล้างประวัติเฉพาะ admin
+       ================================================================== */
+    function saveLogs() {
+        try { localStorage.setItem(STORAGE_KEYS.log, JSON.stringify(scanLogs)); } catch (e) {}
+    }
+
+    function addScanLog(code, fmtName, type, mode, qty, who) {
+        scanLogs.unshift({
+            id: Date.now() + Math.floor(Math.random() * 1000),
+            code: code,
+            fmt: fmtName || '',
+            type: type || '',
+            mode: (mode === 'OUT') ? 'OUT' : 'IN',
+            qty: qty,
+            by: who || '-',
+            time: new Date().toLocaleString('th-TH')
+        });
+        if (scanLogs.length > 500) scanLogs.length = 500;
+        saveLogs();
+        renderHistory();
+    }
+
+    function renderHistory() {
+        const tbody = el('histTableBody');
+        const chip = el('histCount');
+        if (!tbody) return;
+        if (chip) chip.textContent = String(scanLogs.length);
+        if (scanLogs.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="empty-state">ยังไม่มีประวัติการสแกน</td></tr>';
+            return;
+        }
+        tbody.innerHTML = scanLogs.map(l => {
+            const act = (l.mode === 'OUT')
+                ? '<span class="stock-out">เบิกออก (-)</span>'
+                : '<span class="stock-in">รับเข้า (+)</span>';
+            const typeText = l.type ? ' ' + typeLabel(l.type) : '';
+            return `<tr>
+                <td class="date-col">${escapeHtml(l.time || '-')}</td>
+                <td><span class="badge">${escapeHtml(l.code || '-')}</span></td>
+                <td>${act}${escapeHtml(typeText)}</td>
+                <td class="stock-num">x${l.qty || 0}</td>
+                <td class="date-col">${escapeHtml(l.by || '-')}</td>
+            </tr>`;
+        }).join('');
+    }
+
+    /* ล้างประวัติการสแกน - เฉพาะ admin (กด 2 ครั้งเพื่อยืนยัน) */
+    function clearScanHistory() {
+        if (!isAdmin()) { showStatus('ล้างประวัติได้เฉพาะ admin', true); return; }
+        const btn = el('btnClearHistory');
+        if (!clearHistConfirming) {
+            clearHistConfirming = true;
+            if (btn) btn.textContent = 'กดซ้ำเพื่อยืนยัน';
+            clearHistTimer = setTimeout(() => {
+                clearHistConfirming = false;
+                if (btn) btn.textContent = 'ล้างประวัติ';
+            }, 3000);
+        } else {
+            clearTimeout(clearHistTimer);
+            clearHistConfirming = false;
+            if (btn) btn.textContent = 'ล้างประวัติ';
+            scanLogs = [];
+            saveLogs();
+            renderHistory();
+            showStatus('ล้างประวัติการสแกนเรียบร้อย');
+        }
+    }
+
+    function processStockUpdate(code, qty, type, fmtName = '', mode = 'IN') {
         code = normalizeCodeText(code);
         if (!code) return;
         // กันบันทึกซ้ำขั้นสุดท้าย
-        if (findDuplicateEntry(code, currentMode)) {
+        if (findDuplicateEntry(code, mode)) {
             showStatus('โค้ดซ้ำ "' + code + '" เคยบันทึกไว้แล้ว จึงไม่บันทึกข้อมูลซ้ำ', true);
             triggerFeedbackDup();
             return;
@@ -2980,41 +2958,41 @@
         const nowStr = new Date().toLocaleString('th-TH');
 
         if (item) {
-            if (currentMode === 'IN') {
+            if (mode === 'IN') {
                 item.inTotal += qty;
                 item.stock += qty;
-                showStatus(`รับเข้า ${typeTag} "${code}" x${qty} โดย ${who} (เหลือ: ${item.stock})${fmtTag}`);
+                showStatus(`รับเข้า ${typeTag} "${code}" x${qty} โดย ${who} (เหลือ: ${item.stock})${fmtTag} - พร้อมสแกนคันต่อไป`);
             } else {
                 item.outTotal += qty;
                 item.stock -= qty;
                 if (item.stock < 0) item.stock = 0;
-                showStatus(`เบิกออก ${typeTag} "${code}" x${qty} โดย ${who} (เหลือ: ${item.stock})${fmtTag}`, item.stock === 0);
+                showStatus(`เบิกออก ${typeTag} "${code}" x${qty} โดย ${who} (เหลือ: ${item.stock})${fmtTag} - พร้อมสแกนคันต่อไป`, item.stock === 0);
             }
             item.lastUpdate = nowStr;
             item.lastBy = who;
             item.lastUpdateMs = Date.now(); // ประทับเวลาไว้รวมข้อมูลข้ามเครื่อง (อันใหม่ชนะ)
         } else {
-            const initialStock = currentMode === 'IN' ? qty : 0;
+            const initialStock = mode === 'IN' ? qty : 0;
             inventory.unshift({
                 id: Date.now(),
                 code: code,
                 type: type,
                 name: '',
                 stock: initialStock,
-                inTotal: currentMode === 'IN' ? qty : 0,
-                outTotal: currentMode === 'OUT' ? qty : 0,
+                inTotal: mode === 'IN' ? qty : 0,
+                outTotal: mode === 'OUT' ? qty : 0,
                 lastUpdate: nowStr,
                 lastBy: who,
                 lastUpdateMs: Date.now()
             });
-            showStatus(`เพิ่มใหม่ ${typeTag} "${code}" x${qty} โดย ${who}${fmtTag}`);
+            showStatus(`เพิ่มใหม่ ${typeTag} "${code}" x${qty} โดย ${who}${fmtTag} - พร้อมสแกนคันต่อไป`);
         }
 
-        pushScanLog({ code: code, type: type, qty: qty, mode: currentMode, user: who, fmt: fmtName });
         saveToStorage();
         const searchInput = el('searchInput');
         if (searchInput) searchInput.value = '';
         renderTable();
+        addScanLog(code, fmtName, type, mode, qty, who);
         scheduleCloudPush();
     }
 
@@ -3048,7 +3026,6 @@
         item.lastUpdate = new Date().toLocaleString('th-TH');
         item.lastBy = who;
         item.lastUpdateMs = Date.now();
-        pushScanLog({ code: item.code, type: item.type, qty: 1, mode: mode, user: who, fmt: 'ปุ่มในตาราง' });
         saveToStorage();
         renderTable();
         scheduleCloudPush();
@@ -3220,7 +3197,7 @@
         box.className = 'login-msg ' + (cls || '');
     }
 
-    /* รหัสซิงค์: ข้อความรวมข้อมูลทั้งหมด (บัญชี+สต๊อก+ประวัติ) คัดลอก/วางข้ามเครื่องได้ */
+    /* รหัสซิงค์: ข้อความรวมข้อมูลทั้งหมด (บัญชี+สต๊อก) คัดลอก/วางข้ามเครื่องได้ */
     function buildSyncPayload() {
         return {
             app: 'stock-scanner',
@@ -3229,7 +3206,6 @@
             exportedBy: currentUser ? currentUser.name : '-',
             users: loadUsers(),
             inventory: inventory,
-            scanLog: scanLog,
             tombstones: tombs
         };
     }
@@ -3316,7 +3292,7 @@
        ================================================================== */
     const CLOUD_API = 'https://textdb.dev/api/data/';
     /* ห้องคลาวด์ที่ฝังมากับไฟล์นี้: เครื่องทุกเครื่องที่เปิดไฟล์ไฟล์เดียวกันจะเชื่อมห้องเดียวกัน
-       อัตโนมัติตอนเปิดครั้งแรก จึงซิงค์บัญชี/สต๊อก/ประวัติกันเองโดยไม่ต้องตั้งค่ารหัสห้อง
+       อัตโนมัติตอนเปิดครั้งแรก จึงซิงค์บัญชี/สต๊อกกันเองโดยไม่ต้องตั้งค่ารหัสห้อง
        (OVERRIDE_ROOM_KEY ใช้สำหรับนักพัฒนา/เครื่องมือทดสอบเท่านั้น) */
     const DEFAULT_ROOM_KEY = (typeof window !== 'undefined' && window.OVERRIDE_ROOM_KEY) || 'STK-E4YS-6U3X';
     let cloudBusy = false;
@@ -3434,7 +3410,7 @@
                     showLoginView();
                     setLoginMsg('บัญชีที่ใช้อยู่ถูกลบจากเครื่องอื่น จึงออกจากระบบอัตโนมัติ', 'err');
                 } else if (res.changed) {
-                    if (currentUser) { applyRoleUI(); renderTable(); renderLog(); }
+                    if (currentUser) { applyRoleUI(); renderTable(); }
                     else renderRegisteredUsers();
                 }
             }
@@ -3462,7 +3438,7 @@
             setCloudLeftFlag(false);
             renderCloudUI();
             const res = mergeAll(data);
-            if (currentUser) { applyRoleUI(); renderTable(); renderLog(); }
+            if (currentUser) { applyRoleUI(); renderTable(); }
             else {
                 renderRegisteredUsers();
                 const asForm = el('adminSetupForm');
@@ -3591,7 +3567,7 @@
     }
 
     /* ---- ซิงค์ข้อมูลมือถือ-คอมพิวเตอร์ด้วยไฟล์ข้อมูล ----
-       ส่งออก: ไฟล์ JSON รวมทุกอย่าง (บัญชี + สต๊อก + ประวัติ)
+       ส่งออก: ไฟล์ JSON รวมทุกอย่าง (บัญชี + สต๊อก)
        นำเข้า: รวมกับข้อมูลเครื่องนี้โดยยึดรายการที่แก้ล่าสุด (อันใหม่ชนะ)
        ผลคือทุกเครื่องมีข้อมูลตรงกัน ใช้ชื่อ/รหัสผ่านเดิมข้ามเครื่องได้ */
     function pad2(n) { return String(n).padStart(2, '0'); }
@@ -3644,14 +3620,6 @@
         return [...map.values()].sort((a, b) => stampOf(b) - stampOf(a));
     }
 
-    /* รวมประวัติ: ตัดรายการซ้ำด้วยคีย์เนื้อหา เรียงใหม่สุดก่อน (เก็บสูงสุด 300) */
-    function mergeLog(local, inc) {
-        const map = new Map();
-        const key = e => [e.ms, e.user, e.code, e.type, e.qty, e.mode].join('\u0001');
-        (local || []).concat(inc || []).forEach(e => { if (e && e.code) map.set(key(e), e); });
-        return [...map.values()].sort((a, b) => (b.ms || 0) - (a.ms || 0)).slice(0, 300);
-    }
-
     /* ==================================================================
        การรวมข้อมูล (ไฟล์ / รหัสซิงค์ / คลาวด์) - ยึดรายการที่แก้ล่าสุดเสมอ
        การลบส่งผ่านด้วย tombstone: รายการที่ลบไปแล้วจะไม่กลับมาจากเครื่องอื่น
@@ -3689,7 +3657,6 @@
     function mergeAll(data) {
         const beforeUsers = JSON.stringify(loadUsers());
         const beforeInv = JSON.stringify(inventory);
-        const beforeLog = JSON.stringify(scanLog);
         const beforeTombs = JSON.stringify(tombs);
         tombs = mergeTombstones(tombs, data && data.tombstones);
         saveTombs();
@@ -3699,22 +3666,18 @@
         inventory = mergeInventory(inventory, Array.isArray(data && data.inventory) ? data.inventory : [])
             .filter(i => (tombs.items[itemKeyOf(i)] || 0) <= (i.lastUpdateMs || i.id || 0));
         saveToStorage();
-        scanLog = mergeLog(scanLog, Array.isArray(data && data.scanLog) ? data.scanLog : [])
-            .filter(e => !((tombs.logs && tombs.logs[e.ms] || 0) > (e.ms || 0)));
-        saveLogToStorage();
         const removedCurrentUser = !!currentUser && !users.some(u => u.name === currentUser.name);
         const changed = JSON.stringify(users) !== beforeUsers ||
             JSON.stringify(inventory) !== beforeInv ||
-            JSON.stringify(scanLog) !== beforeLog ||
             JSON.stringify(tombs) !== beforeTombs;
-        return { users: users, inventory: inventory, scanLog: scanLog, changed: changed, removedCurrentUser: removedCurrentUser };
+        return { users: users, inventory: inventory, changed: changed, removedCurrentUser: removedCurrentUser };
     }
 
     /* นำข้อมูลที่ได้รับ (จากไฟล์หรือรหัสซิงค์) มารวมกับเครื่องนี้ */
     function applyImportedData(data, fromLogin) {
         const res = mergeAll(data);
         const hasAdmin = res.users.some(u => u.role === 'admin');
-        const msg = 'นำเข้าสำเร็จ: สต๊อก ' + res.inventory.length + ' รายการ | ประวัติ ' + res.scanLog.length + ' รายการ | บัญชี ' + res.users.length + ' บัญชี' +
+        const msg = 'นำเข้าสำเร็จ: สต๊อก ' + res.inventory.length + ' รายการ | บัญชี ' + res.users.length + ' บัญชี' +
             (hasAdmin ? ' | แตะชื่อ admin แล้วใส่รหัสเดิมจากเครื่องเดิมได้เลย' : '');
         if (res.removedCurrentUser) {
             currentUser = null;
@@ -3727,7 +3690,6 @@
         } else {
             applyRoleUI();
             renderTable();
-            renderLog();
             closeSettings();
             showStatus(msg);
         }
