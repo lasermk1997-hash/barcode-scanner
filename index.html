@@ -14,7 +14,9 @@
 - ข้อความที่อ่านได้ตรงกับฉลาก (ตัดตัวอักษรซ่อน FNC1/GS + แก้ encoding ไทย TIS-620)
 - สแกนก่อน แล้วค่อยเลือกรับเข้า/เบิกออกในหน้าต่างหลังสแกน (จำนวน + PLATE/CHANEL + ผู้สแกน)
 - ปุ่มเลือกรูปแบบโค้ด (เฉพาะ Data Matrix / ทุกรูปแบบ) ย้ายไปอยู่ในหน้าต่างหลังสแกนเท่านั้น
-- ประวัติการสแกน: เก็บรายการล่าสุด 500 รายการในเครื่อง + ปุ่ม "ล้างประวัติ" เฉพาะ admin
+- ประวัติการสแกน: เก็บรายการล่าสุด 500 รายการ และซิงค์ขึ้นคลาวด์ทุกเครื่องที่ใช้ห้องเดียวกัน
+  เห็นประวัติชุดเดียวกัน (มือถือ-คอมพิวเตอร์รวมกันเอง กันรายการซ้ำด้วย id)
+  + ปุ่ม "ล้างประวัติ" เฉพาะ admin (ล้างแล้วหายจากทุกเครื่องที่ซิงค์ด้วย)
 - กันสแกนซ้ำ: โค้ดที่เคยบันทึกตามโหมดเดิม ระบบเตือนและไม่บันทึกซ้ำ
 - บัญชีผู้ใช้: ลงทะเบียนครั้งเดียว เครื่องจำไว้ตลอด
   * admin มีได้คนเดียว: พิมพ์ชื่อ "admin" ที่หน้าเข้าสู่ระบบ
@@ -29,13 +31,13 @@
   * พนักงาน: เห็นแค่ธีมพื้นหลัง + เสียง/การสั่นเตือน + ปุ่มปิดการตั้งค่า + ออกจากระบบ เท่านั้น
   * admin: จัดเป็น 3 แท็บ ใช้งานสบายทั้งมือถือและคอมพิวเตอร์
     - แท็บ "หน้าตา": ธีมพาสเทล 6 แบบ (ชมพู/มินต์/ลาเวนเดอร์/ฟ้าอ่อน/ครีม/พีช) + เสียง/การสั่น
-    - แท็บ "ซิงค์ข้อมูล": คลาวด์ร้าน + ส่งออก/นำเข้าไฟล์ .json + รหัสซิงค์
+    - แท็บ "ซิงค์ข้อมูล": คลาวด์ร้าน (บัญชี/สต๊อก/ประวัติการสแกน) + ส่งออก/นำเข้าไฟล์ .json + รหัสซิงค์
     - แท็บ "บัญชี/เครื่องมือ": เปลี่ยนรหัสผ่านของฉัน + จัดการบัญชี + CSV + ล้างข้อมูล
 - คลาวด์ร้าน (ผ่าน textdb.dev ฟรี ไม่ต้องสมัครสมาชิก): สร้าง/เชื่อมต่อ "รหัสห้อง"
   แล้วบัญชี รหัสผ่าน สต๊อก จะถูกจัดเก็บบนคลาวด์
   และซิงค์อัตโนมัติทุกเครื่องที่ใช้รหัสห้องเดียวกัน:
   สมัคร/เปลี่ยนรหัสผ่านที่เครื่องใด เครื่องอื่นเข้าได้ทันที (ไม่ต้องสมัครใหม่)
-  สแกนที่เครื่องใด ตารางทุกเครื่องอัปเดตภายใน ~15 วินาที
+  สแกนที่เครื่องใด ตารางสต๊อกและประวัติการสแกนของทุกเครื่องอัปเดตภายใน ~15 วินาที
   ลบรายการ/บัญชี แล้วจะหายจากทุกเครื่อง (ส่งผ่านด้วย tombstone)
   ออฟไลน์ก็ใช้งานได้ปกติ ข้อมูลเก็บในเครื่องไว้ กลับออนไลน์ค่อยซิงค์เอง
 - ห้องคลาวด์ "ฝังในไฟล์" (STK-E4YS-6U3X): เปิดไฟล์นี้ที่เครื่องใหม่ครั้งแรก
@@ -991,7 +993,7 @@
 
             <!-- แท็บ ซิงค์ข้อมูล (admin) -->
             <div id="stabSync" class="stab admin-only" style="display:none">
-                <div class="modal-label" style="margin-top:4px">☁ คลาวด์ร้าน - ซิงค์อัตโนมัติทุกเครื่อง (จำบัญชี/รหัสผ่าน/สต๊อก)</div>
+                <div class="modal-label" style="margin-top:4px">☁ คลาวด์ร้าน - ซิงค์อัตโนมัติทุกเครื่อง (บัญชี/รหัสผ่าน/สต๊อก/ประวัติการสแกน)</div>
                 <div id="cloudStatus" class="cloud-status" style="display:none"></div>
                 <div class="input-row" style="margin-top:8px">
                     <input type="text" id="cloudRoomInput" placeholder="รหัสห้องคลาวด์" autocomplete="off">
@@ -1005,7 +1007,7 @@
                     <button type="button" id="btnCloudCopyRoom" class="btn btn-ghost">คัดลอกรหัสห้อง</button>
                     <button type="button" id="btnCloudCopyInvite" class="btn btn-primary">คัดลอกลิงก์เชิญ (สำหรับมือถือ)</button>
                 </div>
-                <p class="sync-hint">เมื่อเชื่อมต่อแล้ว บัญชี รหัสผ่าน และสต๊อกจะถูกจัดเก็บบนคลาวด์ เครื่องไหนใช้รหัสห้องเดียวกันข้อมูลจะตรงกันหมด: สมัคร/เปลี่ยนรหัสผ่านที่เครื่องใด เครื่องอื่นเข้าได้ทันที สแกนที่เครื่องใด ตารางทุกเครื่องอัปเดตใน ~15 วิ ลบรายการแล้วหายทุกเครื่อง</p>
+                <p class="sync-hint">เมื่อเชื่อมต่อแล้ว บัญชี รหัสผ่าน สต๊อก และประวัติการสแกนจะถูกจัดเก็บบนคลาวด์ เครื่องไหนใช้รหัสห้องเดียวกันข้อมูลจะตรงกันหมด: สมัคร/เปลี่ยนรหัสผ่านที่เครื่องใด เครื่องอื่นเข้าได้ทันที สแกนที่เครื่องใด ตารางและประวัติการสแกนของทุกเครื่องอัปเดตใน ~15 วิ ลบรายการ/ล้างประวัติแล้วหายทุกเครื่อง (ประวัติเก่าที่เคยสแกนในเครื่องจะถูกรวมกันเองครั้งแรกที่ซิงค์)</p>
                 <p class="sync-hint">วิธีเพิ่มมือถือ/เครื่องใหม่ให้ง่ายที่สุด: กด "คัดลอกลิงก์เชิญ" ส่งลิงก์ไปที่มือถือ (LINE) แล้วเปิดลิงก์นั้น ระบบจะเชื่อมต่อห้องให้เอง บัญชีที่สมัครไว้จะโผล่ที่หน้าเข้าสู่ระบบทันที ใช้รหัสผ่านเดิมได้เลย ไม่ต้องลงทะเบียนใหม่ (รหัสห้องคือกุญแจของร้าน อย่าเปิดเผยให้คนนอกทีม ต้องมีอินเทอร์เน็ต)</p>
 
                 <div class="modal-label">ซิงค์ด้วยไฟล์ / รหัสซิงค์ (สำรอง ไม่ใช้เน็ต)</div>
@@ -1741,6 +1743,7 @@
         setLoginMsg('', '');
         requestPersistentStorage();
         showAppView();
+        renderHistory(); // วาดประวัติล่าสุด (รวมที่ซิงค์มาตอนอยู่หน้าล็อกอิน) ทุกครั้งที่เข้าสู่ระบบ
         showStatus('เข้าสู่ระบบ: ' + user.name);
     }
 
@@ -2869,8 +2872,8 @@
     }
 
     /* ==================================================================
-       ประวัติการสแกน (เก็บในเครื่องนี้ ล่าสุด 500 รายการ)
-       บันทึกทุกครั้งที่รับเข้า/เบิกออกสำเร็จ + ปุ่มล้างประวัติเฉพาะ admin
+       ประวัติการสแกน (เก็บล่าสุด 500 รายการ + ซิงค์ขึ้นคลาวด์ทุกเครื่องที่ใช้ห้องเดียวกัน)
+       บันทึกทุกครั้งที่รับเข้า/เบิกออกสำเร็จ + ปุ่มล้างประวัติเฉพาะ admin (ล้างแล้วหายทุกเครื่อง)
        ================================================================== */
     function saveLogs() {
         try { localStorage.setItem(STORAGE_KEYS.log, JSON.stringify(scanLogs)); } catch (e) {}
@@ -2890,6 +2893,7 @@
         if (scanLogs.length > 500) scanLogs.length = 500;
         saveLogs();
         renderHistory();
+        scheduleCloudPush(); // ดันประวัติใหม่ขึ้นคลาวด์ให้เครื่องอื่น (เด้งรวมเป็นครั้งเดียว)
     }
 
     function renderHistory() {
@@ -2931,10 +2935,15 @@
             clearTimeout(clearHistTimer);
             clearHistConfirming = false;
             if (btn) btn.textContent = 'ล้างประวัติ';
+            // ประทับเวลาล้างไว้ใน tombstone (logsClearedAt) ส่งผ่านคลาวด์
+            // ให้ประวัติที่ล้างไปหายจากทุกเครื่องที่ซิงค์ด้วย ไม่โผล่กลับมาจากเครื่องอื่น
+            tombs.logsClearedAt = Date.now();
+            saveTombs();
             scanLogs = [];
             saveLogs();
             renderHistory();
-            showStatus('ล้างประวัติการสแกนเรียบร้อย');
+            scheduleCloudPush();
+            showStatus('ล้างประวัติการสแกนเรียบร้อย (จะหายจากทุกเครื่องที่ซิงค์ด้วย)');
         }
     }
 
@@ -3197,15 +3206,44 @@
         box.className = 'login-msg ' + (cls || '');
     }
 
-    /* รหัสซิงค์: ข้อความรวมข้อมูลทั้งหมด (บัญชี+สต๊อก) คัดลอก/วางข้ามเครื่องได้ */
+    /* รหัสซิงค์: ข้อความรวมข้อมูลทั้งหมด (บัญชี+สต๊อก+ประวัติการสแกน) คัดลอก/วางข้ามเครื่องได้ */
+    const MAX_LOGS = 500;
+
+    /* บีบประวัติเป็นฟิลด์ชื่อสั้นก่อนส่งขึ้นคลาวด์/ใส่รหัสซิงค์ (ลดขนาดข้อมูลราวครึ่งหนึ่ง)
+       i=id, c=โค้ด, f=รูปแบบ, t=ประเภท, m=เข้า/ออก, q=จำนวน, b=ผู้สแกน, s=เวลา(ข้อความแสดงผล) */
+    function compactLog(l) {
+        return {
+            i: l.id || 0, c: l.code || '', f: l.fmt || '', t: l.type || '',
+            m: l.mode || 'IN', q: l.qty || 1, b: l.by || '-', s: l.time || ''
+        };
+    }
+
+    /* แปลงประวัติที่ได้รับ (รูปแบบย่อ หรือแบบเต็มจากเวอร์ชันอื่น) กลับเป็นรูปแบบมาตรฐานของเครื่อง */
+    function normalizeLog(l) {
+        if (!l || typeof l !== 'object') return null;
+        const id = Number(l.id != null ? l.id : l.i) || 0;
+        if (id <= 0) return null;
+        return {
+            id: id,
+            code: String(l.code != null ? l.code : (l.c || '')),
+            fmt: String(l.fmt != null ? l.fmt : (l.f || '')),
+            type: String(l.type != null ? l.type : (l.t || '')),
+            mode: (l.mode === 'OUT' || l.m === 'OUT') ? 'OUT' : 'IN',
+            qty: Math.max(0, Number(l.qty != null ? l.qty : l.q) || 0),
+            by: String(l.by != null ? l.by : (l.b || '-')),
+            time: String(l.time != null ? l.time : (l.s || ''))
+        };
+    }
+
     function buildSyncPayload() {
         return {
             app: 'stock-scanner',
-            ver: 3,
+            ver: 4,
             exportedAt: Date.now(),
             exportedBy: currentUser ? currentUser.name : '-',
             users: loadUsers(),
             inventory: inventory,
+            logs: scanLogs.slice(0, MAX_LOGS).map(compactLog),
             tombstones: tombs
         };
     }
@@ -3287,7 +3325,7 @@
        คลาวด์ร้าน - ซิงค์อัตโนมัติข้ามเครื่องด้วย "รหัสห้อง"
        - สร้างห้อง = อัปโหลดข้อมูลร้านขึ้นคลาวด์ (textdb.dev ฟรี ไม่ต้องสมัคร)
        - เชื่อมต่อห้อง = ดึงข้อมูลร้านลงเครื่อง แล้วซิงค์กันอัตโนมัติตลอด
-       - สมัครบัญชี/เปลี่ยนรหัสผ่าน/สแกน ที่เครื่องใด เครื่องอื่นได้รับใน ~15 วิ
+       - สมัครบัญชี/เปลี่ยนรหัสผ่าน/สแกน/ประวัติ ที่เครื่องใด เครื่องอื่นได้รับใน ~15 วิ
        - ออฟไลน์: ใช้งานจากข้อมูลในเครื่องได้ปกติ กลับออนไลน์ค่อยซิงค์
        ================================================================== */
     const CLOUD_API = 'https://textdb.dev/api/data/';
@@ -3414,7 +3452,7 @@
                     else renderRegisteredUsers();
                 }
             }
-            const shouldPush = (reason !== 'auto') || cloudDirty || (res && res.changed);
+            const shouldPush = (reason !== 'auto') || cloudDirty || (res && (res.changed || res.pushBack));
             cloudDirty = false;
             if (shouldPush) await cloudPut(key, JSON.stringify(buildSyncPayload()));
             setCloudStatus('ok', 'ซิงค์คลาวด์ล่าสุด: ' + new Date().toLocaleTimeString('th-TH'));
@@ -3567,7 +3605,7 @@
     }
 
     /* ---- ซิงค์ข้อมูลมือถือ-คอมพิวเตอร์ด้วยไฟล์ข้อมูล ----
-       ส่งออก: ไฟล์ JSON รวมทุกอย่าง (บัญชี + สต๊อก)
+       ส่งออก: ไฟล์ JSON รวมทุกอย่าง (บัญชี + สต๊อก + ประวัติการสแกน)
        นำเข้า: รวมกับข้อมูลเครื่องนี้โดยยึดรายการที่แก้ล่าสุด (อันใหม่ชนะ)
        ผลคือทุกเครื่องมีข้อมูลตรงกัน ใช้ชื่อ/รหัสผ่านเดิมข้ามเครื่องได้ */
     function pad2(n) { return String(n).padStart(2, '0'); }
@@ -3641,7 +3679,9 @@
         const out = {
             items: Object.assign({}, (a && a.items) || {}),
             users: Object.assign({}, (a && a.users) || {}),
-            logs: Object.assign({}, (a && a.logs) || {})
+            logs: Object.assign({}, (a && a.logs) || {}),
+            // เวลาที่ admin กดล้างประวัติล่าสุด (ใช้ตัดประวัติเก่าให้ทุกเครื่องเห็นตรงกัน)
+            logsClearedAt: Math.max(Number(a && a.logsClearedAt) || 0, Number(b && b.logsClearedAt) || 0)
         };
         const inc = b || {};
         ['items', 'users', 'logs'].forEach(f => {
@@ -3653,11 +3693,13 @@
         return out;
     }
 
-    /* รวมข้อมูลที่ได้รับเข้ากับเครื่องนี้ คืนผลสรุปว่ามีอะไรเปลี่ยนไป */
+    /* รวมข้อมูลที่ได้รับเข้ากับเครื่องนี้ คืนผลสรุปว่ามีอะไรเปลี่ยนไป
+       รวมประวัติการสแกนด้วย: ตัดซ้ำด้วย id ตัดรายการที่โดนล้างออก แล้วเรียงใหม่สุดก่อน */
     function mergeAll(data) {
         const beforeUsers = JSON.stringify(loadUsers());
         const beforeInv = JSON.stringify(inventory);
         const beforeTombs = JSON.stringify(tombs);
+        const beforeLogs = JSON.stringify(scanLogs);
         tombs = mergeTombstones(tombs, data && data.tombstones);
         saveTombs();
         const users = mergeUsers(loadUsers(), Array.isArray(data && data.users) ? data.users : [])
@@ -3666,18 +3708,45 @@
         inventory = mergeInventory(inventory, Array.isArray(data && data.inventory) ? data.inventory : [])
             .filter(i => (tombs.items[itemKeyOf(i)] || 0) <= (i.lastUpdateMs || i.id || 0));
         saveToStorage();
+
+        /* รวมประวัติการสแกน (สแกนที่เครื่องไหนก็ขึ้นทั้งสองเครื่อง) */
+        const incLogs = (Array.isArray(data && data.logs) ? data.logs : []).map(normalizeLog).filter(Boolean);
+        const localIds = new Set(scanLogs.map(l => String((l && l.id) || '')));
+        let mergedLogs = scanLogs.map(normalizeLog).filter(Boolean);
+        incLogs.forEach(l => { if (!localIds.has(String(l.id))) mergedLogs.push(l); });
+        mergedLogs = mergedLogs
+            .filter(l => (l.id || 0) > (tombs.logsClearedAt || 0) &&
+                         (tombs.logs[String(l.id)] || 0) <= (l.id || 0))
+            .sort((a, b) => (b.id || 0) - (a.id || 0));
+        if (mergedLogs.length > MAX_LOGS) mergedLogs.length = MAX_LOGS;
+        scanLogs = mergedLogs;
+        saveLogs();
+        renderHistory();
+
         const removedCurrentUser = !!currentUser && !users.some(u => u.name === currentUser.name);
         const changed = JSON.stringify(users) !== beforeUsers ||
             JSON.stringify(inventory) !== beforeInv ||
-            JSON.stringify(tombs) !== beforeTombs;
-        return { users: users, inventory: inventory, changed: changed, removedCurrentUser: removedCurrentUser };
+            JSON.stringify(tombs) !== beforeTombs ||
+            JSON.stringify(scanLogs) !== beforeLogs;
+        /* เครื่องนี้มีบัญชี/สต๊อก/ประวัติที่คลาวด์ยังไม่มี -> สั่งดันขึ้นคลาวด์กลับ
+           (กันข้อมูลหายเวลาสองเครื่องสแกนช่วงเดียวกัน) */
+        const remoteUserNames = new Set((Array.isArray(data && data.users) ? data.users : [])
+            .map(u => String((u && u.name) || '').toLowerCase()));
+        const remoteItemKeys = new Set((Array.isArray(data && data.inventory) ? data.inventory : [])
+            .map(itemKeyOf));
+        const incLogIds = new Set(incLogs.map(l => String(l.id)));
+        const pushBack = users.some(u => !remoteUserNames.has(String(u.name).toLowerCase())) ||
+            inventory.some(i => !remoteItemKeys.has(itemKeyOf(i))) ||
+            scanLogs.some(l => !incLogIds.has(String(l.id)));
+        return { users: users, inventory: inventory, logs: scanLogs, changed: changed,
+                 removedCurrentUser: removedCurrentUser, pushBack: pushBack };
     }
 
     /* นำข้อมูลที่ได้รับ (จากไฟล์หรือรหัสซิงค์) มารวมกับเครื่องนี้ */
     function applyImportedData(data, fromLogin) {
         const res = mergeAll(data);
         const hasAdmin = res.users.some(u => u.role === 'admin');
-        const msg = 'นำเข้าสำเร็จ: สต๊อก ' + res.inventory.length + ' รายการ | บัญชี ' + res.users.length + ' บัญชี' +
+        const msg = 'นำเข้าสำเร็จ: สต๊อก ' + res.inventory.length + ' รายการ | บัญชี ' + res.users.length + ' บัญชี | ประวัติการสแกน ' + res.logs.length + ' รายการ' +
             (hasAdmin ? ' | แตะชื่อ admin แล้วใส่รหัสเดิมจากเครื่องเดิมได้เลย' : '');
         if (res.removedCurrentUser) {
             currentUser = null;
