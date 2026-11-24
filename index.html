@@ -65,11 +65,19 @@
     (รอบรวมไฟล์ BOM 2026: scripts/merge_bom2026.py)
 - ไฟล์ Excel (ปุ่ม "โหลดสต๊อก (Excel)") รอบนี้:
   * คอลัมน์ Model ทุกชีต ตัดข้อความหลัง "tyw" ออกทั้งหมด (ADL73261205TYW6OJ0169A01 -> ADL73261205)
+    (รอบถัดมา ระบบเก็บโค้ดฐานหน้า tyw เป็นหลักในรายการสต๊อก จึงตรงกับในไฟล์ Excel)
     ข้อมูลจริงในระบบยังเก็บโค้ดเต็มไว้เหมือนเดิม (ไม่กระทบฐานข้อมูลเดิม)
   * คอลัมน์ "Part No." ยึดจากฐานข้อมูล Model: เฉพาะแถวที่กำกับว่า "Plate , Tube" เท่านั้น
     (แถวอื่นใน BOM เช่น Tube , Hair Pin / Tube , Return Bend / Fin / CHANNEL และโค้ด
     ที่ไม่อยู่ในฐานข้อมูล จะไม่แสดงเลย เว้นช่องนั้นว่างไว้)
+    และตัดรายการที่โดนเบิกออกจนหมด (คงเหลือ 0) ออกจากชีตสต๊อกสินค้า เหลือเฉพาะที่ยังมีอยู่
   * เพิ่มชีต "Part No." รวมฐานข้อมูล part ของทุกโมเดล (Model/ลูกค้า/ชนิด/Part No./จำนวน/รายละเอียด)
+- รอบล่าสุด (การสแกน + หน้าสต๊อก):
+  * สแกนโมเดลที่เคยแสกนเข้ามาแล้ว เช่น เคยสแกน ADL74761264TYW6NC0094A01 แล้วสแกน
+    ADL74761264TYW6NC0095A01 (โมเดลเดียวกัน เปลี่ยนเฉพาะข้อความท้าย tyw) = เพิ่มจำนวน
+    ในแถวเดิม ไม่สร้างแถวใหม่ โดยกันสแกนซ้ำยังทำงาน: ฉลากโค้ดเต็มเดิม (รวมท้าย tyw)
+    สแกนซ้ำทิศทางเดิมจะถูกเตือนว่าโค้ดซ้ำตามเดิม
+  * หน้าสต๊อกแสดงเฉพาะ 10 รายการล่าสุด (เรียงรายการที่ทำล่าสุดไว้บนสุด) พิมพ์ค้นหาเพื่อดูรายการทั้งหมด
 -->
 <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
 <script>window.ZXing || document.write('<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"><\/script>');</script>
@@ -2075,11 +2083,22 @@
         if (card) card.scrollTop = 0;
     }
 
+    /* ตรวจโค้ดซ้ำรายฉลาก: โค้ดเต็มเดิม (รวมข้อความท้าย tyw) ของโมเดลนั้นเคยบันทึกทิศทางนี้ไปแล้วหรือไม่
+       - แถวรูปแบบใหม่: เช็คจากรายการ ins/outs = [{c: โค้ดเต็ม, q: จำนวน}] ที่เคยสแกนของโมเดลนั้น
+       - แถวเก่า (ก่อนอัปเดต ยังไม่มี ins/outs): เช็คแบบเดิมคือโค้ดแถวตรงกับโค้ดที่สแกนพอดี
+       โค้ดของโมเดลเดียวกันที่ต่อท้าย tyw ต่างกัน (เช่น ...0094A01 / ...0095A01) = ฉลากต่างกัน ไม่ถือว่าซ้ำ
+       (จะเพิ่มจำนวนในแถวเดิมแทนการสร้างแถวใหม่) */
     function findDuplicateEntry(code, mode) {
         const c = normalizeCodeText(code);
         if (!c) return null;
-        const hit = inventory.find(i => i.code === c &&
-            (mode === 'OUT' ? (i.outTotal || 0) > 0 : (i.inTotal || 0) > 0));
+        const base = stockBaseOf(c);
+        const hit = inventory.find(i => stockBaseOf(i.code) === base && (
+            mode === 'OUT'
+                ? ((Array.isArray(i.outs) && i.outs.some(e => e && e.c === c)) ||
+                   (!Array.isArray(i.outs) && (i.outTotal || 0) > 0 && String(i.code || '').toUpperCase() === c.toUpperCase()))
+                : ((Array.isArray(i.ins) && i.ins.some(e => e && e.c === c)) ||
+                   (!Array.isArray(i.ins) && (i.inTotal || 0) > 0 && String(i.code || '').toUpperCase() === c.toUpperCase()))
+        ));
         return hit || null;
     }
 
@@ -2972,21 +2991,33 @@
         const fmtTag = fmtName ? ` [${fmtName}]` : '';
         const typeTag = typeLabel(type);
 
-        // แยกบรรทัดสต๊อกตาม Model + ประเภท (plate กับ chanel แยกกัน)
-        let item = inventory.find(i => i.code === code && (i.type || '') === type);
+        /* แยกบรรทัดสต๊อกตามโค้ดฐานของโมเดล (ส่วนหน้า tyw) + ประเภท (plate กับ chanel แยกกัน)
+           สแกนโมเดลที่เคยแสกนเข้ามาแล้ว (โค้ดเดียวกันแต่เปลี่ยนข้อความท้าย tyw เช่น
+           ADL74761264TYW6NC0094A01 -> ADL74761264TYW6NC0095A01) = เพิ่มจำนวนในแถวเดิม ไม่สร้างแถวใหม่ */
+        let item = inventory.find(i => (i.type || '') === type && stockBaseOf(i.code) === stockBaseOf(code));
         const nowStr = new Date().toLocaleString('th-TH');
 
         if (item) {
+            /* ยกแถวเก่าเป็นรูปแบบใหม่: เก็บรายการโค้ดเต็ม+จำนวนที่เคยสแกน (ins/outs ไว้กันสแกนซ้ำรายฉลาก
+               และไว้รวมจำนวนข้ามเครื่องโดยไม่สูญจำนวน) แล้วเปลี่ยนโค้ดที่แสดงเป็นโค้ดฐานของโมเดล */
+            if (!Array.isArray(item.ins)) item.ins = ((Number(item.inTotal) || 0) > 0 && item.code) ? [{c: String(item.code), q: Number(item.inTotal) || 0}] : [];
+            if (!Array.isArray(item.outs)) item.outs = ((Number(item.outTotal) || 0) > 0 && item.code) ? [{c: String(item.code), q: Number(item.outTotal) || 0}] : [];
+            const itemBase = cutTyw(item.code || '');
+            if (item.code !== itemBase) item.code = itemBase;
             if (mode === 'IN') {
                 item.inTotal += qty;
                 item.stock += qty;
-                showStatus(`รับเข้า ${typeTag} "${code}" x${qty} โดย ${who} (เหลือ: ${item.stock})${fmtTag} - พร้อมสแกนคันต่อไป`);
+                if (!item.ins.some(e => e && e.c === code)) item.ins.push({c: code, q: qty});
+                showStatus(`รับเข้า ${typeTag} "${code}" x${qty} โดย ${who} (เพิ่มจำนวนรายการเดิม เหลือ: ${item.stock})${fmtTag} - พร้อมสแกนคันต่อไป`);
             } else {
                 item.outTotal += qty;
                 item.stock -= qty;
                 if (item.stock < 0) item.stock = 0;
+                if (!item.outs.some(e => e && e.c === code)) item.outs.push({c: code, q: qty});
                 showStatus(`เบิกออก ${typeTag} "${code}" x${qty} โดย ${who} (เหลือ: ${item.stock})${fmtTag} - พร้อมสแกนคันต่อไป`, item.stock === 0);
             }
+            if (item.ins.length > 500) item.ins.splice(0, item.ins.length - 500);
+            if (item.outs.length > 500) item.outs.splice(0, item.outs.length - 500);
             item.lastUpdate = nowStr;
             item.lastBy = who;
             item.lastUpdateMs = Date.now(); // ประทับเวลาไว้รวมข้อมูลข้ามเครื่อง (อันใหม่ชนะ)
@@ -2994,17 +3025,19 @@
             const initialStock = mode === 'IN' ? qty : 0;
             inventory.unshift({
                 id: Date.now(),
-                code: code,
+                code: cutTyw(code), // เก็บโค้ดฐานของโมเดล (ตัดข้อความท้าย tyw ออก)
                 type: type,
                 name: '',
                 stock: initialStock,
                 inTotal: mode === 'IN' ? qty : 0,
                 outTotal: mode === 'OUT' ? qty : 0,
+                ins: mode === 'IN' ? [{c: code, q: qty}] : [],   // โค้ดเต็ม+จำนวนที่เคยสแกนรับเข้า (กันซ้ำ + รวมข้ามเครื่อง)
+                outs: mode === 'OUT' ? [{c: code, q: qty}] : [], // โค้ดเต็ม+จำนวนที่เคยสแกนเบิกออก
                 lastUpdate: nowStr,
                 lastBy: who,
                 lastUpdateMs: Date.now()
             });
-            showStatus(`เพิ่มใหม่ ${typeTag} "${code}" x${qty} โดย ${who}${fmtTag} - พร้อมสแกนคันต่อไป`);
+            showStatus(`เพิ่มใหม่ ${typeTag} "${cutTyw(code)}" x${qty} โดย ${who}${fmtTag} - พร้อมสแกนคันต่อไป`);
         }
 
         saveToStorage();
@@ -3099,20 +3132,26 @@
         if (!tbody) return;
 
         const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
-        const filtered = inventory.filter(item =>
+        const matched = inventory.filter(item =>
             (item.code || '').toLowerCase().includes(searchTerm) ||
             (item.type || '').toLowerCase().includes(searchTerm) ||
             (item.name || '').toLowerCase().includes(searchTerm)
         );
-        if (totalCount) totalCount.textContent = String(filtered.length);
+        if (totalCount) totalCount.textContent = String(matched.length);
 
-        if (filtered.length === 0) {
+        /* เรียงรายการที่ทำรายการล่าสุดไว้บนสุด แล้วแสดงเฉพาะ 10 รายการล่าสุดเท่านั้น
+           (พิมพ์ค้นหาเพื่อดูรายการอื่นทั้งหมด) */
+        const sorted = matched.slice().sort((a, b) => (Number(b.lastUpdateMs) || 0) - (Number(a.lastUpdateMs) || 0));
+        const MAX_SHOW = 10;
+        const shown = searchTerm ? sorted : sorted.slice(0, MAX_SHOW);
+
+        if (shown.length === 0) {
             tbody.innerHTML = '<tr><td colspan="8" class="empty-state">ไม่พบสินค้าในสต๊อก</td></tr>';
             return;
         }
 
         const adminActions = isAdmin();
-        tbody.innerHTML = filtered.map(item => {
+        let html = shown.map(item => {
             const typeText = item.type ? typeLabel(item.type) : (item.name ? escapeHtml(item.name) + ' (ข้อมูลเดิม)' : '-');
             const actions = adminActions
                 ? `<div class="row-actions">
@@ -3133,6 +3172,10 @@
                 <td class="action-col">${actions}</td>
             </tr>`;
         }).join('');
+        if (!searchTerm && sorted.length > shown.length) {
+            html += '<tr><td colspan="8" class="empty-state">แสดง ' + shown.length + ' รายการล่าสุด จากทั้งหมด ' + sorted.length + ' รายการ (ค้นหาเพื่อดูรายการอื่น)</td></tr>';
+        }
+        tbody.innerHTML = html;
     }
 
     /* ==================================================================
@@ -3933,16 +3976,57 @@
         return [...map.values()];
     }
 
-    /* รวมสต๊อก: คู่ Model+ประเภทเดียวกัน ยึดรายการที่แก้ล่าสุด */
+    /* รวมสต๊อก: คู่โค้ดฐานของโมเดล(หน้า tyw)+ประเภทเดียวกัน ยึดแถวที่แก้ล่าสุดเป็นตัวหลัก
+       แล้วบวกจำนวนของแถวที่แพ้ “เฉพาะฉลากที่ตัวหลังไม่เคยเห็น” (เห็นจากรายการ ins/outs)
+       เพื่อให้สแกนโมเดลเดียวกันจากสองเครื่องใกล้เคียงกันแล้วรวมกันโดยไม่หาย/ไม่ซ้ำ
+       (แถวเก่าที่ยังไม่มี ins/outs ถือว่ามีฉลากเดียวคือโค้ดของแถวนั้นเอง จำนวนเท่ากับ inTotal/outTotal) */
     function mergeInventory(local, inc) {
-        const map = new Map();
-        const key = i => String(i.code || '') + '\u0001' + (i.type || '');
         const stampOf = i => i.lastUpdateMs || i.id || 0;
+        const pseudoEvents = (row, kind) => {
+            const total = Number(kind === 'in' ? row.inTotal : row.outTotal) || 0;
+            return (total > 0 && row.code) ? [{c: String(row.code), q: total}] : [];
+        };
+        const unionEvents = (a, b) => {
+            const m = new Map();
+            (a || []).concat(b || []).forEach(e => {
+                if (!e || !e.c) return;
+                const k = String(e.c);
+                const q = Number(e.q) || 0;
+                if (!m.has(k) || q > m.get(k)) m.set(k, q);
+            });
+            const out = [...m.keys()].map(k => ({c: k, q: m.get(k)}));
+            if (out.length > 500) out.splice(0, out.length - 500);
+            return out;
+        };
+        const deltaOf = (loserEvents, winnerEvents) => {
+            const known = new Set((winnerEvents || []).map(e => String(e && e.c)));
+            return (loserEvents || []).filter(e => e && e.c && !known.has(String(e.c)))
+                .reduce((s, e) => s + (Number(e.q) || 0), 0);
+        };
+        const mergePair = (w, l) => {
+            const wIn = Array.isArray(w.ins) ? w.ins : pseudoEvents(w, 'in');
+            const wOut = Array.isArray(w.outs) ? w.outs : pseudoEvents(w, 'out');
+            const lIn = Array.isArray(l.ins) ? l.ins : pseudoEvents(l, 'in');
+            const lOut = Array.isArray(l.outs) ? l.outs : pseudoEvents(l, 'out');
+            const dIn = deltaOf(lIn, wIn);
+            const dOut = deltaOf(lOut, wOut);
+            w.inTotal = (Number(w.inTotal) || 0) + dIn;
+            w.outTotal = (Number(w.outTotal) || 0) + dOut;
+            w.stock = Math.max(0, (Number(w.stock) || 0) + dIn - dOut);
+            w.ins = unionEvents(wIn, lIn);
+            w.outs = unionEvents(wOut, lOut);
+            const wb = cutTyw(w.code || '');
+            if (w.code !== wb) w.code = wb;
+            w.lastUpdateMs = Math.max(stampOf(w), stampOf(l));
+        };
+        const map = new Map();
         const put = i => {
             if (!i || !i.code) return;
-            const k = key(i);
+            const k = itemKeyOf(i);
             const cur = map.get(k);
-            if (!cur || stampOf(i) >= stampOf(cur)) map.set(k, i);
+            if (!cur) { map.set(k, i); return; }
+            if (stampOf(i) >= stampOf(cur)) { mergePair(i, cur); map.set(k, i); }
+            else mergePair(cur, i);
         };
         local.forEach(put);
         inc.forEach(put);
@@ -3953,7 +4037,12 @@
        การรวมข้อมูล (ไฟล์ / รหัสซิงค์ / คลาวด์) - ยึดรายการที่แก้ล่าสุดเสมอ
        การลบส่งผ่านด้วย tombstone: รายการที่ลบไปแล้วจะไม่กลับมาจากเครื่องอื่น
        ================================================================== */
-    function itemKeyOf(i) { return String(i.code || '') + '\u0001' + (i.type || ''); }
+    /* โค้ดฐานของโมเดล: ส่วนหน้า "tyw" เป็นตัวยืนยันโมเดลเดียวกัน (ADL74761264TYW6NC0094A01 -> ADL74761264)
+       โค้ดที่สแกนเข้ามาของโมเดลเดียวกัน (ต่อท้าย tyw ต่างกัน) ถือเป็นรายการเดียวกัน = เพิ่มจำนวนในแถวเดิม
+       ใช้ทั้งจับคู่ตอนสแกน คีย์รวมข้อมูลข้ามเครื่อง และคีย์ tombstone ให้ทุกเครื่องเข้าใจตรงกัน */
+    function stockBaseOf(code) { return cutTyw(String(code || '')).toUpperCase(); }
+
+    function itemKeyOf(i) { return stockBaseOf(i && i.code) + '\u0001' + ((i && i.type) || ''); }
 
     function saveTombs() { try { localStorage.setItem(STORAGE_KEYS.tombs, JSON.stringify(tombs)); } catch (e) {} }
 
